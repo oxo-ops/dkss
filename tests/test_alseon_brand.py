@@ -24,5 +24,12 @@ class AlseonBrandTests(unittest.TestCase):
         self.assertIn('body.sidebar-collapsed .alseon-symbol { display: none; }', css)
         self.assertNotIn('.sidebar {', css)
 
+    def test_brand_shrinks_without_clipping_toggle(self):
+        css = (ROOT / 'static/css/alseon_brand.css').read_text()
+        self.assertIn('flex: 0 1 164px;', css)
+        self.assertIn('min-width: 0;', css)
+        self.assertIn('max-width: 100%;', css)
+        self.assertIn('width: 106.756757%;', css)
+
 if __name__ == '__main__':
     unittest.main()

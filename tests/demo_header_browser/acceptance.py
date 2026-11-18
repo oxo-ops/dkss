@@ -8,7 +8,7 @@ import sys
 from urllib.parse import urlsplit
 
 ORIGIN = 'http://127.0.0.1:8765'
-WIDTHS = (320, 390, 768, 900, 901, 1024, 1316)
+WIDTHS = (320, 390, 768, 900, 901, 1024, 1165, 1200, 1280, 1316)
 PAGES = ('/', '/vehicle/checklists', '/safety/driving-reports')
 
 def require(value, message):
@@ -102,7 +102,7 @@ def notice_text_visibility(page):
     page.evaluate('window.scrollTo(0,0)')
     return dict(full_text_matched=True,line_count=count,lines=lines)
 
-def brand_roundtrip(page, width, out, role):
+def brand_roundtrip(page, width, out, role, scene=0):
     """Verify real sidebar controls and alpha PNG loads on the rendered Flask page."""
     guide = page.locator('#firstGuidePanel')
     if guide.is_visible():
@@ -127,11 +127,12 @@ def brand_roundtrip(page, width, out, role):
         logo = page.locator('.alseon-logo')
         require(logo.get_attribute('aria-label') == 'ALSEON ホーム', 'brand accessible name')
         require(logo.locator('img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth>0)'), 'logo asset failed to load')
-        geometry = logo.evaluate('''e=>{const r=e.getBoundingClientRect(),t=document.querySelector('#sidebarToggle').getBoundingClientRect();
-          return {width:r.width,height:r.height,inside:r.left>=0&&r.right<=innerWidth,
+        geometry = logo.evaluate('''e=>{const r=e.getBoundingClientRect(),t=document.querySelector('#sidebarToggle').getBoundingClientRect(),s=e.closest('.sidebar').getBoundingClientRect();
+          const contained=q=>q.left>=s.left-1&&q.right<=s.right+1&&q.top>=s.top-1&&q.bottom<=s.bottom+1;
+          return {width:r.width,height:r.height,sidebarContainsLogo:contained(r),sidebarContainsToggle:contained(t),inside:r.left>=0&&r.right<=innerWidth,
             overlap:r.left<t.right&&r.right>t.left&&r.top<t.bottom&&r.bottom>t.top}}''')
-        require(geometry['inside'] and not geometry['overlap'], f'brand clips/overlaps toggle: {geometry}')
-        page.screenshot(path=str(out / f'brand-{role}-{width}-{state}.png'), full_page=False)
+        require(geometry['inside'] and geometry['sidebarContainsLogo'] and geometry['sidebarContainsToggle'] and not geometry['overlap'], f'brand clips/overlaps toggle: {geometry}')
+        page.screenshot(path=str(out / f'brand-{role}-{width}-{scene}-{state}.png'), full_page=False)
         checks.append(dict(state=state, **geometry))
     toggle.click()  # restore closed mobile drawer / expanded desktop
     return checks
@@ -255,8 +256,7 @@ def main():
                                 require(not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),'selected horizontal overflow')
                                 bell_roundtrip(page)
                                 page.screenshot(path=str(out/f'{role}-{width}-{n}-selected.png'),full_page=False)
-                                if n == 0:
-                                    report['cases'].append(dict(role=role,width=width,brand=brand_roundtrip(page,width,out,role)))
+                                report['cases'].append(dict(role=role,width=width,path=path,brand=brand_roundtrip(page,width,out,role,n)))
                             page.goto(ORIGIN+'/demo',wait_until='networkidle')
                             require(page.locator('.public-demo-notice form[action="/demo/role"]').count()==1,'reentry must restore role selection')
                             require(page.get_by_text('日常点検を開く',exact=True).is_visible(),'initial independent inspection action missing')

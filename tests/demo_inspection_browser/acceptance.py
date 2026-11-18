@@ -16,6 +16,7 @@ if not a.preflight_only:
  assert not subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=all'],text=True).strip()
 sys.path[:0]=[str(repo),str(repo/'tests')]
 from test_demo_inspection_compact import CompactDemoTests
+from demo_header_browser.acceptance import brand_roundtrip
 case=CompactDemoTests();case.setUpClass()
 report={'head':a.expected_sha,'fixture_only':True,'live_access':False,'browser_started':False,'transport':'loopback-only HTTP; native redirects; synthetic Flask client session','cases':[],'blocked':[]}
 ORIGIN='https://fixture.invalid'
@@ -75,7 +76,7 @@ try:
    browser=pw.chromium.launch(executable_path=a.chromium,headless=True)
    report['browser_started']=True
    try:
-    for width in (320,390,768,1316):
+    for width in (320,390,768,1165,1316):
      for role in ('driver','manager'):
       target=setup();before=snapshot();ctx=browser.new_context(viewport={'width':width,'height':800},service_workers='block');requests=[];post_count=[0];errors=[]
       # Use a bound loopback server so Chromium follows real HTTP 302s.
@@ -140,6 +141,7 @@ try:
        page.screenshot(path=str(out/f'{width}-{role}-home.png'),full_page=True)
        page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
+       record['brand']=brand_roundtrip(page,width,out,role,'inspection')
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
        assert table.is_visible();assert 'エンジンのかかり具合、異音' in table.inner_text()
