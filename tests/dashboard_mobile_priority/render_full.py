@@ -37,7 +37,7 @@ class FullHome(DemoWorkflowTests):
   items=[dict(item_type='check',input_type='select',category='安全分野',content=c,choices=['○','△','×']) for c in ['歩行経路を確認','整理整頓を確認','保護具を確認']]
   checklist=m.Checklist(company_code='A',name='営業所安全確認',target='安全管理',items_json=json.dumps(items,ensure_ascii=False),frequency_unit='month');self.db.session.add(checklist);self.db.session.flush()
   for username in ('admin','checker'):
-   self.db.session.add(m.ChecklistResult(company_code='A',checklist_id=checklist.id,target_office='test',target_type='user',target_username=username,target_identity=identity_for('A',username,app=self.app),checked_date=today,answers_json=json.dumps([{'value':'×'},{'value':'△'},{'value':'×'}]),checklist_snapshot_json=json.dumps({'items':items},ensure_ascii=False)))
+   self.db.session.add(m.ChecklistResult(company_code='A',checklist_id=checklist.id,target_office='test',target_type='user',target_username=username,target_identity=m.User.query.filter_by(company_code='A',username=username).one().account_identity,checked_date=today,answers_json=json.dumps([{'value':'×'},{'value':'△'},{'value':'×'}]),checklist_snapshot_json=json.dumps({'items':items},ensure_ascii=False)))
   self.db.session.commit();rows=[]
   for shared in (False,True):
    self.app.config['PUBLIC_DEMO_SHARED_COMPANY']=shared;self.demo_active=shared
