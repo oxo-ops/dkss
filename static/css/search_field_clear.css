@@ -1,8 +1,20 @@
-:is(.driver-master-filter-form,.vehicle-master-filter-form) .query-clear-field{display:flex;align-items:center;gap:4px;width:100%;min-width:0}
-:is(.driver-master-filter-form,.vehicle-master-filter-form) .query-clear-field>input{flex:1;min-width:0;width:0}
-:is(.driver-master-filter-form,.vehicle-master-filter-form) .query-clear-button{flex:0 0 44px;width:44px;min-width:44px;min-height:44px;padding:0;border:1px solid #bfd1e6;border-radius:50%;background:#fff;color:#245c9a;font-size:20px;line-height:1;cursor:pointer}
-:is(.driver-master-filter-form,.vehicle-master-filter-form) .query-clear-button[hidden]{display:none!important}
-:is(.driver-master-filter-form,.vehicle-master-filter-form) .query-clear-button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+:is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) .query-clear-field{display:flex;align-items:center;gap:4px;width:100%;min-width:0}
+:is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) .query-clear-field>input{flex:1;min-width:0;width:0}
+:is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) .query-clear-button{flex:0 0 44px;width:44px;min-width:44px;min-height:44px;padding:0;border:1px solid #bfd1e6;border-radius:50%;background:#fff;color:#245c9a;font-size:20px;line-height:1;cursor:pointer}
+:is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) .query-clear-button[hidden]{display:none!important}
+:is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) .query-clear-button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 
 /* Existing desktop master button rules must not shrink the clear touch target. */
-body .main-content :is(.driver-master-filter-form,.vehicle-master-filter-form) button.query-clear-button{box-sizing:border-box;flex:0 0 44px!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important}
+body .main-content :is(.driver-master-filter-form,.vehicle-master-filter-form,.pointouts-filter-form,.patrol-search-box,.checklist-master-filter-form) button.query-clear-button{box-sizing:border-box;flex:0 0 44px!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important}
+
+/* The patrol query is a direct flex item, unlike labelled filter fields. */
+.patrol-search-box>.query-clear-field{flex:1 1 240px;width:auto;max-width:100%}
+
+/* Keep wrapped query and status usable instead of shrinking the text field. */
+body .main-content form.patrol-search-box{display:grid;grid-template-columns:minmax(180px,1fr) minmax(140px,260px) auto;gap:12px;max-width:100%;box-sizing:border-box}
+body .main-content .patrol-search-box>.query-clear-field{width:100%;min-width:0;max-width:100%}
+body .main-content .patrol-search-box>select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+@media(max-width:768px){
+body .main-content form.patrol-search-box{grid-template-columns:minmax(0,1fr) auto}
+body .main-content .patrol-search-box>.query-clear-field{grid-column:1/-1}
+}
