@@ -258,7 +258,56 @@ def register_reflections(app, db, prepare, history):
         cache_key=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()
         return cache_key,document
 
-    def view(rows,previous,filters,board,facts):
+    def saved_demo_view(filters, board):
+        # A fallback is a separately labelled old period, never today's analysis.
+        # Recompute the full existing identity/evidence key; timestamp alone grants nothing.
+        from dkss_app.public_demo import is_demo
+        from driving_report_insights import periods
+        if (not is_demo() or app.config.get('PUBLIC_DEMO_SHARED_COMPANY') is not True
+                or session.get('company_code') != app.config.get('PUBLIC_DEMO_COMPANY')
+                or filters.get('scope') != 'office' or not filters.get('office')
+                or filters.get('period') != 'month'
+                or filters.get('breakdown') not in (None, '', 'people', 'offices')
+                or board.get('selected_driver')
+                or board.get('personal_view')):
+            return None
+        # Only the unfiltered office monthly overview. Never broaden a person's/filter's view.
+        presentation={'page', 'listing', 'breakdown'}
+        base={'scope','office','period','start','end','category'}
+        defaults={'compare':'previous'}
+        if any(v not in ('', None) and k not in base|presentation
+               and v != defaults.get(k) for k,v in filters.items()):
+            return None
+        today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
+        candidates=DrivingReportReflection.query.with_entities(DrivingReportReflection.updated_at).filter_by(
+            company_code=session['company_code'],status='completed').order_by(
+            DrivingReportReflection.updated_at.desc()).limit(8).all()
+        days=[]
+        for row in candidates:
+            try:day=datetime.fromisoformat(row[0]).astimezone(ZoneInfo('Asia/Tokyo')).date()
+            except (TypeError,ValueError):continue
+            if day not in days and day.year==today.year and day.month==today.month and 0 < (today-day).days <= 7:
+                days.append(day)
+        # Bounded reads; changing source records/account/role/scope still fails the exact key.
+        for day in days[:2]:
+            args={k:v for k,v in filters.items() if k in base}
+            old_period=periods({'period':'month'},day)
+            rows,previous,_,_,old_filters,old_board,facts=prepare(args,scope_override=old_period)
+            old=view(rows,previous,old_filters,old_board,facts,_allow_snapshot=False)
+            if old['status']=='completed':
+                old['period_label']=old_period['start'].replace('-','/')+'〜'+old_period['end'].replace('-','/')+'の分析'
+                # Navigation must open that actual period, not recalculate month through today.
+                by_id={e['id']:e for e in context(rows,previous,old_filters,old_board,facts)[1]['evidence']}
+                links_filters=dict(old_filters,period='custom',compare='custom',
+                    compare_start=old_period['previous_start'],compare_end=old_period['previous_end'])
+                for item in old['items']:
+                    evidence=by_id.get(item.get('id'))
+                    if evidence:
+                        item['links'],item['report_links']=navigation(evidence,links_filters,old_board,rows+previous,True)
+                return old
+        return None
+
+    def view(rows,previous,filters,board,facts,_allow_snapshot=True):
         key,document=context(rows,previous,filters,board,facts)
         state={'status':'unavailable' if not ready() else 'empty' if not document['evidence'] else 'new',
                'items':[], 'key':key, 'generated_at':'', 'generated_label':'',
@@ -283,6 +332,11 @@ def register_reflections(app, db, prepare, history):
         elif state['status']=='new' and state['configured']:
             state['auto_refresh']=DrivingReportReflection.query.filter_by(company_code=session['company_code'],status='completed').filter(
                 DrivingReportReflection.result_json.contains(document['refresh_scope'])).first() is not None
+        if _allow_snapshot and state['status']=='new' and request.method=='GET':
+            snapshot=saved_demo_view(filters,board)
+            if snapshot:
+                state['snapshot']=snapshot
+                state['auto_refresh']=False
         return state
 
     def work(company,key,document):
