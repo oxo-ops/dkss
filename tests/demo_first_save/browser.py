@@ -47,7 +47,8 @@ try:
      page.locator('.inspection-item-detail').first.click()
      modal=page.locator('#detailModal');assert modal.is_visible()
      modal.locator('#detailCommentEditor').fill('synthetic unsaved draft')
-     modal.locator('input[type=file][multiple]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':PNG})
+     file_input=modal.locator('input[type=file][multiple]').element_handle()
+     file_input.set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':PNG})
      first=case.client.post(case.url+'/save-one',data={**case.params,'item_no':'0','value':'×','csrf_token':csrf},headers={'X-DKSS-Validation-Only':'1','X-DKSS-Demo-Snapshot':token});assert first.json['saved'] is True
      before=case.models.VehicleChecklistResult.query.one().answers_json
      before_url=page.url
@@ -58,7 +59,8 @@ try:
      assert page.url==before_url, (before_url,page.url)
      assert page.evaluate('window.__syntheticDocumentId')==document_id
      assert modal.locator('#detailCommentEditor').inner_text()=='synthetic unsaved draft'
-     assert modal.locator('input[type=file][multiple]').evaluate('(el)=>el.files.length')==1
+     assert file_input.evaluate('(el)=>el.isConnected && el.files.length===1 && el.files[0].name==="synthetic.png"')
+     assert file_input.evaluate('async(el)=>Array.from(new Uint8Array(await el.files[0].arrayBuffer()))')==list(PNG)
      link=notice.get_by_role('link');assert link.get_attribute('target')=='_blank' and link.get_attribute('rel')=='noopener'
      modal.get_by_role('button',name='保存',exact=True).click();page.wait_for_timeout(100);assert len(posts)==1
      assert case.models.VehicleChecklistResult.query.one().answers_json==before and not blocked
