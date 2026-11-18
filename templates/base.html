@@ -56,6 +56,8 @@
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261119-sidebar-submenu-center-1') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_mobile_header_search.css', v='20261119-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-1') }}">
 </head>
 <body
     data-public-demo="{{ 'true' if session.get('aonagi_readonly_demo') else 'false' }}"
@@ -185,6 +187,7 @@
                 <span class="menu-text">設定</span>
             </a>
 
+            {% if not (session.get('aonagi_readonly_demo') and public_demo_shared|default(false)) %}
             <form method="post" action="/logout">
                 <input
                     type="hidden"
@@ -205,6 +208,7 @@
                     <span class="menu-text">ログアウト</span>
                 </button>
             </form>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -243,13 +247,7 @@
                     aria-controls="notificationPopover"
                     aria-expanded="false"
                 >
-                    <img
-                        src="{{ url_for('static', filename='icons/notification-display-76.png') }}"
-                        srcset="{{ url_for('static', filename='icons/notification-display-76.png') }} 76w, {{ url_for('static', filename='icons/notification-display-152.png') }} 152w, {{ url_for('static', filename='icons/notification-display-304.png') }} 304w"
-                        sizes="38px"
-                        width="38" height="38"
-                        alt=""
-                    >
+                    {% include 'partials/notification_bell_image.html' %}
 
                     {% if unread_notification_count > 0 %}
                         <span class="notification-count">
@@ -372,6 +370,15 @@
 {% if session.get("aonagi_readonly_demo") and not (public_demo_shared|default(false) and session.get("demo_role_selected")) %}
 <div role="note" class="alert public-demo-notice">
 {% if public_demo_workflow|default(false) %}
+{% if public_demo_shared|default(false) %}
+<form action="/demo/role" method="post" class="public-demo-purpose-actions">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="demo_entry" value="purpose">
+{% if request.endpoint in ('vehicle_checklist_results', 'vehicle_inspection_plans') %}<input type="hidden" name="checklist_return" value="{{ request.full_path.rstrip('?') }}">{% endif %}
+<button type="submit" class="btn" name="role" value="driver" data-demo-purpose="inspection">点検する</button>
+<button type="submit" class="btn" name="role" value="manager" data-demo-purpose="management">結果・管理を見る</button>
+</form>
+{% else %}
 入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。
 {% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
 <a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
@@ -381,6 +388,7 @@
 <button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者</button>
 </form>
 {% for notice in public_demo_notices %}<a href="/notifications/{{ notice.id }}/open">{{ notice.title }}</a>{% endfor %}
+{% endif %}
 {% else %}青凪ロジスティクスの実画面を閲覧しています。体験版では登録・変更・通知送信は行えません。{% endif %}
 
 </div>{% endif %}
@@ -523,6 +531,6 @@
 {% if session.get('aonagi_readonly_demo') and public_demo_shared|default(false) and request.endpoint in ['dashboard', 'vehicle_checklist_results'] %}
 <script defer src="{{ url_for('static', filename='js/public_demo_share.js', v='20261117-1') }}"></script>
 {% endif %}
+<script defer src="{{ url_for('static', filename='js/karte_mobile_header_search.js', v='20261119-1') }}"></script>
 </body>
 </html>
-

@@ -69,44 +69,19 @@ def bell_roundtrip(page):
     require(page.locator('#notificationBell').get_attribute('aria-expanded')=='false','bell did not close')
 
 def notice_text_visibility(page):
-    """Read every rendered line of the exact direct banner text, not its controls."""
-    expected = '入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。'
-    notice = page.locator('.public-demo-notice')
-    locate = """(e, expected) => {
-      const matches=Array.from(e.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim()===expected);
-      if(matches.length!==1)throw new Error('exact full notice text missing/duplicated');
-      const n=matches[0],start=n.textContent.indexOf(expected),r=document.createRange();
-      r.setStart(n,start);r.setEnd(n,start+expected.length);return r;
-    }"""
-    # Report each line individually: a tall banner need not fit in one viewport,
-    # but all of its text must be reachable without horizontal scrolling.
-    count = notice.evaluate('(e,x)=>{const r=('+locate+')(e,x);return r.getClientRects().length}',expected)
-    require(count > 0, 'notice has no rendered text lines')
-    lines=[]
-    for index in range(count):
-        notice.evaluate('''(e,a)=>{
-          const r=('''+locate+''')(e,a.expected).getClientRects()[a.index];
-          window.scrollBy({top:r.top+r.height/2-innerHeight/2,behavior:'instant'});
-        }''',dict(expected=expected,index=index))
-        state=notice.evaluate('''(e,a)=>{
-          const range=('''+locate+''')(e,a.expected),r=range.getClientRects()[a.index];
-          const clipping=[];let visible=true;
-          for(let p=e;p;p=p.parentElement){const s=getComputedStyle(p),b=p.getBoundingClientRect();
-            if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)===0)visible=false;
-            if(p!==document.body&&p!==document.documentElement){
-              const x=['hidden','clip','auto','scroll'].includes(s.overflowX),y=['hidden','clip','auto','scroll'].includes(s.overflowY);
-              if((x&&(r.left<b.left-1||r.right>b.right+1))||(y&&(r.top<b.top-1||r.bottom>b.bottom+1)))clipping.push(p.tagName);
-            }}
-          const points=[r.left+Math.min(2,r.width/4),r.left+r.width/2,r.right-Math.min(2,r.width/4)];
-          return {index:a.index,rect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom},visible,clipping,
-            inside:r.width>0&&r.height>0&&r.left>=-1&&r.right<=innerWidth+1&&r.top>=-1&&r.bottom<=innerHeight+1,
-            unobscured:points.every(x=>document.elementFromPoint(x,r.top+r.height/2)===e),
-            noHorizontalScroll:e.scrollWidth<=e.clientWidth+1};
-        }''',dict(expected=expected,index=index))
-        require(state['visible'] and state['inside'] and state['unobscured'] and state['noHorizontalScroll'] and not state['clipping'],f'notice text clipped/obscured: {state}')
-        lines.append(state)
+    """Both purpose controls must remain visible, unclipped and operable."""
+    notice=page.locator('.public-demo-notice')
+    require('入力・変更は他の利用者' not in notice.inner_text(),'obsolete long notice returned')
+    controls=[]
+    for label in ('点検する','結果・管理を見る'):
+        control=notice.get_by_role('button',name=label,exact=True)
+        control.scroll_into_view_if_needed()
+        state=control.evaluate("""e=>{const r=e.getBoundingClientRect();return {width:r.width,height:r.height,inside:r.left>=-1&&r.right<=innerWidth+1,hit:e.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2))}}""")
+        require(state['inside'] and state['hit'] and state['height']>=44,f'purpose control clipped: {state}')
+        controls.append(state)
     page.evaluate('window.scrollTo(0,0)')
-    return dict(full_text_matched=True,line_count=count,lines=lines)
+    return dict(purpose_controls=controls)
+
 
 def brand_roundtrip(page, width, out, role, scene=0):
     """Verify real sidebar controls and alpha PNG loads on the rendered Flask page."""
@@ -244,7 +219,7 @@ def main():
                                 notice_geometry = notice_text_visibility(page)
                                 if width <= 900:
                                     require(not page.locator('body').evaluate("e=>e.classList.contains('sidebar-open')"), 'drawer should start closed')
-                                for label in ('日常点検を開く', '運転者', '管理者'):
+                                for label in ('点検する', '結果・管理を見る'):
                                     control = page.get_by_text(label, exact=True)
                                     click_target(page,control,label)
                                     require(not page.locator('#notificationBell').get_attribute('aria-expanded') == 'true', 'demo click opened notification bell')
@@ -255,7 +230,7 @@ def main():
                                 header = page.locator('main > .top-bar')
                                 position = header.evaluate('e=>getComputedStyle(e).position')
                                 require(position == ('sticky' if width <= 900 else 'relative'), f'wrong header positioning {width}: {position}')
-                                click_target(page,page.get_by_text('日常点検を開く',exact=True),'日常点検を開く')
+                                click_target(page,page.get_by_text('点検する',exact=True),'点検する')
                                 page.screenshot(path=str(out / f'{role}-{width}-{n}.png'), full_page=False)
                                 report['cases'].append(dict(role=role,width=width,path=path,position=position,notice=notice_geometry))
                             # Real synthetic Flask POST, not a DOM-only hide. Keep browser bridge GET-only.
@@ -274,7 +249,7 @@ def main():
                                 report['cases'].append(dict(role=role,width=width,path=path,brand=brand_roundtrip(page,width,out,role,n)))
                             page.goto(ORIGIN+'/demo',wait_until='networkidle')
                             require(page.locator('.public-demo-notice form[action="/demo/role"]').count()==1,'reentry must restore role selection')
-                            require(page.get_by_text('日常点検を開く',exact=True).is_visible(),'initial independent inspection action missing')
+                            require(page.get_by_text('点検する',exact=True).is_visible(),'initial independent inspection action missing')
                             require(page.locator('.public-demo-notice form[action="/logout"]').count()==0,'exit must remain absent')
                             report['cases'].append(dict(role=role,width=width,role_selected_hidden=True,reentry_restored=True))
                         finally:

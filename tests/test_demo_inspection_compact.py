@@ -36,7 +36,8 @@ class CompactDemoTests(Base):
  def test_point_to_existing_vehicle_and_selected_form(self):
   token,text=self.enter();checklist=self.app.config['PUBLIC_DEMO_CHECKLIST_ID']
   target=f'/vehicle/checklists/{checklist}?vehicle_record_id={self.vehicle_id}'
-  self.assertIn(target,text)
+  self.assertIn('data-demo-purpose="inspection"',text)
+  self.assertEqual(self.client.post('/demo/role',data={'role':'driver','csrf_token':token,'demo_entry':'purpose'}).location,target)
   page=self.client.get(target);self.assertEqual(page.status_code,200)
   text=page.get_data(as_text=True)
   self.assertIn('id="vehicle_workspace_date"',text);self.assertIn('エンジンのかかり具合、異音',text)

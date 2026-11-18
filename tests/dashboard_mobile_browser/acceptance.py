@@ -48,7 +48,7 @@ try:
   assert html.count('class="dashboard-safety-content"')==4
   assert 'dashboard_mobile_refinement.css?v=20261117-home-succinct-1' in html
   assert '架空部品5' in html
-  assert '個人情報や実際の業務資料は入力しないでください' in html
+  assert 'data-demo-purpose="inspection"' in html and 'data-demo-purpose="management"' in html
  if args.preflight_only:
   report['preflight_passed']=True
   sys.exit(0)
@@ -80,7 +80,7 @@ try:
      page.evaluate("""()=>{const values=Array.from(document.querySelectorAll('.public-demo-notice,.public-demo-notice *,.dashboard-page,.dashboard-page *')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)*2]);for(const [e,size] of values)e.style.setProperty('font-size',size+'px','important')}""")
     assert page.locator('.public-demo-notice form[action="/logout"]').count()==0
     notice_text_visibility(page)
-    for label in ['日常点検を開く','運転者','管理者']:
+    for label in ['点検する','結果・管理を見る']:
      control=page.get_by_text(label,exact=True)
      click_target(page,control,label)
      control.focus();page.keyboard.press('Tab')
@@ -118,9 +118,19 @@ try:
     assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview > li').all():
-     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state','.dashboard-video-vehicle']:
+     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state']:
       assert row.locator(selector).is_visible(),f'hidden proposal title/action/vehicle: {selector}'
       assert row.locator(selector).inner_text().strip()
+     vehicle_label=row.locator('.dashboard-video-vehicle')
+     assert vehicle_label.inner_text().strip()
+     shared=row.locator('xpath=..').evaluate("e=>e.classList.contains('dashboard-proposals-shared-vehicle')")
+     if width<=600 and shared:
+      heading=row.locator('xpath=../preceding-sibling::p[1]')
+      assert heading.is_visible() and heading.inner_text().strip()==vehicle_label.inner_text().strip(), 'shared vehicle heading lost'
+      assert not vehicle_label.is_visible(), 'duplicate mobile vehicle label'
+      assert vehicle_label.inner_text().strip() in row.locator('a.dashboard-video-proposal').get_attribute('aria-label')
+     else:
+      assert vehicle_label.is_visible(), 'individual vehicle label lost'
      assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
     # Latest home request: readable inset, one status/arrow line, unchanged anchor.
@@ -155,13 +165,14 @@ try:
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
     if width<=600:assert measure['direction']=='row',measure
     for card in page.locator('.dashboard-safety-content').all():
-     if not card.is_visible():continue
+     row=card.locator('xpath=..')
+     if not row.is_visible():continue
      context=card.locator(':scope > p');office=card.locator(':scope > small')
      assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
      assert '11/19' in context.inner_text() and '2026-11-19' not in context.inner_text()
      assert card.locator('time').get_attribute('datetime')=='2026-11-19'
      assert card.locator('time').get_attribute('title')=='2026-11-19'
-     due=card.locator('time');dr=due.bounding_box();bounds=card.bounding_box()
+     due=card.locator('time');dr=due.bounding_box();bounds=row.bounding_box()
      assert dr['x']>=bounds['x']-1 and dr['x']+dr['width']<=bounds['x']+bounds['width']+1,('deadline clipped',dr,bounds)
      assert '写真と対策内容を確認' in context.inner_text()
      assert '架空構内' in office.inner_text()
@@ -206,3 +217,4 @@ try:
  report['passed']=True
 finally:
  (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));case.doCleanups();case.tearDown();case.tearDownClass()
+

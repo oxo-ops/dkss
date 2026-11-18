@@ -95,14 +95,14 @@ try:
           length=int(self.headers.get('Content-Length','0'));assert 0<length<8192
           assert self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded')
           data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
-          assert path=='/demo/role' and set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
+          assert path=='/demo/role' and set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
           post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
-          assert res.status_code==302 and res.location=='/'
+          assert res.status_code==302 and (res.location=='/' if role=='manager' else urlsplit(res.location).path==urlsplit(target).path)
          elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
           if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')
-         if 300<=res.status_code<400:assert res.status_code==302 and res.location=='/'
+         if 300<=res.status_code<400:assert res.status_code==302 and (res.location=='/' or (path=='/demo/role' and role=='driver' and urlsplit(res.location).path==urlsplit(target).path))
          requests.append({'method':method,'path':path,'status':res.status_code})
          self.send_response(res.status_code)
          for k,v in res.headers.items():
@@ -123,13 +123,15 @@ try:
       record={'width':width,'role':role,'status':'running'};report['cases'].append(record)
       try:
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
-       entry_url=urlsplit(page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')); expected_entry=urlsplit(target)
-       assert entry_url.path==expected_entry.path and parse_qs(entry_url.query)=={**parse_qs(expected_entry.query),'__aonagi_entry':['1']}
+       assert page.get_by_role('button',name='点検する',exact=True).is_visible()
+       assert page.get_by_role('button',name='結果・管理を見る',exact=True).is_visible()
        page.screenshot(path=str(out/f'{width}-{role}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
-       page.wait_for_url(lambda u:urlsplit(u).path=='/' and parse_qs(urlsplit(u).query)=={'__aonagi_entry':['1']});page.wait_for_load_state('networkidle')
+       page.locator('.public-demo-notice').wait_for(state='detached')
+       page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
+       page.goto(origin+'/',wait_until='networkidle')
        toolbar=page.locator('.top-bar');help_button=toolbar.locator('[data-guide-open]');user=toolbar.locator('.top-bar-user')
        assert help_button.is_visible() and user.is_visible()
        hb=help_button.bounding_box();ub=user.bounding_box()
@@ -142,6 +144,36 @@ try:
        page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        record['brand']=brand_roundtrip(page,width,out,role,'inspection')
+       top=page.locator('.vehicle-workspace-top');assert top.count()==1
+       date=page.locator('#vehicle_workspace_date');saved_date=date.input_value()
+       datebox=date.bounding_box();assert datebox['height']>=44
+       details=page.locator('#vehicle-target-settings');summary=details.locator('summary')
+       if summary.is_visible():
+        sb=summary.bounding_box();assert sb['height']>=44
+        summary.click();assert details.get_attribute('open') is not None
+        assert page.locator('#vehicle_check_filter').is_visible()
+        summary.click();assert details.get_attribute('open') is None
+        assert date.input_value()==saved_date
+       if width<=600:
+        metrics=top.evaluate("""el=>({width:el.clientWidth,scroll:el.scrollWidth,controls:[...el.querySelectorAll('.header-actions > .btn,.vehicle-workspace-date,details > summary')].filter(x=>x.getBoundingClientRect().height).map(x=>{const r=x.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}})})""")
+        assert metrics['scroll']<=metrics['width']+1,metrics
+        assert all(x['x']>=0 and x['x']+x['w']<=width+1 for x in metrics['controls']),metrics
+        assert len(set(round(x['y']) for x in metrics['controls']))<=2,metrics
+        record['compact_toolbar']=metrics
+       page.screenshot(path=str(out/f'{width}-{role}-compact-toolbar.png'),full_page=True)
+       # Layout-only stress: long vehicle name and the conditional export control;
+       # no request or permission behavior is mocked or exercised here.
+       original_heading=top.locator('.vehicle-workspace-subtitle > strong').inner_text()
+       top.locator('.vehicle-workspace-subtitle > strong').evaluate("el=>el.textContent='品川 100 か 101／長い車両表示名・大型トラクター（業務用）'")
+       page.evaluate("""()=>{const host=document.querySelector('.vehicle-workspace-top .header-actions');if(!host.querySelector('a[href$="/excel"]')){const a=document.createElement('a');a.className='btn';a.textContent='Excel出力';a.dataset.layoutOnly='1';host.append(a)}}""")
+       if width<=600:
+        stress=top.evaluate("""el=>({width:el.clientWidth,scroll:el.scrollWidth,rows:[...el.querySelectorAll('.header-actions>.btn,.vehicle-workspace-date,details>summary')].filter(x=>x.getBoundingClientRect().height).map(x=>Math.round(x.getBoundingClientRect().y))})""")
+        assert stress['scroll']<=stress['width']+1 and len(set(stress['rows']))<=2,stress
+        for control in top.locator('.header-actions > .btn').all():
+         if control.is_visible():assert control.bounding_box()['height']>=44,control.evaluate('(e)=>({rect:e.getBoundingClientRect().toJSON(),min:getComputedStyle(e).minHeight,display:getComputedStyle(e).display,classes:e.parentElement.parentElement.className})')
+       page.screenshot(path=str(out/f'{width}-{role}-toolbar-long-label.png'),full_page=True)
+       top.locator('.vehicle-workspace-subtitle > strong').evaluate('(el,value)=>el.textContent=value',original_heading)
+       page.locator('[data-layout-only]').evaluate_all('(els)=>els.forEach(e=>e.remove())')
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
        assert table.is_visible();assert 'エンジンのかかり具合、異音' in table.inner_text()

@@ -2,6 +2,11 @@
 
 {% block title %}チェックリストマスタ{% endblock %}
 
+{% block page_styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/checklist_master_compact.css', v='20261119-1') }}">
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header">
@@ -10,9 +15,7 @@
     <div class="header-actions">
 
 
-        <a href="/master/checklists/new" class="btn">
-            新規登録
-        </a>
+        <a href="/master/checklists/new" class="btn entry-add-icon" aria-label="チェックリストを新規登録" title="チェックリストを新規登録"><span aria-hidden="true">＋</span></a>
     </div>
 </div>
 
@@ -137,6 +140,8 @@
 <div class="checklist-master-mobile-list master-order-cards" data-master-order-url="/master/checklists/order" data-master-status-id="checklist-master-order-status" data-master-order-all-ids="{{ master_order_ids|default([])|tojson|forceescape }}">
     {% for checklist in checklists %}
         <div class="checklist-master-mobile-card" data-master-id="{{ checklist.id }}">
+            <details class="checklist-compact-disclosure"><summary><strong>{{ checklist["name"] }}</strong><span>{{ "安全" if checklist["target"] == "安全管理" else "車両" if checklist["target"] == "車両管理" else checklist["target"] }}</span></summary>
+            <div class="checklist-compact-detail">
 
             <div class="checklist-master-mobile-head">
                 <strong class="standard-checklist-name">{{ checklist["name"] }}
@@ -189,6 +194,7 @@
                 </button>
             </div>
 
+            </div></details>
         </div>
     {% else %}
         <div class="checklist-master-empty">

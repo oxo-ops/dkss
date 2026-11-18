@@ -11,6 +11,14 @@ def get_vehicle_checklist_notify_users(
     return [user.username for user in resolved_notify_users(company_code, checklist_id, vehicle_record_id)]
 
 
+def get_vehicle_checklist_notify_display_names(company_code, checklist_id, vehicle_record_id):
+    """Presentation only: use the same identity-verified recipients as delivery."""
+    return {
+        user.username: ((user.last_name or "") + (user.first_name or "")).strip() or user.username
+        for user in resolved_notify_users(company_code, checklist_id, vehicle_record_id)
+    }
+
+
 
 def send_vehicle_checklist_reminders(company_code):
     checklists = _dkss_models.Checklist.query.filter_by(

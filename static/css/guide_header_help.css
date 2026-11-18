@@ -1,0 +1,6 @@
+/* Entry only: keep coachmark content, targets and behavior unchanged. */
+.top-bar > #firstUseGuide{margin-left:auto;margin-right:0}
+#firstUseGuide > .first-guide-launch{width:46px;height:46px;min-width:44px;min-height:44px;padding:0;gap:0;border:0;border-radius:50%;background:transparent;box-shadow:none;color:var(--dkss-text-secondary,#64748b)}
+#firstUseGuide > .first-guide-launch:hover{background:#e8edf5}
+#firstUseGuide > .first-guide-launch:focus-visible{outline:3px solid var(--dkss-action-blue,#2563eb);outline-offset:2px}
+#firstUseGuide > .first-guide-launch > .first-guide-help-icon{width:24px;height:24px;font-size:17px;font-weight:600;line-height:1;border:1.5px solid currentColor;border-radius:50%}

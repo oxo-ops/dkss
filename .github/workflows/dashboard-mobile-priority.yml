@@ -1,0 +1,34 @@
+name: Dashboard task hierarchy synthetic browser
+on:
+  push:
+    branches: [review/dashboard-mobile-priority-20261119, validation/release-integrated-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  appearance-and-reading-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          python -m pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: bash tests/dashboard_mobile_priority/run.sh
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+          ARTIFACTS: ${{ runner.temp }}/dashboard-priority
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dashboard-priority-${{ github.sha }}
+          path: ${{ runner.temp }}/dashboard-priority/

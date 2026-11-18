@@ -1,0 +1,37 @@
+name: Mobile Header Search Browser
+on:
+  push:
+    branches: [validation/header-mobile-search-20261119, validation/release-integrated-20261119]
+permissions:
+  contents: read
+jobs:
+  header:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: bash tests/header_mobile_browser/run.sh
+        env:
+          PRODUCT_REPO: ${{ github.workspace }}
+          EXPECTED_SHA: ${{ github.sha }}
+          ARTIFACTS: ${{ runner.temp }}/header-ui
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: header-ui-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/header-ui/*.png
+            ${{ runner.temp }}/header-ui/*.json

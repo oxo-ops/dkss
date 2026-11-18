@@ -2,6 +2,12 @@
 
 {% block title %}ドライバーマスタ{% endblock %}
 
+{% block page_styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-1') }}"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-header driver-master-page-header">
     <div class="header-actions">
@@ -12,7 +18,7 @@
 </div>
 
 <div class="card driver-master-filter-card">
-    <form method="get" class="driver-master-filter-form">
+    <form method="get" class="driver-master-filter-form" data-search-clear-scope="driver">
         <div class="driver-filter-keyword">
             <label>ユーザーID・氏名検索</label>
             <input
@@ -51,7 +57,7 @@
 
         <div class="driver-filter-actions">
             <button type="submit" class="btn">検索</button>
-            <a href="/master/drivers" class="btn btn-back">クリア</a>
+            <a href="/master/drivers" class="btn btn-back">条件をすべて解除</a>
         </div>
     </form>
 </div>

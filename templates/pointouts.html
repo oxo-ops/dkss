@@ -2,7 +2,7 @@
 
 {% block title %}安全パトロール結果一覧{% endblock %}
 
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261118-2') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261119-patrol-rows-1') }}">{% endblock %}
 
 {% block content %}
 
@@ -476,6 +476,16 @@
                 {% endif %}
             </div>
 
+            <a
+                href="/pointouts/{{ item.index }}"
+                class="btn safety-result-mobile-detail"
+            >
+                <span>詳細を見る</span>
+                <span class="safety-result-mobile-detail-arrow">
+                    ›
+                </span>
+            </a>
+
             <div class="safety-result-mobile-grid">
 
                 <div>
@@ -518,6 +528,11 @@
                     </strong>
                 </div>
 
+
+            </div>
+
+
+            <details class="patrol-row-extra"><summary>内容・添付{% if item.can_manage %}・操作{% endif %}</summary><div class="patrol-row-extra-body">
                 <div class="safety-result-mobile-grid-wide">
                     <span class="safety-result-mobile-label">
                         添付
@@ -535,25 +550,12 @@
                         <strong>なし</strong>
                     {% endif %}
                 </div>
-
-            </div>
-
             {% if item.content %}
             <div
                 class="mobile-card-content mention-display"
                 data-value="{{ item.content }}"
             ></div>
             {% endif %}
-
-            <a
-                href="/pointouts/{{ item.index }}"
-                class="btn safety-result-mobile-detail"
-            >
-                <span>詳細を見る</span>
-                <span class="safety-result-mobile-detail-arrow">
-                    ›
-                </span>
-            </a>
 
             {% if item.can_manage %}
             <div class="safety-result-mobile-actions">
@@ -587,6 +589,7 @@
             </div>
             {% endif %}
 
+            </div></details>
         </article>
     {% else %}
         <div class="mobile-list-card">
