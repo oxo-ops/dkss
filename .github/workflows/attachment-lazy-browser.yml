@@ -1,0 +1,36 @@
+name: Attachment lazy display isolated browser
+on:
+  push:
+    branches: ['review/attachment-lazy-safe-20261119']
+permissions:
+  contents: read
+concurrency:
+  group: attachment-lazy-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Synthetic browser without application credentials
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          node --check static/js/vehicle_checklist_results.js
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" ARTIFACTS="$RUNNER_TEMP/attachment-lazy" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_lazy/browser.cjs
+          git rev-parse HEAD > "$RUNNER_TEMP/attachment-lazy/head.txt"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: attachment-lazy-${{ github.sha }}
+          path: ${{ runner.temp }}/attachment-lazy/
+          retention-days: 14
