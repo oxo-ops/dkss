@@ -394,5 +394,5 @@ body:has([data-inspection-planner]) .main-content > .top-bar :is(.notification-m
  body.ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-icon{display:block!important;width:24px!important;height:24px!important}
  body.ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-plus{display:none!important}
  body.ip-mobile-workspace .inspection-plans[data-inspection-planner]{padding-bottom:76px!important}
- body.ip-mobile-workspace .inspection-plans .ip-grid-scroll{padding-bottom:72px;scroll-padding-bottom:72px}
+ body.ip-mobile-workspace .inspection-plans .ip-grid-scroll{scroll-padding-bottom:72px}
 }
