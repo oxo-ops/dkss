@@ -130,6 +130,7 @@ try:
        assert page.get_by_role('button',name='結果・管理を見る',exact=True).is_visible()
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
+       page.locator('.public-demo-notice').wait_for(state='detached')
        page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
