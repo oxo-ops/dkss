@@ -8,7 +8,7 @@ async function motion(page,opening){
  return rows;
 }
 (async()=>{fs.mkdirSync(out,{recursive:true});let report=[],blocked=[],current;const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-try{for(const width of [320,390,768,1440])for(const name of ['dashboard','pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input','demo_settings_manager','demo_settings_driver','normal_settings_manager','normal_settings_driver']){
+try{for(const width of [320,390,768,1440])for(const name of ['dashboard','driving_reports','pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input','demo_settings_manager','demo_settings_driver','normal_settings_manager','normal_settings_driver']){
  const file=path.join(html,name+'.html');assert(fs.existsSync(file),name);const info=JSON.parse(fs.readFileSync(path.join(html,'routes.json'))).find(r=>r.endpoint===name);assert(info);
  const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block'});await context.routeWebSocket('**/*',ws=>{blocked.push('WS');ws.close()});const page=await context.newPage();current=page;
  await page.route('**/*',route=>{const req=route.request(),url=new URL(req.url());if(req.method()!=='GET'||url.origin!=='https://fixture.invalid'){blocked.push(req.method()+' '+url.origin);return route.abort()}
@@ -36,7 +36,9 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','pointo
   }
  }
  if(name.includes('settings_')){assert(await page.locator('.settings-user-card').isVisible());for(const selector of ['.settings-notification-card','.settings-password-card','form[action="/logout"]'])assert.equal(await page.locator(selector).count(),name.startsWith('demo_')?0:1);}
- const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert(await avatar.isVisible());assert.equal(await bar.locator('.top-bar-user-name').isVisible(),width>767);
+ const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert.equal(await avatar.isVisible(),!(name==='driving_reports'&&width<768));assert.equal(await bar.locator('.top-bar-user-name').isVisible(),width>767);
+ if(width<768){const heading=bar.locator('[data-mobile-page-title]');assert(await heading.isVisible());const hb=await heading.boundingBox();assert(hb.x>=64-1,'title leaves menu breathing room');assert(hb.width>0);assert.equal(await bar.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');if(name==='driving_reports'){assert.equal(await bar.locator('.notification-menu').isVisible(),false);assert(await bar.locator('[data-guide-open]').isVisible());}}
+ else assert.equal(await bar.locator('[data-mobile-page-title]').isVisible(),false);
  const help=bar.locator('#firstUseGuide'),bell=bar.locator('.notification-menu');if(await help.count()){assert(await help.evaluate((e)=>{let n=e.nextElementSibling;while(n&&['SCRIPT','LINK','STYLE'].includes(n.tagName))n=n.nextElementSibling;return n?.classList.contains('notification-menu');}),'help directly before notification');}
  const controls=bar.locator('.first-guide-launch,.notification-bell,.top-bar-user,.karte-mobile-search-trigger');
  const rects=await controls.evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width&&getComputedStyle(e).display!=='none').map(e=>{const r=e.getBoundingClientRect();return {label:e.getAttribute('aria-label'),x:r.x,y:r.y,w:r.width,h:r.height}}));
@@ -53,5 +55,6 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','pointo
  if(width<=768){assert(await list.isVisible());assert.equal(await table.isVisible(),false);const row=list.locator('.checklist-compact-disclosure').first(),summary=row.locator('summary');assert.equal(await summary.locator(':scope > *').count(),2);assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);await summary.click();assert(await row.locator('.checklist-compact-detail').isVisible());assert(await row.locator('.master-order-handle').isVisible());await summary.press('Enter');assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);}else{assert(await table.isVisible());assert.equal(await list.isVisible(),false);}
  }
  report.push({name,width,passed:true,rects});await context.close();}
- assert.equal(report.length,44);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
+ assert.equal(report.length,48);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
 }catch(e){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({error:String(e),report,blocked},null,2));if(current&&!current.isClosed())await current.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});
+

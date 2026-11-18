@@ -237,6 +237,7 @@
                 {{ karte_vehicle_choices | tojson }}
             </script>
             {% endif %}
+            <h1 class="mobile-shell-title" data-mobile-page-title><span data-mobile-title-text>{{ self.title() }}</span></h1>
             {% block top_bar_heading %}{% endblock %}
             {% include 'partials/first_use_guide.html' %}
             <div class="notification-menu" id="notificationMenu">
@@ -533,6 +534,7 @@
 <script defer src="{{ url_for('static', filename='js/public_demo_share.js', v='20261117-1') }}"></script>
 {% endif %}
 <script defer src="{{ url_for('static', filename='js/karte_mobile_header_search.js', v='20261119-1') }}"></script>
+<script src="{{ url_for('static', filename='js/mobile_page_title.js', v='20261119-1') }}"></script>
 </body>
 </html>
 
