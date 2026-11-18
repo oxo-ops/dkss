@@ -56,7 +56,7 @@ def forget(company, filename):
         existing.forget(company, filename)
 
 
-def source_revision(company, filename):
+def source_revision(company, filename, *, max_source_bytes=None):
     """Validate existence/version on EVERY request, including derivative hits."""
     app = current_app
     client, bucket = app.extensions["dkss"]["s3_client"], app.config["S3_BUCKET_NAME"]
@@ -68,6 +68,8 @@ def source_revision(company, filename):
                 if str(error.response.get("Error", {}).get("Code")) in {"404", "NoSuchKey", "NotFound"}:
                     continue
                 raise
+            if max_source_bytes is not None and (not isinstance(meta.get("ContentLength"), int) or not 0 < meta["ContentLength"] <= max_source_bytes):
+                return None
             version, etag = meta.get("VersionId"), meta.get("ETag")
             if not version and not etag:
                 return None
@@ -83,7 +85,10 @@ def source_revision(company, filename):
             def read(params=params):
                 body = client.get_object(**params)["Body"]
                 try:
-                    return body.read()
+                    data = body.read(max_source_bytes + 1) if max_source_bytes is not None else body.read()
+                    if max_source_bytes is not None and len(data) > max_source_bytes:
+                        raise ValueError("preview input exceeds byte cap")
+                    return data
                 finally:
                     body.close()
             return revision, read
@@ -101,6 +106,16 @@ def source_revision(company, filename):
         if not path.is_file():
             continue
         revision = ("local", str(path), stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
+        if max_source_bytes is not None:
+            if not 0 < stat.st_size <= max_source_bytes:
+                return None
+            def read_bounded(path=path):
+                with path.open("rb") as source:
+                    data = source.read(max_source_bytes + 1)
+                if len(data) > max_source_bytes:
+                    raise ValueError("preview input exceeds byte cap")
+                return data
+            return revision, read_bounded
         return revision, path.read_bytes
     return None
 

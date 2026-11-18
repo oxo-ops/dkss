@@ -142,7 +142,7 @@ class AttachmentPreviewTests(unittest.TestCase):
                 fake.heads += 1
                 if fake.denied:
                     raise ClientError({"Error": {"Code": "AccessDenied"}}, "HeadObject")
-                return {"VersionId": fake.version, "ETag": fake.version}
+                return {"VersionId": fake.version, "ETag": fake.version, "ContentLength":len(profiles.picture())}
             def get_object(fake, **kw):
                 if fake.denied:
                     raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetObject")
@@ -175,7 +175,7 @@ class AttachmentPreviewTests(unittest.TestCase):
             account_identity=self.user.account_identity, password_changed_at=self.user.password_changed_at)
         barrier, lock = Barrier(6), Lock()
         active = maximum = calls = 0
-        encode = profile_images._encode
+        encode = Image.Image.save
         def measured(*args, **kwargs):
             nonlocal active, maximum, calls
             with lock:
@@ -193,12 +193,40 @@ class AttachmentPreviewTests(unittest.TestCase):
                 with client.session_transaction() as session:
                     session.update(state)
                 barrier.wait(timeout=10)
-                response = client.get("/files/uploads/avatar.jpg?preview=480")
+                response = client.get("/files/uploads/avatar.jpg?preview=480", follow_redirects=True)
                 self.assertEqual(response.status_code, 200)
                 return response.data
-        with patch.object(profile_images, "_encode", side_effect=measured):
+        with patch.object(Image.Image, "save", measured):
             with ThreadPoolExecutor(max_workers=6) as pool:
                 results = list(pool.map(fetch, range(6)))
-        self.assertEqual(len(set(results)), 1)
-        self.assertLessEqual(maximum, 2)
-        self.assertLessEqual(calls, 2)
+        self.assertTrue(all(data == self.original or data[:4] == b"RIFF" for data in results))
+        self.assertLessEqual(maximum, 1)
+        self.assertEqual(calls, 1)
+
+    def test_busy_preview_returns_authorized_original_without_conversion(self):
+        from dkss_app import attachment_images as a
+        a.PREVIEW_SLOT.acquire()
+        try:
+            with patch.object(Image, 'open', side_effect=AssertionError('busy decode')):
+                r=self.get(follow_redirects=True)
+                self.assertEqual(r.status_code,200)
+                self.assertEqual(r.data,self.original)
+        finally:a.PREVIEW_SLOT.release()
+
+    def test_large_local_file_rejected_before_read(self):
+        from dkss_app import attachment_images as a
+        with self.path.open('wb') as f:f.truncate(a.MAX_SOURCE_BYTES+1)
+        with patch.object(type(self.path),'read_bytes',side_effect=AssertionError('unbounded read')):
+            with self.m.app.test_request_context('/'):
+                self.assertIsNone(profile_images.source_revision('TEST','avatar.jpg',max_source_bytes=a.MAX_SOURCE_BYTES))
+
+    def test_invalid_jpeg_preserves_original(self):
+        self.path.write_bytes(b'bad jpeg fixture')
+        r=self.get(follow_redirects=True)
+        self.assertEqual(r.status_code,200)
+        self.assertEqual(r.data,b'bad jpeg fixture')
+
+    def test_png_bytes_under_jpg_name_not_decoded(self):
+        self.path.write_bytes(profiles.picture(format='PNG'))
+        r=self.get(follow_redirects=True)
+        self.assertEqual(r.data,self.path.read_bytes())

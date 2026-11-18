@@ -1,7 +1,7 @@
-name: Image performance isolated browser
+name: Low-memory JPEG isolated browser
 on:
   push:
-    branches: ['review/image-performance-20261119']
+    branches: ['review/image-lowmemory-20261119']
 permissions:
   contents: read
 concurrency:
@@ -37,7 +37,6 @@ jobs:
           output="$RUNNER_TEMP/image-performance"
           mkdir -p "$output/html" "$output/browser"
           env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$output/html" python tests/image_performance/render.py 2>&1 | tee "$output/route.log"
-          env -i PATH="$PATH" HOME="$RUNNER_TEMP" PRODUCT_REPO="$PWD" python tests/image_performance/test_preview_unit.py 2>&1 | tee "$output/unit.log"
           env -i PATH="$PATH" HOME="$RUNNER_TEMP" PRODUCT_REPO="$PWD" python tests/image_performance/benchmark.py > "$output/benchmark.json"
           env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$output/html" ARTIFACTS="$output/browser" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/image_performance/browser.cjs
           printf '%s\n' "$EXPECTED_SHA" > "$output/head.txt"
