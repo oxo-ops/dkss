@@ -494,6 +494,13 @@ def build_safe_redirect_url(referrer, fallback="/"):
 
 
 def redirect_form_errors(response):
+    # The detail form explicitly requested the JSON error protocol.
+    if (_dkss_common.request.endpoint == "save_vehicle_checklist_detail"
+            and response.headers.get("X-DKSS-Form-Errors") == "1"
+            and response.is_json
+            and (_dkss_common.request.headers.get("X-DKSS-Final-Submit") == "1"
+                 or _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1")):
+        return response
     if _dkss_common.request.endpoint in {"register", "itc_registration", "company_registration"}:
         return response
     # Only the explicit checklist answer-version conflict keeps its 409 view.

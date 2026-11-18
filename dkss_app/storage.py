@@ -261,7 +261,21 @@ def save_uploaded_file(file, folder=None):
         filename
     )
 
-    file.save(save_path)
+    created_here = False
+    try:
+        # Exclusive creation prevents cleanup from touching a pre-existing file.
+        with open(save_path, "xb") as destination:
+            created_here = True
+            file.save(destination)
+    except Exception:
+        if created_here:
+            try:
+                _dkss_common.os.remove(save_path)
+            except OSError:
+                _dkss_runtime.app.logger.error(
+                    "UPLOAD_PARTIAL_CLEANUP_FAILED backend=local error_type=OSError"
+                )
+        raise
 
     _dkss_audit.add_audit_log(
         action="file_uploaded",
