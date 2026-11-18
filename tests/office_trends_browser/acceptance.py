@@ -59,6 +59,9 @@ try:
                     route.fulfill(status=response.status_code, headers={k:v for k,v in response.headers.items() if k.lower() not in ['set-cookie','content-length','content-encoding']}, body=response.data)
                 context.route('**/*', bridge)
                 page = context.new_page(); page.goto('http://127.0.0.1/', wait_until='networkidle')
+                # Dismiss first-use overlay before measuring the actual dashboard.
+                close = page.locator('#firstUseGuide [data-guide-close]')
+                if close.count() and close.is_visible(): close.click()
                 panel = page.locator('.office-trends-video'); panel.scroll_into_view_if_needed()
                 assert panel.locator('.office-trend-panel > .office-trend-row').count() == 5
                 assert panel.locator('.office-action-panel > .office-action-list > li').count() == 5

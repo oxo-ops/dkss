@@ -27,7 +27,7 @@
 .office-trend-records li { padding: 6px 0; }
 .office-action-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .office-action-link { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; min-height: 48px; padding: 8px; background: #fff; border: 1px solid #e1e8ee; border-radius: 7px; text-decoration: none; color: #17314f; font-size: 12px; box-sizing: border-box; }
-.office-action-link .dashboard-safety-state { max-width: 4em; text-align: center; white-space: normal; line-height: 1.35; }
+.office-action-link .dashboard-safety-state { max-width: none; text-align: center; white-space: nowrap; font-size: 10px; line-height: 1.35; }
 .office-action-kind { font-size: 10px; color: #52647e; white-space: nowrap; }
 .office-priority-unknown { color: #52647e; font-size: 11px; }
 .office-panel-more > summary { min-height: 36px; display: flex; align-items: center; cursor: pointer; font-size: 12px; color: #315781; }
