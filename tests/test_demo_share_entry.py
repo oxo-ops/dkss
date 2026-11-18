@@ -7,7 +7,7 @@ class ShareEntryTests(Base):
   a=self.app.test_client();b=self.app.test_client()
   for c in (a,b):
    first=c.get(self.path);self.assertEqual(first.status_code,302);self.assertEqual(first.location,self.path)
-   r=c.get(first.location);self.assertEqual(r.status_code,200);self.assertIn('no-store',r.headers['Cache-Control']);self.assertEqual(r.headers['Referrer-Policy'],'no-referrer')
+   r=c.get(first.location);self.assertEqual(r.status_code,200);self.assertIn('no-store',r.headers['Cache-Control']);self.assertEqual(r.headers['Referrer-Policy'],'same-origin')
   with a.session_transaction() as s:token=s['public_demo_token'];self.assertEqual(s['demo_role'],'driver')
   with b.session_transaction() as s:self.assertNotEqual(s['public_demo_token'],token)
   self.assertEqual(self.models.VehicleChecklistResult.query.count(),0)

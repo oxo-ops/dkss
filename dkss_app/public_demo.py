@@ -200,7 +200,8 @@ def install(app):
     def no_cache(response):
         if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args:
             response.headers['Cache-Control'] = 'private, no-store'
-            response.headers['Referrer-Policy'] = 'no-referrer'
+            # Keep HTTPS same-origin CSRF checks working without leaking demo URLs externally.
+            response.headers['Referrer-Policy'] = 'same-origin'
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
         return response
 

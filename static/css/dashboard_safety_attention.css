@@ -78,3 +78,15 @@
 .dashboard-safety-story-hint { display: block; margin-top: 7px; font-size: 11px; color: #596780; }
 .dashboard-safety-opening { display: block; min-height: 44px; }
 .dashboard-safety-story > summary { color: #5140a3; font-size: 12px; }
+
+/* Match the existing safety-list palette. Attribute specificity intentionally
+   wins over dashboard_mobile_refinement's neutral compact badge rule. */
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-state[data-state="対策確認待ち"] {
+    background: #fff1db;
+    color: #b96a15;
+}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-state[data-state="対策未確認"],
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-state[data-state="差し戻し"] {
+    background: #ffe7ed;
+    color: #c63f60;
+}

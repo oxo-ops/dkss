@@ -59,6 +59,26 @@ class DashboardSafetyAttentionTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertIn('写真と対策の確認対象', detail.get_data(as_text=True))
 
+    def test_safety_state_colors_keep_existing_workflow_and_disclosure(self):
+        self.configure()
+        waiting = self.patrol('確認待ちの対策')
+        rejected = self.patrol('差し戻しの対策', approval_status='差し戻し')
+        missing = self.patrol('未登録の対策', countermeasure='', approval_status='未対応')
+        extra = self.patrol('追加の未登録', countermeasure='', approval_status='未対応')
+        self.patrol('承認済みの対策', approval_status='承認済み')
+        self.patrol('対象外のGood', category='Good')
+        _, panel = self.safety_panel()
+        badges = panel.find(cls='dashboard-safety-state')
+        self.assertEqual([b.attrs['data-state'] for b in badges],
+                         ['対策確認待ち', '差し戻し', '対策未確認', '対策未確認'])
+        self.assertEqual([b.text for b in badges], [b.attrs['data-state'] for b in badges])
+        self.assertEqual(len(panel.find(cls='dashboard-safety-more')), 1)
+        self.assertEqual(len(panel.find(cls='dashboard-safety-more')[0].find(cls='dashboard-safety-state')), 1)
+        self.assertEqual({a.attrs['href'] for a in panel.find(tag='a')},
+                         {f'/pointouts/{r.id}' for r in (waiting, rejected, missing, extra)})
+        self.assertNotIn('承認済みの対策', panel.text)
+        self.assertNotIn('対象外のGood', panel.text)
+
     def test_company_actual_office_and_unknown_office_fail_closed(self):
         user = self.configure()
         self.patrol('表示対象')

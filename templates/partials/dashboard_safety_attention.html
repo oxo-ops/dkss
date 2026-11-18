@@ -4,7 +4,7 @@
     {% for item in items %}
     <li>
         {% set display_content = item.content[8:] if item.content.startswith('【体験用・架空】') else item.content %}
-        <span class="dashboard-safety-state">{{ item.state }}</span>
+        <span class="dashboard-safety-state" data-state="{{ item.state }}">{{ item.state }}</span>
         <div class="dashboard-safety-content">
             <a class="dashboard-safety-opening" href="{{ item.url }}" title="{{ display_content }}">
                 <span class="dashboard-safety-story-title">{{ display_content }}</span>

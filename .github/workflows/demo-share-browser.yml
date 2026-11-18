@@ -33,6 +33,7 @@ jobs:
           CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
           bash tests/demo_share_browser/run.sh "$GITHUB_WORKSPACE" "$PY" unit
           bash tests/demo_share_browser/run.sh "$GITHUB_WORKSPACE" "$PY" browser --artifacts "$RUNNER_TEMP/demo-share-output" --expected-sha "$EXPECTED_HEAD" --chromium "$CHROMIUM"
+          bash tests/demo_share_browser/run.sh "$GITHUB_WORKSPACE" "$PY" https --artifacts "$RUNNER_TEMP/demo-share-output" --expected-sha "$EXPECTED_HEAD" --chromium "$CHROMIUM"
       - uses: actions/upload-artifact@v7
         if: always()
         with:

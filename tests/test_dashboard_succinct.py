@@ -19,5 +19,21 @@ class HomeTests(unittest.TestCase):
   s=fn([row],True)
   for x in ['101','タイヤ','空気圧を確認','次の運行前','対応中','前回評価','/vehicle/karte/647/analysis#proposal=p1']:self.assertIn(x,s)
   self.assertNotIn('長い根拠',s);self.assertNotIn('保存版・算定根拠を確認',s)
+ def test_state_palette_matches_list_and_beats_mobile_neutral(self):
+  css=(R/'static/css/style.css').read_text()
+  import re
+  rules=re.findall(r'([^{}]+)\{([^{}]+)\}',css)
+  dashboard=(R/'static/css/dashboard_safety_attention.css').read_text()
+  dashboard_rules=re.findall(r'([^{}]+)\{([^{}]+)\}',dashboard)
+  for state,list_class,bg,fg in [
+   ('対策確認待ち','.status-waiting','#fff1db','#b96a15'),
+   ('対策未確認','.status-not-started','#ffe7ed','#c63f60'),
+   ('差し戻し','.status-rejected','#ffe7ed','#c63f60')]:
+   selector='body .dashboard-page.dashboard-design-v2 .dashboard-safety-state[data-state="'+state+'"]'
+   shared=[body for selectors,body in dashboard_rules if selector in selectors]
+   original=[body for selectors,body in rules if list_class in selectors and 'body:has(.safety-list-breadcrumb) .pointouts-table' in selectors]
+   self.assertTrue(any('background: '+bg in body and 'color: '+fg in body for body in original))
+   self.assertEqual(len(shared),1)
+   self.assertIn('background: '+bg,shared[0]);self.assertIn('color: '+fg,shared[0])
  def test_full_template_parse(self):self.env.get_template('index.html')
 if __name__=='__main__':unittest.main()

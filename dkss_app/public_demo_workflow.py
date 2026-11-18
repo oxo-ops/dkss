@@ -1,5 +1,7 @@
 """Narrow shared synthetic-company workflow; uses existing forms and route handlers."""
 from datetime import date
+import re
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from flask import abort, current_app, redirect, request, session
 from flask_wtf.csrf import validate_csrf
 from wtforms.validators import ValidationError
@@ -56,6 +58,30 @@ def link():
     return f"/vehicle/checklists/{current_app.config['PUBLIC_DEMO_CHECKLIST_ID']}?vehicle_record_id={current_app.config['PUBLIC_DEMO_VEHICLE_ID']}&year={y}&month={m}&active_day={d}"
 
 
+def role_return_target():
+    """Keep an opened checklist; never accept arbitrary redirect destinations."""
+    raw = request.form.get('checklist_return', '')
+    if len(raw) > 2048 or any(ord(char) < 32 for char in raw):
+        return '/'
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        return '/'
+    if (parsed.scheme or parsed.netloc or parsed.fragment
+            or not re.fullmatch(r'/vehicle/checklists/[0-9]+', parsed.path)):
+        return '/'
+    allowed = {'vehicle_record_id', 'year', 'month', 'active_day',
+               'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day'}
+    # Reconstruct only the existing numeric view parameters. Normal route
+    # guards still enforce company, vehicle, checklist and role permissions.
+    values = {}
+    for key, value in parse_qsl(parsed.query):
+        if key in allowed and re.fullmatch(r'[0-9]{1,10}', value):
+            values[key] = value
+    query = urlencode(values)
+    return parsed.path + ('?' + query if query else '')
+
+
 def result():
     from .models import VehicleChecklistResult, User
     driver = User.query.filter_by(company_code=current_app.config['PUBLIC_DEMO_COMPANY'], username=current_app.config['PUBLIC_DEMO_DRIVER']).first()
@@ -103,7 +129,7 @@ def guard():
         session.update(demo_role_selected=True, demo_role=role, username=user.username, account_identity=user.account_identity,
             role=user.role, name=(user.last_name or '')+(user.first_name or ''), office=user.office,
             password_changed_at=user.password_changed_at, password_expired=False)
-        return True, redirect('/' if shared() else link())
+        return True, redirect(role_return_target() if shared() else link())
     if request.endpoint in {'approval_candidates', 'mention_users', 'search_vehicles'}:
         if request.method not in {'GET', 'HEAD'}:
             abort(403)

@@ -5,6 +5,7 @@ R=$(realpath "$1"); PY=$2; MODE=$3; shift 3
 HERE=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); mkdir -p "$T/home" "$T/tmp"
 if [[ "$MODE" == unit ]]; then set -- -m unittest test_demo_share_entry -v
+elif [[ "$MODE" == https ]]; then set -- "$HERE/https_acceptance.py" --repo "$R" "$@"
 elif [[ "$MODE" == browser ]]; then set -- "$HERE/acceptance.py" --repo "$R" "$@"
 else exit 2; fi
 exec env -i PATH="$(dirname "$PY"):/usr/local/bin:/usr/bin:/bin" HOME="$T/home" TMPDIR="$T/tmp" \

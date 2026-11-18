@@ -81,7 +81,7 @@ try:
       page.goto(origin+target,wait_until='networkidle');copied=page.url;first=decode(one)
       fresh=two.new_page();response=fresh.goto(copied,wait_until='networkidle');assert response.status==200
       second=decode(two);assert second['demo_role']=='driver' and second['role']=='user';assert first['public_demo_token']!=second['public_demo_token'];assert first['company_code']==second['company_code']=='A'
-      assert response.headers['referrer-policy']=='no-referrer' and 'no-store' in response.headers['cache-control']
+      assert response.headers['referrer-policy']=='same-origin' and 'no-store' in response.headers['cache-control']
       assert fresh.locator('#vehicle_workspace_date').is_visible();assert '__aonagi_entry=1' in fresh.url
       token=second['public_demo_token'];fresh.reload(wait_until='networkidle');assert decode(two)['public_demo_token']==token
       fresh.screenshot(path=str(out/f'{width}-fresh-initial.png'),full_page=True)

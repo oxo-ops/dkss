@@ -374,7 +374,7 @@
 入力・変更は他の利用者にも見えます。個人情報や実際の業務資料は入力しないでください。メール・端末通知は外部送信されません。
 {% if session.get('demo_result_id') %}<span>保存済みの共有体験結果を表示しています。新規入力には担当者の手動準備が必要です。</span>{% endif %}
 <a href="{{ public_demo_workflow_link }}">日常点検を開く</a>
-<form action="/demo/role" method="post" style="display:inline">
+<form action="/demo/role" method="post" style="display:inline">{% if public_demo_shared|default(false) and request.endpoint == 'vehicle_checklist_results' %}<input type="hidden" name="checklist_return" value="{{ request.full_path.rstrip('?') }}">{% endif %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <button name="role" value="driver">運転者</button>
 <button name="role" value="manager" {% if not public_demo_shared|default(false) and not session.get('demo_result_id') %}disabled{% endif %}>管理者</button>

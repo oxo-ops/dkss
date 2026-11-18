@@ -65,7 +65,9 @@ def main():
         m.db.session.add(other); m.db.session.flush()
         case.save(other, case.recommendations(8))
         for i in range(5):
-            case.patrol(f'架空の安全確認{i}', countermeasure_due_date='2026-11-20')
+            case.patrol(f'架空の安全確認{i}', countermeasure_due_date='2026-11-20',
+                        approval_status=('承認待ち', '差し戻し', '未対応')[i % 3],
+                        countermeasure='' if i % 3 == 2 else '確認する対策')
         trend_rows = case.seed_trend()
         from zoneinfo import ZoneInfo
         for row in trend_rows:
@@ -182,6 +184,21 @@ def main():
                     expect(more).not_to_have_attribute('open', '')
                     more.locator('summary').click()
                     expect(more).to_have_attribute('open', '')
+                    state_colors = safety.locator('.dashboard-safety-state').evaluate_all(
+                        "els => els.map(e => ({state:e.dataset.state, text:e.textContent.trim(), "
+                        "background:getComputedStyle(e).backgroundColor, color:getComputedStyle(e).color}))")
+                    expected_colors = {
+                        '対策確認待ち': ('rgb(255, 241, 219)', 'rgb(185, 106, 21)'),
+                        '対策未確認': ('rgb(255, 231, 237)', 'rgb(198, 63, 96)'),
+                        '差し戻し': ('rgb(255, 231, 237)', 'rgb(198, 63, 96)'),
+                    }
+                    require({row['state'] for row in state_colors} == set(expected_colors),
+                            'Missing safety state fixture')
+                    for row in state_colors:
+                        require(row['text'] == row['state'], 'State label changed')
+                        require((row['background'], row['color']) == expected_colors[row['state']],
+                                f'Safety state color mismatch at {width}px: {row}')
+                    report['cases'].append(f'{width}px: all safety state colors match list palette')
                     more.locator('summary').click()
                     more.locator('summary').focus(); page.keyboard.press('Enter')
                     expect(more).to_have_attribute('open', '')
