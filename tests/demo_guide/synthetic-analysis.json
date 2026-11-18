@@ -4,7 +4,12 @@
   "is_current": true,
   "analysis_method": "ai",
   "generated_at": "2026-11-18 12:00",
-  "sources": {},
+  "sources": {
+    "inspection-1": {
+      "label": "合成点検記録",
+      "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&day=23&active_day=23"
+    }
+  },
   "analysis": {
     "overview": "点検記録の確認内容です。",
     "maintenance_records": [],
@@ -19,7 +24,9 @@
         "action": "運行前に空気圧とタイヤの状態を確認する",
         "timing": "次の運行前",
         "reason": "直近の点検記録に空気圧調整の記録があります。",
-        "source_ids": []
+        "source_ids": [
+          "inspection-1"
+        ]
       }
     ]
   }

@@ -862,8 +862,13 @@ def checklist_result_detail(result_index, *, approval_conflict=False):
         None
     )
 
+    from .demo_label_display import approval_label
+
     return _dkss_common.render_template(
         "checklist_result_detail.html",
+        display_approval_label=lambda value: approval_label(
+            value, company=result_record.company_code,
+            checklist_id=result_record.checklist_id, result_id=result_record.id),
         result=result,
         result_index=result_record.id,
         approval_version=checklist_result_edit_version(result_record),
