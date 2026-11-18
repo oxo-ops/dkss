@@ -1,7 +1,7 @@
-name: Plan search rendering regression
+name: Plan annual hidden table isolated probe
 on:
   push:
-    branches: [review/plan-search-render-20261119]
+    branches: [review/plan-year-hidden-probe-20261119]
 permissions:
   contents: read
 jobs:
