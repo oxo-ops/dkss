@@ -8,7 +8,7 @@ const id=`${mode}-${width}-${scale}`;context=await browser.newContext({viewport:
 await page.routeWebSocket('**/*',ws=>{report.websocket++;ws.close();});await page.route('**/*',route=>{const u=new URL(route.request().url());if(route.request().method()!=='GET'){report.post++;return route.abort();}if(u.origin!=='http://fixture.invalid'){report.external++;return route.abort();}if(u.pathname!=='/'+mode+'.html')return route.fulfill({status:404,body:''});return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(dir,mode+'.html'))});});
 try{await page.goto('http://fixture.invalid/'+mode+'.html');if(scale===2)await page.locator('body').evaluate(e=>e.classList.add('enlarge'));
 const panel=page.locator('[data-personal-requests]');
-const handle=await panel.elementHandle(), link=panel.locator('a'), href=await link.getAttribute('href');
+const handle=await panel.elementHandle(), link=panel.locator('a').first(), href=await link.getAttribute('href');
 const before=await page.evaluate(()=>!!(document.querySelector('[data-personal-requests]').compareDocumentPosition(document.querySelector('.dashboard-attention-list'))&Node.DOCUMENT_POSITION_FOLLOWING));
 if(before!==(width<=600))throw Error('reading order');
 await link.focus();
@@ -17,7 +17,7 @@ for(const w of [width<=600?1316:390,width,width<=600?1316:390,width]){
  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  if(!await handle.evaluate(e=>e===document.querySelector('[data-personal-requests]'))||await page.locator('[data-personal-requests]').count()!==1||await link.getAttribute('href')!==href||!await link.evaluate(e=>e===document.activeElement))throw Error('resize identity/focus');
 }
-const checks=await page.evaluate(()=>{let bad=[];for(const e of document.querySelectorAll('.dashboard-video-proposal,.dashboard-video-copy strong,.dashboard-video-action,.dashboard-video-timing,.dashboard-video-state,.dashboard-safety-opening,.dashboard-safety-next')){const r=e.getBoundingClientRect();if(r.width && (r.left<-.5||r.right>innerWidth+.5||e.scrollWidth>e.clientWidth+1))bad.push(e.className);}return{bad,overflow:document.documentElement.scrollWidth>innerWidth+1,links:[...document.querySelectorAll('a')].map(a=>a.getAttribute('href'))};});
+const checks=await page.evaluate(()=>{let bad=[];for(const e of document.querySelectorAll('.dashboard-personal-requests a,.dashboard-personal-requests strong,.dashboard-request-count,.dashboard-video-proposal,.dashboard-video-copy strong,.dashboard-video-action,.dashboard-video-timing,.dashboard-video-state,.dashboard-safety-opening,.dashboard-safety-next')){const r=e.getBoundingClientRect();if(r.width && (r.left<-.5||r.right>innerWidth+.5||e.scrollWidth>e.clientWidth+1))bad.push(e.className);}return{bad,overflow:document.documentElement.scrollWidth>innerWidth+1,links:[...document.querySelectorAll('a')].map(a=>a.getAttribute('href'))};});
 if(checks.bad.length||checks.overflow)throw Error('content overflow '+JSON.stringify(checks));
 if(width<=600)for(const row of await page.locator('.dashboard-video-proposal').all()){
  const b=await row.boundingBox();if(b.height<44)throw Error('tap height');
