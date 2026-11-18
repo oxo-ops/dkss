@@ -104,6 +104,7 @@
  @container karte-drawer (max-width: 280px) {
   .ka-reference-drawer .ka-feedback { flex-wrap: wrap !important; }
   .ka-reference-drawer .ka-feedback > button { flex: 1 1 100% !important; min-width: 0; max-width: 100%; }
+  .ka-reference-drawer .ka-reference-comment textarea { min-width: 0 !important; }
   .ka-reference-drawer :is(input, textarea, select, button) { box-sizing: border-box; max-width: 100%; min-width: 0; }
   .ka-reference-drawer :is(.ka-reference-comment,.ka-reference-detail,.ka-drawer-heading) { min-width: 0; overflow-wrap: anywhere; }
  }
