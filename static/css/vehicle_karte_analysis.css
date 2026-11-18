@@ -205,3 +205,17 @@ html:has(.karte-analysis) {scrollbar-gutter:stable;}
 .ka-analysis-detail-backdrop[hidden] {display:none!important;}
 body.ka-analysis-detail-open>.ka-reference-drawer {width:480px;max-width:100vw;height:100dvh;overflow-y:auto;overscroll-behavior:contain;z-index:1100;box-shadow:-12px 0 36px rgba(24,34,55,.2);}
 @media(max-width:600px) {body.ka-analysis-detail-open>.ka-reference-drawer {width:100vw;}}
+
+/* Keep the two native date fields and aggregation action on one mobile row.
+   Explicit placement overrides the shared stylesheet's legacy grid-column:2. */
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input[type="date"],
+body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form button[type="submit"] { min-height:44px; }
+@media (max-width:500px) {
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-toolbar .ka-period-form { grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 48px; gap:4px; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form #ka-start-date { grid-area:2 / 1; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form > span { grid-area:2 / 2; text-align:center; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form #ka-end-date { grid-area:2 / 3; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form button[type="submit"] { grid-area:2 / 4; width:100%; min-width:0; padding:5px 4px; justify-self:stretch; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input[type="date"] { box-sizing:border-box; padding:5px 2px; max-width:100%; font-size:12px; }
+ body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka-period-form input[type="date"]::-webkit-date-and-time-value { min-width:0; text-align:center; }
+}
