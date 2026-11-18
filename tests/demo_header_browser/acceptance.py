@@ -117,6 +117,9 @@ def brand_roundtrip(page, width, out, role):
     for state in states:
         if state == 'collapsed':
             toggle.click()
+        # The existing drawer toggle animates for 0.25s. Wait for its real
+        # actionable, stable position before measuring or taking a screenshot.
+        toggle.click(trial=True)
         word = page.locator('.alseon-wordmark')
         symbol = page.locator('.alseon-symbol')
         require(word.is_visible() == (state == 'expanded'), 'wrong wordmark visibility')
