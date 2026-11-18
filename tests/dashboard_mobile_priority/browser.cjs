@@ -7,7 +7,9 @@ for(const width of [320,390,768,1316])for(const mode of ['same','mixed','long','
 const id=`${mode}-${width}-${scale}`;context=await browser.newContext({viewport:{width,height:950},serviceWorkers:'block'});const page=await context.newPage();
 await page.routeWebSocket('**/*',ws=>{report.websocket++;ws.close();});await page.route('**/*',route=>{const u=new URL(route.request().url());if(route.request().method()!=='GET'){report.post++;return route.abort();}if(u.origin!=='http://fixture.invalid'){report.external++;return route.abort();}if(u.pathname!=='/'+mode+'.html')return route.fulfill({status:404,body:''});return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(dir,mode+'.html'))});});
 try{await page.goto('http://fixture.invalid/'+mode+'.html');if(scale===2)await page.locator('body').evaluate(e=>e.classList.add('enlarge'));
+if(!await page.locator('.dashboard-page').evaluate(e=>e.dataset.designReady==='true'))throw Error('existing dashboard initialization missing');
 const panel=page.locator('[data-personal-requests]');
+if(!await panel.evaluate(e=>e.classList.contains('dashboard-request-band')))throw Error('existing request band missing');
 const handle=await panel.elementHandle(), link=panel.locator('a').first(), href=await link.getAttribute('href');
 const before=await page.evaluate(()=>!!(document.querySelector('[data-personal-requests]').compareDocumentPosition(document.querySelector('.dashboard-attention-list'))&Node.DOCUMENT_POSITION_FOLLOWING));
 if(before!==(width<=600))throw Error('reading order');
@@ -15,6 +17,7 @@ await link.focus();
 for(const w of [width<=600?1316:390,width,width<=600?1316:390,width]){
  await page.setViewportSize({width:w,height:950});
  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+ if(w>600&&!await handle.evaluate(e=>e.nextElementSibling?.classList.contains('dashboard-reference-bottom-grid')))throw Error('desktop original band slot');
  if(!await handle.evaluate(e=>e===document.querySelector('[data-personal-requests]'))||await page.locator('[data-personal-requests]').count()!==1||await link.getAttribute('href')!==href||!await link.evaluate(e=>e===document.activeElement))throw Error('resize identity/focus');
 }
 const checks=await page.evaluate(()=>{let bad=[];for(const e of document.querySelectorAll('.dashboard-personal-requests a,.dashboard-personal-requests strong,.dashboard-request-count,.dashboard-video-proposal,.dashboard-video-copy strong,.dashboard-video-action,.dashboard-video-timing,.dashboard-video-state,.dashboard-safety-opening,.dashboard-safety-next')){const r=e.getBoundingClientRect();if(r.width && (r.left<-.5||r.right>innerWidth+.5||e.scrollWidth>e.clientWidth+1))bad.push(e.className);}return{bad,overflow:document.documentElement.scrollWidth>innerWidth+1,links:[...document.querySelectorAll('a')].map(a=>a.getAttribute('href'))};});

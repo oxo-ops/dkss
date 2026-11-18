@@ -2,6 +2,7 @@
    DOM order follows mobile reading/keyboard order; desktop returns to its slot. */
 (() => {
  'use strict';
+ function initialize() {
  const page = document.querySelector('.dashboard-page.dashboard-design-v2');
  const panel = page && page.querySelector('[data-personal-requests]');
  const attention = page && page.querySelector('.dashboard-attention-list');
@@ -19,4 +20,7 @@
  place();
  if (media.addEventListener) media.addEventListener('change', place);
  else media.addListener(place);
+ }
+ if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',initialize,{once:true});
+ else initialize();
 })();
