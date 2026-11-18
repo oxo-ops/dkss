@@ -378,7 +378,7 @@
             const icon = planner.querySelector('[data-plan-search-toggle] svg').cloneNode(true);
             const clear = node('button', '×', 'ip-search-clear'); clear.type = 'button'; clear.dataset.searchClear = '';
             clear.setAttribute('aria-label', '検索文字を消去');
-            clear.addEventListener('click', () => { filters.elements.search.value = ''; draw(); renderSearchResults(); filters.elements.search.focus(); });
+            clear.addEventListener('click', () => { filters.elements.search.value = ''; draw(); filters.elements.search.focus(); });
             const close = node('button', '×', 'ip-search-close'); close.type = 'button'; close.setAttribute('aria-label', '検索を閉じる'); close.addEventListener('click', closeSearch);
             field.append(icon, clear); bar.append(field, close);
             const status = node('p', '', 'ip-search-status'); status.dataset.searchStatus = ''; status.setAttribute('role','status'); status.setAttribute('aria-live','polite');
@@ -859,7 +859,7 @@
     const safeLoad=()=>load().catch(e=>error(planner,'[data-planner-error]',e.message));
     filters.addEventListener('submit',e=>{e.preventDefault();safeLoad();});
     filters.elements.office.addEventListener('change',()=>{focus=null;selected.clear();safeLoad();});
-    filters.elements.search.addEventListener('input',()=>{draw();renderSearchResults();});
+    filters.elements.search.addEventListener('input',()=>{draw();});
     filters.elements.search.addEventListener('keydown',handleSearchKey);
     monthInput.addEventListener('change',()=>{const target=monthInput.value;monthInput.value=committedMonth;if(validMonth(target))navigateMonth(target);});
     const yearPicker=planner.querySelector('[data-year-month-picker]');
