@@ -1,5 +1,5 @@
 {% if session.get('username') and (request.endpoint in ['dashboard', 'vehicle_checklist_results'] or (session.get('aonagi_readonly_demo') and request.endpoint in ['dashboard', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_analysis', 'pointouts', 'pointout_detail', 'driving_reports', 'driving_report_detail', 'vehicle_karte_inspections', 'vehicle_karte_maintenance', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_documents', 'vehicle_inspection_plans', 'safety_checklists', 'safety_checklist_results', 'notifications', 'notification_detail', 'new_pointout', 'edit_pointout', 'vehicle_data_import', 'document_import_job', 'document_import_kind', 'vehicle_document_import_preview'])) %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/first_use_guide.css', v='20261119-blue-coachmark-zoom-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/first_use_guide.css', v='20261119-blue-coachmark-zoom-3') }}">
 <section id="firstUseGuide" data-page="{{ request.endpoint }}" data-mode="{{ 'demo' if session.get('aonagi_readonly_demo') else 'normal' }}" aria-label="操作ガイド">
   <button type="button" class="first-guide-launch" data-guide-open aria-controls="firstGuidePanel" aria-label="この画面の使い方を見る"><span class="first-guide-help-icon" aria-hidden="true">?</span><span>使い方</span></button>
   <div id="firstGuidePanel" class="first-guide-panel" role="region" aria-label="はじめての操作" hidden>
@@ -9,5 +9,5 @@
     <div class="first-guide-actions"><button type="button" data-guide-close aria-label="操作ガイドを閉じる">閉じる</button><button type="button" data-guide-next>次へ</button></div>
   </div>
 </section>
-<script defer src="{{ url_for('static', filename='js/first_use_guide.js', v='20261119-blue-coachmark-zoom-2') }}"></script>
+<script defer src="{{ url_for('static', filename='js/first_use_guide.js', v='20261119-blue-coachmark-zoom-3') }}"></script>
 {% endif %}

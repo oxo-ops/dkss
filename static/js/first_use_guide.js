@@ -478,7 +478,7 @@
     const below=rect.bottom+gap, above=rect.top-height-gap;
     let side='below', top=below;
     if(below+height>bottomEdge){side='above';top=above;}
-    if(top<topEdge){top=Math.max(topEdge,bottomEdge-height);side='overlap';}
+    if(top<topEdge || top+height>bottomEdge){top=Math.max(topEdge,Math.min(top,bottomEdge-height));side='overlap';}
     const targetCenter=Math.max(rect.left,Math.min(rect.right,(left+width/2)));
     const arrow=Math.max(20,Math.min(width-20,targetCenter-left));
     return {left,top,side,arrow};
