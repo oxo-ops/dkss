@@ -14,7 +14,7 @@ def url_for(endpoint,**kw):
  return {'vehicle_karte_list':'/vehicle/karte','vehicle_inspection_plans':'/vehicle/inspection-plans','driving_reports':'/safety/driving-reports?scope=self','company_registration':'/company/registration'}.get(endpoint,'/'+endpoint)
 def page_html(role,path):
  markup=Environment().from_string(aside).render(session={'username':'synthetic','role':role,'aonagi_readonly_demo':True},path=path,is_vehicle_karte_page=path.startswith('/vehicle/karte'),public_demo_shared=True,url_for=url_for,csrf_token=lambda:'synthetic')
- css=''.join('<style>'+ (ROOT/f'static/css/{f}').read_text()+'</style>' for f in ['style.css','vehicle_karte_overview.css','responsive_layout.css'])
+ css=''.join('<style>'+ (ROOT/f'static/css/{f}').read_text()+'</style>' for f in ['style.css','safety_video_refinement.css','notifications_dashboard.css','alseon_brand.css','vehicle_karte_header.css','vehicle_couplings.css','vehicle_karte_overview.css','vehicle_inspection_plans.css','responsive_layout.css'])
  js=''.join('<script>'+ (ROOT/f'static/js/{f}').read_text()+'</script>' for f in ['shell_bootstrap.js','responsive_layout.js','base.js'])
  return '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+css+'<body data-responsive-shell class="vehicle-list-ppt"><div class="app-layout">'+markup+'<main class="main-content"><h1>確認用</h1></main></div>'+js+'</body>'
 report={'head':HEAD,'synthetic':True,'live_access':False,'full_page':False,'rows':[],'blocked':[]};pw=sync_playwright().start();browser=None;page=None
@@ -44,6 +44,9 @@ try:
      if 'open' not in group.get_attribute('class'):group.locator('.sidebar-parent').click()
     assert page.locator('.sidebar-nav a[href="/master/drivers"]').count()==(1 if role=='admin' else 0)
     assert page.locator('.sidebar-nav a[href="/company/registration"]').count()==0
+    assert page.locator('.sidebar-nav').bounding_box()['height']>=200, 'Shared header must leave a usable menu area'
+    logo=page.locator('.alseon-wordmark').bounding_box();head=page.locator('.sidebar-head').bounding_box()
+    assert logo['height']<=head['height'] and logo['width']<=head['width']
     measured=[]
     for item in page.locator('.sidebar-submenu a').all():
      item.scroll_into_view_if_needed();r=item.bounding_box();t=item.locator('.menu-text').bounding_box();parent=item.locator('..').bounding_box()
