@@ -278,7 +278,7 @@
     }
     const fiscalYear = m => Number(m.slice(0,4)) - (Number(m.slice(5)) < 4 ? 1 : 0);
     function monthYear() { return fiscalYear(filters.elements.month.value); }
-    let committedMonth=monthInput.value, yearCursor='', yearTarget='', navigationLoad=0;
+    let committedMonth=monthInput.value, yearCursor='', yearTarget='', navigationLoad=0, yearNavigationPending=0, activeLoad=0;
     function validMonth(m) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(m)&&m>='2000-01'&&m<='2098-12'; }
     function shiftedMonth(m,delta) { const [y,n]=m.split('-').map(Number),v=y*12+n-1+delta;return Math.floor(v/12)+'-'+String(v%12+1).padStart(2,'0'); }
     function showYearMonth(mon) {
@@ -290,10 +290,11 @@
     async function navigateMonth(mon) {
         if(!validMonth(mon))return;
         if(view==='year'&&data&&fiscalYear(mon)===monthYear()) {
-            if(navigationLoad===loadNumber)++loadNumber;yearTarget=mon;showYearMonth(mon);draw();return;
+            if(navigationLoad===loadNumber){++loadNumber;yearNavigationPending=0;}yearTarget=mon;showYearMonth(mon);draw();return;
         }
-        const seq=loadNumber+1;navigationLoad=seq;
+        const seq=loadNumber+1;navigationLoad=seq;yearNavigationPending=seq;
         try { await load(mon); } catch(e) { if(seq===loadNumber)error(planner,'[data-planner-error]','表示期間を変更できませんでした。元の表示を保持しています。'); }
+        finally { if(yearNavigationPending===seq)yearNavigationPending=0; }
     }
     function periodRows() {
         if (!data) return [];
@@ -492,6 +493,34 @@
         button.addEventListener('click',()=>{const dialog=document.querySelector('#inspection-plan-events');if(dialog?.open)dialog.close();edit(entry.p,v);});return button;
     }
     let yearFocusKey = '';
+    function yearEdgeDirection(start, end, maximum) {
+        if (!start || !end || maximum < 1) return 0;
+        const dx=end.x-start.x,dy=end.y-start.y;
+        if(Math.abs(dx)<72 || Math.abs(dx)<Math.abs(dy)*2.5) return 0;
+        return dx<0&&start.left>=maximum-2?1:dx>0&&start.left<=2?-1:0;
+    }
+    function bindYearEdgeSwipe(scroll, months) {
+        let start=null, moved=false, pending=false, suppressClick=false;
+        scroll.addEventListener('touchstart',event=>{
+            start=null;moved=false;
+            if(event.touches.length!==1||yearNavigationPending||activeLoad||pending||event.target?.closest('button,a,input,select,textarea,[role="button"]'))return;
+            const t=event.touches[0];start={x:t.clientX,y:t.clientY,left:scroll.scrollLeft};
+        },{passive:true});
+        scroll.addEventListener('touchmove',event=>{if(event.touches.length!==1){start=null;return;}if(start)moved=true;},{passive:true});
+        scroll.addEventListener('touchcancel',()=>{start=null;},{passive:true});
+        scroll.addEventListener('touchend',async event=>{
+            const origin=start;start=null;
+            if(!origin||!moved||pending||yearNavigationPending||activeLoad||event.changedTouches.length!==1||view!=='year'||!scroll.isConnected)return;
+            const t=event.changedTouches[0],direction=yearEdgeDirection(origin,{x:t.clientX,y:t.clientY},scroll.scrollWidth-scroll.clientWidth);
+            if(!direction)return;
+            const target=shiftedMonth(direction>0?months.at(-1):months[0],direction);
+            if(!validMonth(target))return;
+            pending=true;suppressClick=true;event.preventDefault();
+            // Keep the old grid in place until the authorized scope load succeeds.
+            try{await navigateMonth(target);}finally{pending=false;setTimeout(()=>{suppressClick=false;},350);}
+        },{passive:false});
+        scroll.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopPropagation();}},{capture:true});
+    }
     function drawYearCalendar(rows, months) {
         const root=planner.querySelector('[data-plan-year-calendar]');
         const previousLeft=root.firstElementChild?.scrollLeft||0,previousTop=root.firstElementChild?.scrollTop||0;
@@ -524,18 +553,21 @@
         const monthLeft=h=>Math.max(0,h.offsetLeft-grid.offsetLeft-grid.querySelector('.ip-year-head').offsetWidth);
         scroll.addEventListener('scroll',()=>{clearTimeout(settled);settled=setTimeout(()=>{
             if(view!=='year'||!scroll.isConnected)return;
+            const selectedHead=headers.find(h=>h.dataset.month===yearCursor),maximum=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
+            // At the final columns several selected months share the same clamped position.
+            if(selectedHead&&Math.abs(Math.min(monthLeft(selectedHead),maximum)-scroll.scrollLeft)<=2)return;
             const nearest=headers.reduce((a,b)=>Math.abs(monthLeft(a)-scroll.scrollLeft)<=Math.abs(monthLeft(b)-scroll.scrollLeft)?a:b);
             if(nearest)showYearMonth(nearest.dataset.month);
         },120);},{passive:true});
         const key=months.join(',');
+        bindYearEdgeSwipe(scroll,months);
         const fresh=yearFocusKey!==key;yearFocusKey=key;
         const target=yearTarget||(fresh?(months.includes(localMonth())?localMonth():monthInput.value):yearCursor);
         yearTarget='';
         requestAnimationFrame(()=>{
             if(view!=='year'||!scroll.isConnected)return;
-            const dayWidth=grid.querySelector('.ip-year-head').offsetWidth,columnWidth=headers[0]?.offsetWidth||0;
+            const dayWidth=grid.querySelector('.ip-year-head').offsetWidth;
             scroll.style.scrollPaddingLeft=dayWidth+'px';
-            grid.style.paddingRight=Math.max(0,scroll.clientWidth-dayWidth-columnWidth)+'px';
             const head=headers.find(h=>h.dataset.month===target);
             if(head){scroll.scrollLeft=monthLeft(head);showYearMonth(head.dataset.month);}
         });
@@ -768,7 +800,9 @@
         const params=new URLSearchParams({month:targetMonth,year:fiscalYear(targetMonth)});
         if(initialized){const office=filters.elements.office.value;params.set('scope',office==='__company'?'company':'office');if(office&&office!=='__company')params.set('office',office);if(focus)params.set('vehicle_id',focus);}
         else {for(const k of ['scope','office','vehicle_id'])if(args[k])params.set(k,args[k]);}
-        const value=await api('?'+params);if(seq!==loadNumber)return;data=value;const changed=committedMonth!==targetMonth;monthInput.value=targetMonth;committedMonth=targetMonth;if(initialized&&view==='year')yearTarget=targetMonth;if(changed)selected.clear();
+        activeLoad=seq;let value;
+        try{value=await api('?'+params);}finally{if(activeLoad===seq)activeLoad=0;}
+        if(seq!==loadNumber)return;data=value;const changed=committedMonth!==targetMonth;monthInput.value=targetMonth;committedMonth=targetMonth;if(initialized&&view==='year')yearTarget=targetMonth;if(changed)selected.clear();
         if(!initialized){const select=filters.elements.office;select.replaceChildren();for(const [val,label] of [['','営業所を選択'],['__company','会社全体'],...data.offices.map(o=>[o,o])]){const o=node('option',label);o.value=val;select.append(o);}select.value=data.scope==='company'?'__company':data.office;initialized=true;}
         draw();
     }

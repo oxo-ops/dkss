@@ -292,3 +292,6 @@ body .main-content .inspection-plans[data-inspection-planner] > .ip-view-switch 
 .inspection-plans .ip-month-navigation [data-plan-today],.inspection-plans .ip-month-navigation [data-period]{min-width:44px;min-height:44px}
 
 .inspection-plans:not([data-view="year"]) [data-year-month-picker],.inspection-plans[data-view="year"] .ip-month-picker input[name="month"]{display:none!important}
+
+/* Keep the new control consistent without changing buttons elsewhere. */
+body .main-content .inspection-plans[data-inspection-planner] .ip-period > button[data-plan-today]{font-size:14px!important;line-height:1.2!important;font-weight:600!important;letter-spacing:0!important;min-width:44px!important;min-height:44px!important}
