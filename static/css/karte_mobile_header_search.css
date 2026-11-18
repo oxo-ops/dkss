@@ -14,3 +14,10 @@
     .karte-mobile-search-dialog .vehicle-karte-search-result { min-height:44px; }
     .karte-mobile-search-trigger:focus-visible, .karte-mobile-search-close:focus-visible, .karte-mobile-search-clear:focus-visible { outline:2px solid #176db4; outline-offset:2px; }
 }
+
+@media (max-width:767px) {
+ body[data-responsive-shell] #karte-mobile-search-dialog[open] {
+  max-inline-size:100vw!important;
+  max-block-size:100dvh!important;
+ }
+}
