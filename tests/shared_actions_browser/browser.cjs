@@ -15,7 +15,19 @@ if(u.pathname==='/static/css/shared_actions.css')return route.fulfill({contentTy
 if(u.pathname===new URL(info.path,'https://fixture.invalid').pathname)return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(html,file),'utf8')});
 if(u.pathname.startsWith('/static/')){const f=path.resolve(repo,'.'+u.pathname);if(f.startsWith(repo+'/static/')&&fs.existsSync(f))return route.fulfill({path:f})}
 return route.fulfill({status:404,body:'offline fixture'});});
-await page.goto(new URL(info.path,'https://fixture.invalid').href);await page.keyboard.press('Escape');
+await page.goto(new URL(info.path,'https://fixture.invalid').href);
+// Initial inspection guide starts on animation frame after DOMContentLoaded.
+await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+const guide=page.locator('#firstGuidePanel');
+if(await guide.count() && await guide.isVisible()){
+ await page.addStyleTag({content:theme});
+ await page.screenshot({path:path.join(out,`${name}-${width}-guide.png`),fullPage:true});
+ await page.locator('[data-guide-close]').click();await guide.waitFor({state:'hidden'});
+ // Reload with local guide-seen state retained to compare the same unobscured DOM.
+ await page.reload();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert(!await guide.isVisible(),`${name} guide remains dismissed`);
+}
+
 const controls=page.locator(ordinary),before=await snapshots(controls);
 const states=await snapshots(page.locator(state));
 await page.addStyleTag({content:theme});
