@@ -102,7 +102,7 @@ try:
           if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')
-         if 300<=res.status_code<400:assert res.status_code==302 and (res.location=='/' if role=='manager' else urlsplit(res.location).path==urlsplit(target).path)
+         if 300<=res.status_code<400:assert res.status_code==302 and (res.location=='/' or (path=='/demo/role' and role=='driver' and urlsplit(res.location).path==urlsplit(target).path))
          requests.append({'method':method,'path':path,'status':res.status_code})
          self.send_response(res.status_code)
          for k,v in res.headers.items():
