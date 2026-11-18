@@ -36,10 +36,19 @@
                 filterDialog.addEventListener('close',()=>planner.querySelector('[data-plan-filter-toggle]').setAttribute('aria-expanded','false'));planner.append(filterDialog);
             }
             filterPanel.open=true;filterDialog.append(filterPanel);
-            if(!viewDialog){viewDialog=node('dialog',undefined,'ip-filter-dialog ip-view-dialog');viewDialog.setAttribute('aria-label','表示形式');const close=node('button','×');close.type='button';close.setAttribute('aria-label','表示形式を閉じる');close.addEventListener('click',()=>viewDialog.close());viewDialog.append(close);viewDialog.addEventListener('close',()=>planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','false'));planner.append(viewDialog);}
+            if(!viewDialog){
+                viewDialog=node('div',undefined,'ip-view-popover');viewDialog.id='inspection-plan-view-options';viewDialog.setAttribute('popover','auto');viewDialog.setAttribute('aria-label','表示形式');
+                viewDialog.addEventListener('toggle',event=>planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded',String(event.newState==='open')));planner.append(viewDialog);
+                const toggle=planner.querySelector('[data-plan-view-toggle]');toggle.setAttribute('aria-controls',viewDialog.id);toggle.setAttribute('aria-haspopup','true');
+                viewDialog.addEventListener('keydown',event=>{
+                    if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
+                    event.preventDefault();const buttons=[...viewSwitch.querySelectorAll('[data-view]')],i=buttons.indexOf(document.activeElement);
+                    const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();
+                });
+            }
             viewDialog.append(viewSwitch);
         }else{
-            if(filterDialog?.open)filterDialog.close();if(viewDialog?.open)viewDialog.close();
+            if(filterDialog?.open)filterDialog.close();if(viewDialog?.matches(':popover-open'))viewDialog.hidePopover();
             planner.querySelector('.card-title-row').after(viewSwitch);
             planner.querySelector('[data-plan-active-filter]').after(filterPanel);filterPanel.open=true;
         }
@@ -818,7 +827,7 @@
     planner.querySelector('[data-plan-today]').addEventListener('click',()=>navigateMonth(localMonth()));
     planner.querySelector('[data-plan-focus]').addEventListener('click',()=>{focus=null;safeLoad();});
     planner.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;selected.clear();draw();}));
-    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();if(viewDialog?.open)viewDialog.close();}));
+    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();if(viewDialog?.matches(':popover-open')){viewDialog.hidePopover();planner.querySelector('[data-plan-view-toggle]').focus();}}));
     planner.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{
         navigateMonth(shiftedMonth(view==='year'?(yearCursor||monthInput.value):monthInput.value,Number(b.dataset.period)));
     }));
@@ -868,7 +877,12 @@
     });
     planner.querySelector('[data-clear-filters]').addEventListener('click',()=>{kind='';state='';focus=null;filters.elements.search.value='';selected.clear();safeLoad();});
     planner.querySelector('[data-plan-search-toggle]').addEventListener('click',openSearch);
-    planner.querySelector('[data-plan-view-toggle]').addEventListener('click',()=>{syncFilterPresentation();viewDialog.showModal();planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','true');});
+    planner.querySelector('[data-plan-view-toggle]').addEventListener('click',()=>{syncFilterPresentation();if(viewDialog.matches(':popover-open')){viewDialog.hidePopover();return;}
+        const rect=planner.querySelector('[data-plan-view-toggle]').getBoundingClientRect();
+        viewDialog.showPopover();const box=viewDialog.getBoundingClientRect();
+        viewDialog.style.left=Math.max(8,Math.min(rect.right-box.width,window.innerWidth-box.width-8))+'px';
+        viewDialog.style.top=Math.max(8,Math.min(rect.bottom+6,window.innerHeight-box.height-8))+'px';
+        viewSwitch.querySelector('[aria-pressed="true"]')?.focus();});
     planner.querySelector('[data-plan-filter-toggle]').addEventListener('click',()=>openFilterPanel());
     planner.querySelector('[data-plan-clear-mobile]').addEventListener('click',()=>planner.querySelector('[data-clear-filters]').click());
     planner.querySelector('[data-empty-add]').addEventListener('click',()=>newPlan());
