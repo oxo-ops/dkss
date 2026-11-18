@@ -31,3 +31,7 @@
  .vehicle-workspace-top.vehicle-toolbar-ready .vehicle-target-settings:not([open]) {display:none!important}
  .vehicle-workspace-top .vehicle-workspace-back {max-width:100%;font-size:12px;white-space:normal}
 }
+
+/* The legacy compact sheet visually hides date captions, not the selected date. */
+.vehicle-workspace-top .vehicle-workspace-date > .vehicle-date-japanese {position:relative;width:auto;height:auto;min-height:44px;margin:0;padding:0 12px;overflow:visible;clip-path:none;white-space:nowrap;}
+@media(max-width:600px){.vehicle-workspace-top .vehicle-workspace-date > .vehicle-date-japanese {width:100%;}}
