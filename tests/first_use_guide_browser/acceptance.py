@@ -79,7 +79,9 @@ with sync_playwright() as p:
      expect(page.locator('[data-guide-picture] img')).to_have_js_property('complete',True)
      expect(page.locator('[data-guide-picture] img')).to_have_js_property('naturalWidth',1098)
      box=page.locator('[data-guide-picture]').bounding_box()
-     assert box and 255 <= box['width'] <= 265 and 340 <= box['height'] <= 355, box
+     assert box and 0 < box['width'] <= width - 24 and 96 <= box['height'] <= 144, box
+     image_box=page.locator('[data-guide-picture] img').bounding_box()
+     assert image_box and abs(image_box['width']/image_box['height'] - 1098/1464) < .02, image_box
      assert page.locator('[data-guide-next]').is_visible()
      next_box=page.locator('[data-guide-next]').bounding_box()
      assert next_box['y'] + next_box['height'] <= page.viewport_size['height'], next_box
@@ -115,3 +117,4 @@ with sync_playwright() as p:
    context.close()
  browser.close()
 (OUT/'report.json').write_text(json.dumps({'synthetic_only':True,'cases':results},indent=2))
+
