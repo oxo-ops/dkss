@@ -1,0 +1,29 @@
+/* Preserve the supplied navy/blue artwork; only its local backing is white. */
+.sidebar-head .alseon-logo {
+    width: 164px;
+    height: 36px;
+    flex: 0 0 164px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.alseon-logo:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.alseon-wordmark { position: relative; display: block; width: 148px; height: 26px; overflow: hidden; }
+.alseon-wordmark img { position: absolute; width: 158px; max-width: none; height: auto; left: -6px; top: 50%; transform: translateY(-50%); }
+.alseon-symbol { display: none; width: 42px; height: 30px; position: relative; }
+.alseon-symbol img { width: 48px; max-width: none; height: auto; position: absolute; left: -3px; top: 50%; transform: translateY(-50%); }
+@media (min-width: 901px) {
+    body.sidebar-collapsed .sidebar-head .alseon-logo { width: 50px; flex: 0 0 auto; padding: 0 4px; }
+    body.sidebar-collapsed .alseon-wordmark { display: none; }
+    body.sidebar-collapsed .alseon-symbol { display: block; }
+}
+/* Mobile sidebar is an expanded drawer even with a persisted desktop collapse. */
+@media (max-width: 900px) {
+    body.sidebar-collapsed .alseon-wordmark { display: block; }
+    body.sidebar-collapsed .alseon-symbol { display: none; }
+}

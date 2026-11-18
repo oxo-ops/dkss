@@ -102,6 +102,37 @@ def notice_text_visibility(page):
     page.evaluate('window.scrollTo(0,0)')
     return dict(full_text_matched=True,line_count=count,lines=lines)
 
+def brand_roundtrip(page, width, out, role):
+    """Verify real sidebar controls and alpha PNG loads on the rendered Flask page."""
+    guide = page.locator('#firstGuidePanel')
+    if guide.is_visible():
+        guide.get_by_role('button', name='操作ガイドを閉じる', exact=True).click()
+    body = page.locator('body')
+    toggle = page.locator('#sidebarToggle')
+    mobile = width <= 900
+    if mobile or body.evaluate("e=>e.classList.contains('sidebar-collapsed')"):
+        toggle.click()
+    states = ['expanded'] if mobile else ['expanded', 'collapsed']
+    checks = []
+    for state in states:
+        if state == 'collapsed':
+            toggle.click()
+        word = page.locator('.alseon-wordmark')
+        symbol = page.locator('.alseon-symbol')
+        require(word.is_visible() == (state == 'expanded'), 'wrong wordmark visibility')
+        require(symbol.is_visible() == (state == 'collapsed'), 'wrong symbol visibility')
+        logo = page.locator('.alseon-logo')
+        require(logo.get_attribute('aria-label') == 'ALSEON ホーム', 'brand accessible name')
+        require(logo.locator('img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth>0)'), 'logo asset failed to load')
+        geometry = logo.evaluate('''e=>{const r=e.getBoundingClientRect(),t=document.querySelector('#sidebarToggle').getBoundingClientRect();
+          return {width:r.width,height:r.height,inside:r.left>=0&&r.right<=innerWidth,
+            overlap:r.left<t.right&&r.right>t.left&&r.top<t.bottom&&r.bottom>t.top}}''')
+        require(geometry['inside'] and not geometry['overlap'], f'brand clips/overlaps toggle: {geometry}')
+        page.screenshot(path=str(out / f'brand-{role}-{width}-{state}.png'), full_page=False)
+        checks.append(dict(state=state, **geometry))
+    toggle.click()  # restore closed mobile drawer / expanded desktop
+    return checks
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--repo', type=Path, required=True)
@@ -221,6 +252,8 @@ def main():
                                 require(not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),'selected horizontal overflow')
                                 bell_roundtrip(page)
                                 page.screenshot(path=str(out/f'{role}-{width}-{n}-selected.png'),full_page=False)
+                                if n == 0:
+                                    report['cases'].append(dict(role=role,width=width,brand=brand_roundtrip(page,width,out,role)))
                             page.goto(ORIGIN+'/demo',wait_until='networkidle')
                             require(page.locator('.public-demo-notice form[action="/demo/role"]').count()==1,'reentry must restore role selection')
                             require(page.get_by_text('日常点検を開く',exact=True).is_visible(),'initial independent inspection action missing')

@@ -41,6 +41,7 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261111-priority-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-1') }}">
     {% if import_flow %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
     {% endif %}
@@ -78,9 +79,9 @@
     <aside class="sidebar">
 
         <div class="sidebar-head">
-            <a href="/" class="logo">
-                <span class="logo-mark">L</span>
-                <span class="logo-text">LOGO</span>
+            <a href="/" class="logo alseon-logo" aria-label="ALSEON ホーム">
+                <span class="alseon-wordmark"><img src="{{ url_for('static', filename='images/alseon/wordmark.png') }}" alt="" width="2172" height="724"></span>
+                <span class="alseon-symbol"><img src="{{ url_for('static', filename='images/alseon/symbol.png') }}" alt="" width="1536" height="1024"></span>
             </a>
 
             <button type="button" class="sidebar-toggle" id="sidebarToggle">
