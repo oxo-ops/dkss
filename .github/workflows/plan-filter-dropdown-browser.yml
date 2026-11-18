@@ -1,0 +1,53 @@
+name: Plan Filter Dropdown Browser
+on:
+  push:
+    branches: [validation/plan-filter-dropdown-20261119]
+permissions:
+  contents: read
+jobs:
+  inspection-calendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          CHROME=$(node -e 'console.log(require(process.env.PLAYWRIGHT_MODULE).chromium.executablePath())')
+          set +e
+          bash tests/inspection_calendar_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/calendar-ui" "$CHROME"
+          CAL=$?
+          bash tests/plan_search_year_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/search-year-ui" "$CHROME"
+          SEARCH=$?
+          bash tests/plan_axis_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/axis-ui" "$CHROME"
+          AXIS=$?
+          bash tests/plan_event_detail_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/detail-ui" "$CHROME"
+          DETAIL=$?
+          test "$CAL" = 0 && test "$SEARCH" = 0 && test "$AXIS" = 0 && test "$DETAIL" = 0
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: inspection-calendar-ui-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/calendar-ui/*.png
+            ${{ runner.temp }}/calendar-ui/report.json
+            ${{ runner.temp }}/search-year-ui/*.png
+            ${{ runner.temp }}/search-year-ui/*.json
+
+            ${{ runner.temp }}/axis-ui/*.png
+            ${{ runner.temp }}/axis-ui/*.json
+            ${{ runner.temp }}/detail-ui/*.png
+            ${{ runner.temp }}/detail-ui/*.json

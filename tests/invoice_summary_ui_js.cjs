@@ -5,17 +5,18 @@ function element(tag,text,cls=''){
  const e={tag,own:text??'',className:cls,children:[],dataset:{},events:{},attrs:{},
  append(...children){this.children.push(...children)},replaceChildren(...children){this.children=children},
  setAttribute(k,v){this.attrs[k]=v},addEventListener(k,fn){this.events[k]=fn}};
+ Object.defineProperty(e,'childElementCount',{get(){return this.children.length}});
  Object.defineProperty(e,'textContent',{get(){return this.own+this.children.map(c=>c.textContent).join('')},set(v){this.own=v;this.children=[]}});
  e.classList={add(...names){e.className+=' '+names.join(' ')}};
  return e;
 }
-function fixture(mobile=false,view='calendar'){
+function fixture(){
  const list=element('div'),title=element('h2'),dialog={open:false,showModal(){this.open=true},close(){this.open=false},
- querySelector(s){return s==='[data-events-list]'?list:title}};
- const ctx={window:{matchMedia:()=>({matches:mobile})},view,node:element,data:{vehicles:[{id:3,number:'横浜 100 い 11-11'}]},
- document:{querySelector:()=>dialog},deadlineState:()=>'',eventLabels:{actual:'実施済み'},labels:{},states:{}};
+ querySelector(s){return s==='[data-source-detail-body]'?list:title}};
+ const ctx={node:element,data:{vehicles:[{id:3,number:'横浜 100 い 11-11'}]},
+ document:{querySelector:s=>s==='[data-source-detail-close]'?element('button'):dialog},window:{matchMedia:()=>({matches:false})},deadlineState:()=>'',eventLabels:{actual:'実施済み'},labels:{},states:{}};
  vm.createContext(ctx);
- for(const [from,to] of [['invoiceLink(fact)','vehicleCell(v)'],['calendarEvent(entry,compact=false)','drawCalendar(rows)']]){
+ for(const [from,to] of [['showInvoiceDetail(fact)','vehicleCell(v)'],['calendarEvent(entry,compact=false)','drawCalendar(rows)']]){
   const start=js.indexOf('    function '+from),end=js.indexOf('    function '+to,start);
   vm.runInContext(js.slice(start,end),ctx);
  }
@@ -29,8 +30,10 @@ test('invoice summary uses the existing completed chip',()=>{
 });
 test('source remains accessible with a descriptive label',()=>{
  const {ctx,fact}=fixture(),a=ctx.invoiceLink(fact);
- assert.equal(a.href,fact.source_url);assert.equal(a.rel,'noopener');
- assert(a.attrs['aria-label'].includes('請求書原本を開く'));
+ assert.equal(a.tag,'button');assert.equal(a.href,undefined);
+ assert(a.attrs['aria-label'].includes('詳細を見る'));a.events.click();
+ const body=ctx.document.querySelector('#inspection-plan-source-detail').querySelector('[data-source-detail-body]');
+ const source=body.children.at(-1).children[0];assert.equal(source.href,fact.source_url);assert.equal(source.rel,'noopener');assert.equal(source.target,'_blank');
 });
 test('unknown date is explicit and never substituted',()=>{
  const {ctx,fact}=fixture();fact.summary='実施日不明 オイル確認 実施';
@@ -47,24 +50,12 @@ test('mobile calendar stacks the status vehicle and content like other actuals',
  assert.equal(a.children.length,3);assert.equal(a.children[0].textContent,'実施済み');
  assert.equal(a.children[1].tag,'strong');assert.equal(a.children[2].textContent,'オイル量の確認・補充');
 });
-test('multiple originals retain the existing selection dialog',()=>{
+test('multiple originals remain separate links inside the detail dialog',()=>{
  const {ctx,fact,list,dialog}=fixture();
  fact.sources=[{filename:'first.pdf',url:'/first'},{filename:'second.pdf',url:'/second'}];
- const a=ctx.invoiceLink(fact);let prevented=false;
- a.events.click({preventDefault(){prevented=true}});
- assert(prevented);assert(dialog.open);assert.equal(list.children.length,2);
- assert.equal(list.children[1].href,'/second');
+ const before=JSON.stringify(fact),a=ctx.invoiceLink(fact);assert.equal(a.href,undefined);
+ a.events.click();assert(dialog.open);const links=list.children.at(-1);assert.equal(links.children.length,2);
+ assert.equal(links.children[1].href,'/second');assert.equal(JSON.stringify(fact),before);
 });
 
-test('mobile month invoice keeps two readable lines and original source',()=>{
- const {ctx,fact}=fixture(true,'calendar'),a=ctx.calendarEvent({invoice:fact,p:{vehicle_record_id:3}},true);
- assert(a.className.includes('ip-month-event-lines'));assert.equal(a.children.length,2);
- assert.equal(a.children[0].textContent,'11-11');assert.equal(a.children[1].textContent,'整備');
- assert.equal(a.href,fact.source_url);assert(a.attrs['aria-label'].includes(fact.summary));assert.equal(a.dataset.event,'actual');
-});
-test('mobile year invoice retains status content and source in two lines',()=>{
- const {ctx,fact}=fixture(true,'year'),a=ctx.calendarEvent({invoice:fact,p:{vehicle_record_id:3}},true);
- assert(a.className.includes('ip-year-event-lines'));assert.equal(a.children.length,2);
- assert.equal(a.children[0].textContent,'11-11 実施');assert.equal(a.children[1].textContent,'オイル量の確認・補充');
- assert.equal(a.href,fact.source_url);assert(a.attrs['aria-label'].includes(fact.summary));assert.equal(a.dataset.event,'actual');
-});
+test('missing original has no invented navigation',()=>{const {ctx,fact,list,dialog}=fixture();delete fact.source_url;ctx.invoiceLink(fact).events.click();assert(dialog.open);assert.equal(list.children.at(-1).textContent,'元データなし');assert.equal(list.children.at(-1).children.length,0);});
