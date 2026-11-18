@@ -1,7 +1,7 @@
-name: Plan search rendering regression
+name: Plan deferred annual table regression
 on:
   push:
-    branches: [review/plan-search-render-20261119]
+    branches: [review/plan-year-lazy-20261119]
 permissions:
   contents: read
 jobs:
