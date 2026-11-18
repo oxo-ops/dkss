@@ -60,6 +60,8 @@ class Pages(CompactDemoTests):
   for role,username in [('driver','checker'),('manager','admin')]:
    self.login(username)
    with self.client.session_transaction() as sess:sess['demo_role_selected']=True
+   approval=self.client.get('/api/approval-candidates');self.assertEqual(approval.status_code,200);self.assertIsInstance(approval.json,dict)
+   (state_dir/f'{role}-approval-candidates.json').write_text(json.dumps(approval.json,ensure_ascii=False))
    unselected_path=f'/vehicle/checklists/{self.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}'
    unselected=self.client.get(unselected_path);self.assertEqual(unselected.status_code,200)
    from html.parser import HTMLParser

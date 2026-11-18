@@ -535,5 +535,14 @@
   document.addEventListener('click',e=>{if(!panel.hidden&&!root.contains(e.target)) {if(resumable)pauseForOperation(e.target);else close(false);}},true);
   new MutationObserver(()=>{if(!panel.hidden && active && !visible(active)) close(false);}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
   window.addEventListener('resize',position);window.addEventListener('scroll',position,{passive:true});
-  if(initial.available&&!initial.seen && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) open(false);
+  function startInitialGuide(){
+    if(initial.available&&!initial.seen && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) open(false);
+  }
+  // Inspection layout marks responsive columns on DOMContentLoaded. Select targets
+  // after those handlers, rather than opening on a cell that is about to be hidden.
+  if(resumable){
+    const afterLayout=()=>requestAnimationFrame(startInitialGuide);
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',afterLayout,{once:true});
+    else afterLayout();
+  }else startInitialGuide();
 })();

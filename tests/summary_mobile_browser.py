@@ -36,7 +36,7 @@ with sync_playwright() as p:
   from urllib.parse import urlencode
   filter_html=Environment(autoescape=True).from_string(chunk).render(status_filter='waiting',patrol_stats=dict(waiting=1,not_started=2,rejected=3),view_type='user',office_filter='test',category_filter='安全',date_from='2026-11-01',date_to='2026-11-18',page_size=30,url_for=lambda endpoint,**kw:'/pointouts?'+urlencode(kw))
   filter_css=(r/'static/css/safety_filter_compact.css').read_text()
-  page.set_content('<html><meta charset="utf-8"><style>'+css+filter_css+'</style><body><main style="padding:12px">'+filter_html+'</main></body></html>')
+  page.set_content('<html><meta charset="utf-8"><style>'+css+filter_css+'</style><body><main style="padding:12px"><nav class="safety-list-breadcrumb" hidden></nav>'+filter_html+'</main></body></html>')
   assert page.locator('.safety-summary-card').count()==3
   assert page.locator('.safety-summary-grid').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
   assert 'status=&' in page.locator('.safety-summary-waiting').get_attribute('href')

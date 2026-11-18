@@ -1,13 +1,13 @@
-body .safety-summary-grid.safety-summary-compact {grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
-body .safety-summary-compact .safety-summary-card {display:flex;align-items:center;gap:8px;min-height:52px;padding:10px 14px;}
-body .safety-summary-compact .safety-summary-card::after {display:none;}
-body .safety-summary-compact .safety-summary-label {margin:0;line-height:1.3;}
-body .safety-summary-compact strong {margin-left:auto;font-size:24px;white-space:nowrap;}
-body .safety-summary-compact strong small {font-size:12px;}
-body .safety-summary-compact .is-selected {border-color:#386aa5;box-shadow:inset 0 0 0 1px #386aa5;}
+body:has(.safety-list-breadcrumb) .safety-summary-grid.safety-summary-compact {grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-card {display:flex;align-items:center;gap:8px;min-height:52px;padding:10px 14px;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-card::after {display:none;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-label {margin:0;line-height:1.3;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact strong {margin-left:auto;font-size:24px;white-space:nowrap;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact strong small {font-size:12px;}
+body:has(.safety-list-breadcrumb) .safety-summary-compact .is-selected {border-color:#386aa5;box-shadow:inset 0 0 0 1px #386aa5;}
 @media(max-width:600px){
- body .safety-summary-grid.safety-summary-compact {gap:6px;}
- body .safety-summary-compact .safety-summary-card {flex-wrap:wrap;justify-content:space-between;min-height:64px;padding:8px;gap:4px;border-radius:10px;}
- body .safety-summary-compact .safety-summary-label {font-size:12px;flex-basis:100%;}
- body .safety-summary-compact strong {margin:0;font-size:22px;}
+ body:has(.safety-list-breadcrumb) .safety-summary-grid.safety-summary-compact {gap:6px;}
+ body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-card {flex-wrap:wrap;justify-content:space-between;min-height:64px;padding:8px;gap:4px;border-radius:10px;}
+ body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-label {font-size:12px;flex-basis:100%;}
+ body:has(.safety-list-breadcrumb) .safety-summary-compact strong {margin:0;font-size:22px;}
 }

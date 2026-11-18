@@ -154,7 +154,7 @@ def main():
                         panel=page.locator('.dashboard-attention-panel').first
                         expect(panel.locator('.dashboard-attention-preview > li')).to_have_count(5)
                         preview=panel.locator('.dashboard-attention-preview')
-                        expect(preview.locator('.dashboard-attention-priority').filter(has_text=re.compile('^中$'))).to_have_count(1)
+                        expect(preview.locator(f'a[href$="#proposal={computed_id}"] .dashboard-attention-priority')).to_have_text('中')
                         for proposal in preview.locator('a.dashboard-video-proposal').all():
                             expect(proposal.locator('.dashboard-video-copy strong')).to_be_visible()
                             expect(proposal.locator('.dashboard-video-copy > span')).to_be_visible()

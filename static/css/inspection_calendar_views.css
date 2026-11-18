@@ -54,3 +54,7 @@
 #inspection-plan-new input,#inspection-plan-new select{box-sizing:border-box;min-width:0;width:100%;max-width:100%}
 #inspection-plan-new input[type=month]{display:block;inline-size:100%;max-inline-size:100%;min-inline-size:0}
 #inspection-plan-new input[type=month]::-webkit-date-and-time-value{min-width:0;text-align:left}
+
+/* The current month remains legible against its blue header at every width. */
+.inspection-plans .ip-year-month-head.is-current,
+.inspection-plans .ip-year-month-head.is-current small { color: #fff !important; }

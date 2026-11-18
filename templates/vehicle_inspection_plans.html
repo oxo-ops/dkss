@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}点検計画{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inspection_calendar_views.css', v='20261118-calendar-month-2') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inspection_calendar_views.css', v='20261118-calendar-month-3') }}">{% endblock %}
 {% block content %}
 <section class="card inspection-plans" data-inspection-planner data-plan-args="{{ plan_args|tojson|forceescape }}">
     <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><a class="btn btn-outline" data-plan-export href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a><button type="button" class="btn btn-outline" data-plan-add hidden>＋ 予定を追加</button></div></div>

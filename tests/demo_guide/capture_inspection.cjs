@@ -8,6 +8,7 @@ for(const width of [390,1316])for(const row of JSON.parse(fs.readFileSync(path.j
 
  const url=new URL(row.path,'https://fixture.invalid');
  await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(req.method()!=='GET'){posts++;return route.abort()}if(u.origin!==url.origin)return route.abort();
+ if(u.pathname==='/api/approval-candidates')return route.fulfill({contentType:'application/json',body:fs.readFileSync(path.join(dir,`${row.role}-approval-candidates.json`),'utf8')});
  if(u.pathname===url.pathname)return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(dir,row.file),'utf8')});
  if(u.pathname.startsWith('/static/')){const file=path.resolve(repo,'.'+u.pathname);if(file.startsWith(repo+'/static/')&&fs.existsSync(file))return route.fulfill({path:file});}
  return route.fulfill({status:404,body:'offline fixture'});});
@@ -19,7 +20,7 @@ for(const width of [390,1316])for(const row of JSON.parse(fs.readFileSync(path.j
  if(row.editable){
   await page.locator('[data-guide-open]').click();
   while((await page.locator('[data-guide-title]').innerText())!=='項目の詳細を見る')await page.locator('[data-guide-next]').click();
-  const detailOpener=page.locator('.inspection-item-detail').first();
+  const detailOpener=page.locator('.inspection-item-detail:visible').first();
   await detailOpener.focus();await detailOpener.press('Enter');
   await page.waitForFunction(()=>document.activeElement===document.getElementById('detailTitle'));
   assert(!(await panel.isVisible()));assert.equal(await page.locator('[data-guide-open] span:last-child').innerText(),'案内を再開');
@@ -30,7 +31,7 @@ for(const width of [390,1316])for(const row of JSON.parse(fs.readFileSync(path.j
   await page.locator('[data-guide-close]').click();assert.equal(await page.locator('[data-guide-open] span:last-child').innerText(),'使い方');
  }
  if(width===390&&row.role==='manager'&&row.code==='input'){
-  await page.locator('.inspection-item-detail').first().click();const box=page.locator('#detailModal .modal-box');await box.waitFor({state:'visible'});
+  await page.locator('.inspection-item-detail:visible').first().click();const box=page.locator('#detailModal .modal-box');await box.waitFor({state:'visible'});
   assert(await box.locator('#detailCriteriaText').innerText());assert(await box.locator('#detailCommentEditor[contenteditable="true"]').isVisible());
   await box.screenshot({path:path.join(out,'inspection-detail-open-3x.png')});
   const b=await box.boundingBox();assert(b.width>300);cases.push({capture:true,cssWidth:b.width,dpr:3,no_resampling:true});
