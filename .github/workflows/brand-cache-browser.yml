@@ -1,0 +1,39 @@
+name: Brand Asset Cache Browser
+on:
+  push:
+    branches: ['review/perf-brand-cache-20261118']
+permissions:
+  contents: read
+jobs:
+  isolated-brand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install isolated browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/brand-venv"
+          "$RUNNER_TEMP/brand-venv/bin/pip" install Flask==3.1.2 Pillow==13.0.0 playwright==1.62.0
+          "$RUNNER_TEMP/brand-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Check exact head and isolated browser
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 PYTHONPATH="$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/tests" \
+            "$RUNNER_TEMP/brand-venv/bin/python" -m unittest test_logo_lossless test_bundled_asset_cache
+          env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 BRAND_OUTPUT="$RUNNER_TEMP/brand-results" \
+            "$RUNNER_TEMP/brand-venv/bin/python" tests/brand_cache_browser/acceptance.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: brand-cache-${{ github.sha }}
+          path: ${{ runner.temp }}/brand-results/
+          retention-days: 7

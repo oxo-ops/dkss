@@ -243,7 +243,8 @@ def install(app):
             # Keep HTTPS same-origin CSRF checks working without leaking demo URLs externally.
             response.headers['Referrer-Policy'] = 'same-origin'
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
-        return response
+        from .bundled_asset_cache import apply_bundled_asset_cache
+        return apply_bundled_asset_cache(response)
 
     app.add_url_rule('/demo', 'public_demo_entry', lambda: abort(404), methods=['GET'])
     app.add_url_rule('/demo/role', 'public_demo_role', lambda: abort(404), methods=['POST'])

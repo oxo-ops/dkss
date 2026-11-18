@@ -83,8 +83,8 @@
 
         <div class="sidebar-head">
             <a href="/" class="logo alseon-logo" aria-label="ALSEON ホーム">
-                <span class="alseon-wordmark"><img src="{{ url_for('static', filename='images/alseon/wordmark.png') }}" alt="" width="2172" height="724"></span>
-                <span class="alseon-symbol"><img src="{{ url_for('static', filename='images/alseon/symbol.png') }}" alt="" width="1536" height="1024"></span>
+                <span class="alseon-wordmark"><picture><source type="image/webp" srcset="{{ url_for('static', filename='images/alseon/wordmark.webp', v='9738ba4ccf561378c7c2e616178cdccdd38a2edfe8c357cb63dbc30d80f9f5c9') }}"><img src="{{ url_for('static', filename='images/alseon/wordmark.png') }}" alt="" width="2172" height="724"></picture></span>
+                <span class="alseon-symbol"><picture><source type="image/webp" srcset="{{ url_for('static', filename='images/alseon/symbol.webp', v='1d0f897854a13d8b62998a0d4a012d446a6dd0c3a92585c248c50c82aaf8a521') }}"><img src="{{ url_for('static', filename='images/alseon/symbol.png') }}" alt="" width="1536" height="1024"></picture></span>
             </a>
 
             <button type="button" class="sidebar-toggle" id="sidebarToggle">
