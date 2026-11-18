@@ -39,7 +39,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/safety_video_refinement.css', v='20261118-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261118-header-row-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-csp-filter-2') }}">
@@ -167,7 +167,7 @@
             </a>
             {% endif %}
 
-            {% if session.get("role") == "admin" %}
+            {% if session.get("role") == "admin" and not (session.get('aonagi_readonly_demo') and public_demo_shared|default(false)) %}
             <a href="{{ url_for('company_registration') }}" class="menu-item"><span class="menu-text">登録URL・申請</span></a>
             {% endif %}
         </nav>

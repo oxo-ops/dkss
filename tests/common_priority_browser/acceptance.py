@@ -157,7 +157,7 @@ def main():
                         expect(preview.locator(f'a[href$="#proposal={computed_id}"] .dashboard-attention-priority')).to_have_text('中')
                         for proposal in preview.locator('a.dashboard-video-proposal').all():
                             expect(proposal.locator('.dashboard-video-copy strong')).to_be_visible()
-                            expect(proposal.locator('.dashboard-video-copy > span')).to_be_visible()
+                            expect(proposal.locator('.dashboard-video-action')).to_be_visible()
                             require('#proposal=' in proposal.get_attribute('href'), 'Proposal detail identity missing')
                         panel.get_by_role('button',name='全件を見る').click()
                         invalid=panel.locator('.dashboard-attention-more li').filter(has_text='保存対象5')

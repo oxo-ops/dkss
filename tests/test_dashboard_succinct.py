@@ -17,8 +17,8 @@ class HomeTests(unittest.TestCase):
   t=(R/'templates/index.html').read_text();start=t.index('{% macro attention_table');end=t.index('{% endmacro %}',start)+len('{% endmacro %}');fn=self.env.from_string(t[start:end]).module.attention_table
   row=dict(vehicle_number='101',url='/vehicle/karte/647/analysis',priority='中',priority_assessment={'calculation_status':'legacy_preserved'},target='タイヤ',title='記録',action='空気圧を確認',reason='長い根拠'*50,timing='次の運行前',feedback_status='in_progress',proposal_id='p1')
   s=fn([row],True)
-  for x in ['101','タイヤ','空気圧を確認','次の運行前','対応中','前回評価','/vehicle/karte/647/analysis#proposal=p1']:self.assertIn(x,s)
-  self.assertNotIn('長い根拠',s);self.assertNotIn('保存版・算定根拠を確認',s)
+  for x in ['101','タイヤ','空気圧を確認','次の運行前','対応中','/vehicle/karte/647/analysis#proposal=p1']:self.assertIn(x,s)
+  self.assertNotIn('前回評価',s);self.assertNotIn('長い根拠',s);self.assertNotIn('保存版・算定根拠を確認',s)
  def test_state_palette_matches_list_and_beats_mobile_neutral(self):
   css=(R/'static/css/style.css').read_text()
   import re

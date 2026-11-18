@@ -59,7 +59,7 @@ try:
   report['browser_started']=True
   for role in ['checker','admin']:
    case.login(role)
-   for width,scale in [(w,1) for w in [320,390,600,601,768,1250,1251,1316]]+[(320,2),(390,2)]:
+   for width,scale in [(w,1) for w in [320,390,400,600,601,768,1250,1251,1316]]+[(320,2),(390,2)]:
     ctx=browser.new_context(viewport={'width':width,'height':568 if scale==2 else 740},service_workers='block')
     def bridge(route):
      req=route.request;u=urlsplit(req.url)
@@ -85,6 +85,25 @@ try:
      click_target(page,control,label)
      control.focus();page.keyboard.press('Tab')
     bell_roundtrip(page)
+    # Compare real rendered direct-link and parent-button alignment; preserve initial state.
+    toggle=page.locator('#sidebarToggle');was_expanded=toggle.get_attribute('aria-expanded')=='true'
+    if not was_expanded:toggle.click()
+    assert toggle.get_attribute('aria-expanded')=='true'
+    dashboard=page.locator('.sidebar-nav > a.menu-item').filter(has_text='ダッシュボード')
+    parent_menu=page.locator('.sidebar-group > .sidebar-parent').first
+    assert dashboard.is_visible() and parent_menu.is_visible()
+    sidebar_alignment={}
+    for part in ['.menu-icon','.menu-text']:
+     dr=dashboard.locator(part).bounding_box();pr=parent_menu.locator(part).bounding_box()
+     assert dr and pr and abs(dr['x']-pr['x'])<=1,('sidebar horizontal alignment',width,role,part,dr,pr)
+     sidebar_alignment[part]={'dashboard_x':dr['x'],'parent_x':pr['x']}
+    assert urlsplit(dashboard.get_attribute('href')).path=='/'
+    page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-expanded.png'))
+    toggle.click();assert toggle.get_attribute('aria-expanded')=='false'
+    page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-collapsed.png'))
+    toggle.click();assert toggle.get_attribute('aria-expanded')=='true'
+    assert dashboard.is_visible()
+    if not was_expanded:toggle.click()
     page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-top.png'))
     page.locator('.dashboard-safety-attention').evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
@@ -92,7 +111,7 @@ try:
     assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview > li').all():
-     for selector in ['.dashboard-video-copy strong','.dashboard-video-copy > span','.dashboard-video-vehicle']:
+     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state','.dashboard-video-vehicle']:
       assert row.locator(selector).is_visible(),f'hidden proposal title/action/vehicle: {selector}'
       assert row.locator(selector).inner_text().strip()
      assert row.locator('a.dashboard-video-proposal').get_attribute('href')
@@ -139,7 +158,7 @@ try:
     summary=page.locator('.dashboard-safety-more>summary');summary.focus();page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is not None
     assert page.locator('.dashboard-safety-content').last.is_visible()
     page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is None
-    report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,**measure});ctx.close()
+    report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,'sidebar_alignment':sidebar_alignment,**measure});ctx.close()
   case.login('checker')
   ctx=browser.new_context(viewport={'width':390,'height':740},java_script_enabled=False,service_workers='block')
   ctx.route('**/*',bridge);page=ctx.new_page();page.goto('http://127.0.0.1:8765/',wait_until='networkidle')
