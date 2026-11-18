@@ -1,11 +1,4 @@
-{% macro vehicle_icon_sources(filename) -%}
-    {% if filename == 'truck.png' %}
-    src="{{ url_for('static', filename='icons/truck-display-96.png') }}"
-    srcset="{{ url_for('static', filename='icons/truck-display-96.png') }} 1x, {{ url_for('static', filename='icons/truck-display-192.png') }} 2x, {{ url_for('static', filename='icons/truck-display-384.png') }} 4x"
-    {% else %}
-    src="{{ url_for('static', filename='icons/' ~ filename) }}"
-    {% endif %}
-{%- endmacro %}
+{% from "macros/vehicle_icon_sources.html" import vehicle_icon_sources with context %}
 
 {% if priority_preview_mode|default(false) %}
 <aside class="priority-preview-context-banner" role="note">
