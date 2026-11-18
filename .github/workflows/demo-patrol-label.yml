@@ -4,6 +4,8 @@ on:
     paths:
       - 'dkss_app/demo_label_display.py'
       - 'dkss_app/checklist_common.py'
+      - 'dkss_app/checklists.py'
+      - 'templates/checklist_result_detail.html'
       - 'templates/pointouts.html'
       - 'templates/pointout_detail.html'
       - 'tests/test_demo_label_display.py'

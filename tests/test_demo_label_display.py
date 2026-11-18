@@ -76,5 +76,20 @@ class Tests(unittest.TestCase):
    source=(ROOT/'templates'/name).read_text()
    self.assertIn('data-value="{{ '+key+'.display_content|default('+key+'.content) }}"',source)
    self.assertNotIn('data-value="{{ '+key+'.content }}"',source)
+
+ def test_safety_criteria_only_exact_verified_sample(self):
+  raw='2＝確認できている、1＝一部改善が必要、0＝未実施。架空の機能確認用評価。'
+  def call(**kw):
+   args=dict(value=raw,company='AONAGI',checklist_id=13,result_id=17);args.update(kw);return m.safety_criteria(**args)
+  with self.app.test_request_context('/safety'):
+   self.mark()
+   self.assertEqual(call(),'2＝確認できている、1＝一部改善が必要、0＝未実施。')
+   for kw in [dict(company='OTHER'),dict(checklist_id=14),dict(result_id=16),dict(value=raw+'別文'),dict(value='法令の評価基準')]:
+    self.assertEqual(call(**kw),kw.get('value',raw))
+   session.pop('aonagi_readonly_demo');self.assertEqual(call(),raw)
+  with self.app.test_request_context('/patrols'):
+   self.mark();self.assertEqual(call(),raw)
+  self.assertEqual(call(),raw)
 if __name__=='__main__':unittest.main()
+
 

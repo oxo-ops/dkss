@@ -45,3 +45,12 @@ def patrol_content(value, *, company, result_id):
             and value == _PATROL_CONTENT[result_id]):
         return value.removeprefix('【体験用・架空】')
     return value
+
+
+def safety_criteria(value, *, company, checklist_id, result_id):
+    raw = '2＝確認できている、1＝一部改善が必要、0＝未実施。架空の機能確認用評価。'
+    if (_in_demo(company, 'checklist_result_detail')
+            and request.method == 'GET'
+            and checklist_id == 13 and result_id == 17 and value == raw):
+        return '2＝確認できている、1＝一部改善が必要、0＝未実施。'
+    return value
