@@ -1,0 +1,25 @@
+name: Shared sidebar layout browser
+on:
+  push:
+    branches: [review/sidebar-layout-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sidebar-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.62.0 Jinja2==3.1.6 && python -m playwright install --with-deps chromium
+      - run: env -i PATH="$PATH" HOME="$HOME" EXPECTED_HEAD="$GITHUB_SHA" ARTIFACTS="$RUNNER_TEMP/sidebar-layout" python tests/sidebar_layout_browser/acceptance.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sidebar-layout-${{ github.sha }}
+          path: ${{ runner.temp }}/sidebar-layout
