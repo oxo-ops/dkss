@@ -3344,6 +3344,12 @@ def vehicle_checklist_results(index):
         else []
     )
 
+    reminder_notify_display_names = (
+        _dkss_checklist_notifications.get_vehicle_checklist_notify_display_names(
+            checklist_record.company_code, checklist_record.id, vehicle_record_id
+        ) if vehicle_record_id else {}
+    )
+
     valid_vehicle_ids = {
         vehicle.id
         for vehicle in _dkss_models.Vehicle.query.filter_by(
@@ -3551,6 +3557,7 @@ def vehicle_checklist_results(index):
         ),
         selected_notify_users=selected_notify_users,
         selected_reminder_notify_users=selected_reminder_notify_users,
+        reminder_notify_display_names=reminder_notify_display_names,
         selected_vehicle=selected_vehicle,
         usage_vehicle_ids=usage_vehicle_ids,
         usage_vehicles=usage_vehicles,

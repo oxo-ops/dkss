@@ -11,8 +11,9 @@
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-home-succinct-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_office_trends.css', v='20261118-video-lists-2') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261119-proposal-inset-4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261119-proposal-meta-row-5') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_summary_mobile.css', v='20261118-history-button-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_priority.css', v='20261119-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -385,7 +386,14 @@
         <h4 class="dashboard-vehicle-attention-heading">車両管理：AIの整備提案</h4>
         {% set attention_preview_limit = 5 %}
         {% macro attention_table(items, preview=false) %}
-        <ul class="dashboard-video-proposals{% if preview %} dashboard-attention-preview{% endif %}">
+        {% set shared = namespace(valid=items|length > 1, url=none, number=none) %}
+        {% for item in items %}
+            {% if loop.first %}{% set shared.url = item.url %}{% set shared.number = item.vehicle_number %}
+            {% elif item.url != shared.url or item.vehicle_number != shared.number %}{% set shared.valid = false %}{% endif %}
+        {% endfor %}
+        {% set shared_vehicle = shared.valid and shared.url and shared.number %}
+        {% if shared_vehicle %}<p class="dashboard-proposal-shared-vehicle">{{ shared.number }}</p>{% endif %}
+        <ul class="dashboard-video-proposals{% if preview %} dashboard-attention-preview{% endif %}{% if shared_vehicle %} dashboard-proposals-shared-vehicle{% endif %}">
             {% for item in items %}
             <li><a class="dashboard-video-proposal" href="{{ item.url }}{% if item.get('proposal_id') %}#proposal={{ item.proposal_id }}{% endif %}" aria-label="{{ item.vehicle_number }}：{{ item.action }}の根拠・対応">
                 {% if item.priority in ['高', '中', '低'] %}
@@ -588,7 +596,7 @@
         </section>
         {% endif %}
 
-        <section class="dashboard-reference-bottom-panel">
+        <section class="dashboard-reference-bottom-panel dashboard-personal-requests" data-personal-requests>
             <h3>自分への依頼</h3>
             {% set request_counts = dashboard_request_counts|default({}, true) %}
             <div class="dashboard-reference-action-links">
@@ -1216,6 +1224,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/dashboard.js', v='20261022-plate-search-1') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_mobile_priority.js', v='20261119-2') }}"></script>
 
 
 {% endblock %}

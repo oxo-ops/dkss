@@ -50,7 +50,7 @@ try:
      if method=='POST':
       assert u.path=='/demo/role';n=int(self.headers.get('Content-Length','0'));assert 0<n<8192
       assert self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded')
-      data=parse_qs(self.rfile.read(n).decode(),keep_blank_values=True);assert set(data)=={'role','csrf_token'} and data['role']==['manager'] and len(data['csrf_token'])==1
+      data=parse_qs(self.rfile.read(n).decode(),keep_blank_values=True);assert set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==['manager'] and len(data['csrf_token'])==1
       data={k:v[0] for k,v in data.items()};report['posts'].append('role-only')
      client=c.app.test_client(use_cookies=False)
      with request_lock:
@@ -77,7 +77,7 @@ try:
      for width in (390,1280):
       one=browser.new_context(viewport={'width':width,'height':844},service_workers='block');two=browser.new_context(viewport={'width':width,'height':844},service_workers='block');ordinary=browser.new_context(service_workers='block');contexts.extend([one,two,ordinary])
       for ctx in (one,two,ordinary):ctx.route('**/*',guard);ctx.route_web_socket('**/*',lambda ws:ws.close())
-      page=one.new_page();page.goto(origin+'/demo',wait_until='networkidle');page.locator('button[name="role"][value="manager"]').click();page.wait_for_url(origin+'/?__aonagi_entry=1');page.wait_for_load_state('networkidle');assert decode(one)['demo_role']=='manager'
+      page=one.new_page();page.goto(origin+'/demo',wait_until='networkidle');page.locator('button[name="role"][value="manager"]').click();page.locator('.public-demo-notice').wait_for(state='detached');page.wait_for_url(origin+'/?__aonagi_entry=1');page.wait_for_load_state('networkidle');assert decode(one)['demo_role']=='manager'
       page.goto(origin+target,wait_until='networkidle');copied=page.url;first=decode(one)
       fresh=two.new_page();response=fresh.goto(copied,wait_until='networkidle');assert response.status==200
       second=decode(two);assert second['demo_role']=='driver' and second['role']=='user';assert first['public_demo_token']!=second['public_demo_token'];assert first['company_code']==second['company_code']=='A'

@@ -19,7 +19,7 @@ class DemoReminderReadonlyTests(Fixture):
         self.assertIn('data-reminder-readonly', body)
         self.assertNotIn('id="reminder_notify_user_search"', body)
         self.assertIn('20261119-sidebar-submenu-center-1', body)
-        self.assertIn('20261118-item-focus-1', body)
+        self.assertIn('/static/js/vehicle_checklist_results.js?v=20261119-workspace-toolbar-4', body)
         endpoint = f'/vehicle/checklists/{index}/reminder-notify-users'
         self.assertEqual(self.request('POST', endpoint, data={'vehicle_record_id': 1}).status_code, 403)
         token = html.unescape(re.search(r'name="csrf_token" value="([^"]+)"', body)[1])

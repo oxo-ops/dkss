@@ -20,6 +20,20 @@ class OfficeActionsTests(unittest.TestCase):
         self.assertEqual((safety, vehicles), original)
         self.assertEqual(office_actions('', safety, vehicles), [])
 
+    def test_safety_then_vehicle_stable_groups(self):
+        safety = {'items': [dict(office='A', content='s1', url='/s1'),
+                            dict(office='B', content='private', url='/hidden'),
+                            dict(office='A', content='s2', url='/s2')]}
+        vehicles = {'mine': {'items': [dict(office='A', title='v1', url='/v1', priority='低')]},
+                    'office': {'items': [dict(office='A', title='v2', url='/v2', priority='高')]}}
+        before = copy.deepcopy((safety, vehicles))
+        rows = office_actions('A', safety, vehicles)
+        self.assertEqual([r['url'] for r in rows], ['/s1','/s2','/v1','/v2'])
+        self.assertEqual([r['kind'] for r in rows], ['安全','安全','車両','車両'])
+        self.assertEqual((safety, vehicles), before)
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(office_actions('A', {}, {}), [])
+
     def test_five_previews_all_original_links_and_escape(self):
         env = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / 'templates')), autoescape=select_autoescape())
         issues = [dict(content=f'<script>項目{i}</script>', count=10-i, category='区分',

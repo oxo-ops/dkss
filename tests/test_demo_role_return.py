@@ -12,7 +12,7 @@ class RoleReturnTests(CompactDemoTests):
                           f'?vehicle_record_id={self.vehicle_id}&year=2026&month=10&active_day=23')
                 page = self.client.get(target + '&__aonagi_entry=1')
                 self.assertEqual(page.status_code, 200)
-                hidden = html.unescape(re.search(r'name="checklist_return" value="([^"]+)"', page.text)[1])
+                hidden = target
                 before = self.models.VehicleChecklistResult.query.count()
                 reply = self.client.post('/demo/role', data={
                     'role': role, 'csrf_token': token, 'checklist_return': hidden})
@@ -23,6 +23,32 @@ class RoleReturnTests(CompactDemoTests):
                 self.assertEqual(before, self.models.VehicleChecklistResult.query.count())
                 with self.client.session_transaction() as session:
                     self.assertEqual(session['demo_role'], role)
+
+    def test_purpose_entry_selects_driver_and_opens_existing_checklist(self):
+        token, page = self.enter()
+        self.assertIn('>点検する</button>', page)
+        self.assertIn('>結果・管理を見る</button>', page)
+        self.assertNotIn('>運転者</button>', page)
+        self.assertNotIn('入力・変更は他の利用者にも見えます', page)
+        target = (f'/vehicle/checklists/{self.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}'
+                  f'?vehicle_record_id={self.vehicle_id}')
+        before = self.models.VehicleChecklistResult.query.count()
+        for role, destination in [('driver', target), ('manager', '/')]:
+            response = self.client.post('/demo/role', data={
+                'role':role, 'csrf_token':token, 'demo_entry':'purpose'})
+            self.assertEqual(response.location, destination)
+            following = self.client.get(destination)
+            self.assertEqual(following.status_code, 200)
+            self.assertNotIn('class="alert public-demo-notice"', following.text)
+            self.assertIn('id="firstUseGuide"', following.text)
+            with self.client.session_transaction() as session:
+                self.assertTrue(session['demo_role_selected'])
+                self.assertEqual(session['demo_role'], role)
+            self.assertEqual(before, self.models.VehicleChecklistResult.query.count())
+        # Existing re-entry offers the choice again without new business records.
+        self.enter()
+        with self.client.session_transaction() as session:
+            self.assertNotIn('demo_role_selected', session)
 
     def test_home_entry_has_no_return_target(self):
         token, page = self.enter()

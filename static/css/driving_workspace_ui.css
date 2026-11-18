@@ -342,3 +342,27 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
 .driving-designed .driving-change-direction{color:var(--dkss-action-blue);font-weight:600;margin-left:4px}
 
 .driving-page.driving-designed .driving-directory-table td.driving-person-review::before{display:none}
+
+/* Mobile report controls: preserve the existing GET fields and permission gates. */
+@media(max-width:650px){
+ .driving-page.driving-designed .driving-main-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+ .driving-page.driving-designed .driving-view-switch{order:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));flex:1 0 100%;box-sizing:border-box;min-width:0}
+ .driving-page.driving-designed .driving-view-switch a{min-height:44px;box-sizing:border-box;padding:4px 8px;font-size:13px;white-space:normal}
+ .driving-page.driving-designed .driving-main-filters>label:not(.driving-period-label){order:1;flex:1 0 100%}
+ .driving-page.driving-designed .driving-main-filters>.driving-period-label{order:2;flex:1 1 90px;gap:4px;min-width:0;font-size:12px}
+ .driving-page.driving-designed .driving-period-label select{width:100%;max-width:125px;min-height:44px;font-size:14px;padding-inline:6px}
+ .driving-page.driving-designed .driving-extra-filters{order:3;margin:0;flex:0 0 auto}
+ .driving-page.driving-designed .driving-extra-filters>summary{box-sizing:border-box;min-height:44px;padding:6px;font-size:13px;white-space:nowrap}
+ .driving-page.driving-designed .driving-toolbar-actions{order:4;margin-left:0;gap:6px}
+ .driving-page.driving-designed .driving-toolbar-actions :is(summary,a){display:inline-flex;align-items:center;box-sizing:border-box;min-height:44px!important;font-size:13px;padding:6px}
+ .driving-page.driving-designed .driving-workspace-period{order:5;flex:1 0 100%;font-size:12px;gap:0 8px}
+ .driving-page.driving-designed .driving-extra-filters[open]{order:6;flex:1 0 100%;box-sizing:border-box;min-width:0}
+ .driving-page.driving-designed .driving-filters{grid-template-columns:minmax(0,1fr);min-width:0}
+ .driving-page.driving-designed .driving-filters :is(input,select),.driving-page.driving-designed .driving-apply{min-height:44px;font-size:14px}
+ .driving-page.driving-designed .driving-page-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:10px 0 8px;padding-bottom:8px}
+ .driving-page.driving-designed .driving-page-tabs a{box-sizing:border-box;min-width:0;min-height:44px;padding:6px 3px;font-size:13px;gap:3px;flex-wrap:wrap;text-align:center}
+ .driving-page.driving-designed .driving-page-tabs:has([data-panel-link=comparison]){display:flex;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain}
+ .driving-page.driving-designed .driving-page-tabs:has([data-panel-link=comparison]) a{flex:1 0 max-content;min-width:90px;white-space:nowrap}
+}
+
+@media(max-width:650px){.driving-period-caption-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}}

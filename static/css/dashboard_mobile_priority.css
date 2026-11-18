@@ -1,0 +1,42 @@
+/* Mobile task hierarchy. Existing data, order, links and state palettes remain. */
+.dashboard-proposal-shared-vehicle { display: none; }
+@media (max-width:600px) {
+ body .dashboard-page.dashboard-design-v2 .dashboard-attention-list {
+  padding:0; border:0; background:transparent; box-shadow:none;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-attention-list > .dashboard-reference-title {
+  margin:0; padding:0 0 8px;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-vehicle-attention-heading {
+  padding:12px 0 8px;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li {
+  display:grid; grid-template-columns: auto minmax(0,1fr); gap:4px 8px;
+  align-items:start; padding:10px 0;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-items > li > .dashboard-safety-state {
+  grid-column:1; grid-row:1; max-width:7em; overflow-wrap:anywhere; margin-top:5px;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-content { display:contents; }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-opening {
+  grid-column:2; grid-row:1; min-width:0; line-height:1.55;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-next {
+  grid-column:1/-1; margin:0; line-height:1.55;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-safety-content > small {
+  grid-column:1/-1; margin:0; line-height:1.5;
+ }
+ body .dashboard-page.dashboard-design-v2 .dashboard-proposal-shared-vehicle {
+  display:block; margin:0; padding:8px 12px 4px; color:#425b70;
+  font-size:12px; font-weight:600; overflow-wrap:anywhere;
+ }
+ .dashboard-proposals-shared-vehicle .dashboard-video-proposal > .dashboard-video-vehicle { display:none; }
+ .dashboard-proposals-shared-vehicle .dashboard-video-proposal > :is(.dashboard-attention-priority,.dashboard-video-unknown),
+ .dashboard-proposals-shared-vehicle .dashboard-video-proposal .dashboard-video-copy > strong { grid-row:1; }
+ .dashboard-proposals-shared-vehicle .dashboard-video-proposal .dashboard-video-action { grid-row:2; }
+ .dashboard-proposals-shared-vehicle .dashboard-video-proposal :is(.dashboard-video-timing,.dashboard-video-state,.dashboard-video-detail) { grid-row:3; }
+ /* Keep the approved trend's label / bar / count layout and existing order. */
+ body .dashboard-page.dashboard-design-v2 .dashboard-office-trend-header { gap:8px; }
+ body .dashboard-page.dashboard-design-v2 .office-trend-row > summary { min-height:48px; }
+}

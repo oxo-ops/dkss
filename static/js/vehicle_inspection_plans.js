@@ -36,10 +36,19 @@
                 filterDialog.addEventListener('close',()=>planner.querySelector('[data-plan-filter-toggle]').setAttribute('aria-expanded','false'));planner.append(filterDialog);
             }
             filterPanel.open=true;filterDialog.append(filterPanel);
-            if(!viewDialog){viewDialog=node('dialog',undefined,'ip-filter-dialog ip-view-dialog');viewDialog.setAttribute('aria-label','表示形式');const close=node('button','×');close.type='button';close.setAttribute('aria-label','表示形式を閉じる');close.addEventListener('click',()=>viewDialog.close());viewDialog.append(close);viewDialog.addEventListener('close',()=>planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','false'));planner.append(viewDialog);}
+            if(!viewDialog){
+                viewDialog=node('div',undefined,'ip-view-popover');viewDialog.id='inspection-plan-view-options';viewDialog.setAttribute('popover','auto');viewDialog.setAttribute('aria-label','表示形式');
+                viewDialog.addEventListener('toggle',event=>planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded',String(event.newState==='open')));planner.append(viewDialog);
+                const toggle=planner.querySelector('[data-plan-view-toggle]');toggle.setAttribute('aria-controls',viewDialog.id);toggle.setAttribute('aria-haspopup','true');
+                viewDialog.addEventListener('keydown',event=>{
+                    if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
+                    event.preventDefault();const buttons=[...viewSwitch.querySelectorAll('[data-view]')],i=buttons.indexOf(document.activeElement);
+                    const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();
+                });
+            }
             viewDialog.append(viewSwitch);
         }else{
-            if(filterDialog?.open)filterDialog.close();if(viewDialog?.open)viewDialog.close();
+            if(filterDialog?.open)filterDialog.close();if(viewDialog?.matches(':popover-open'))viewDialog.hidePopover();
             planner.querySelector('.card-title-row').after(viewSwitch);
             planner.querySelector('[data-plan-active-filter]').after(filterPanel);filterPanel.open=true;
         }
@@ -284,7 +293,7 @@
     function showYearMonth(mon) {
         yearCursor=mon;
         planner.querySelector('[data-year-month-picker]').value=mon;
-        planner.querySelector('[data-period-title]').textContent=Number(mon.slice(0,4))+'年'+Number(mon.slice(5))+'月';
+        planner.querySelector('[data-period-title]').textContent=fiscalYear(mon)+'年度';
         planner.querySelector('[data-year-position]').textContent=Number(mon.slice(0,4))+'年'+Number(mon.slice(5))+'月を表示';
     }
     async function navigateMonth(mon) {
@@ -395,27 +404,33 @@
         return (data.invoice_actuals || []).filter(f => f.vehicle_record_id === v.id && matchesSearch(v, f) &&
             (mon ? f.performed_date?.slice(0, 7) === mon : !f.performed_date));
     }
+    function showInvoiceDetail(fact) {
+        const dialog=document.querySelector('#inspection-plan-source-detail');
+        const body=dialog.querySelector('[data-source-detail-body]');body.replaceChildren();
+        const vehicle=data.vehicles.find(v=>v.id===fact.vehicle_record_id);
+        if(vehicle) body.append(node('p',vehicle.number,'ip-source-vehicle'));
+        body.append(node('p',fact.summary,'ip-source-summary'));
+        const sources=fact.sources?.length?fact.sources:(fact.source_url?[{url:fact.source_url}]:[]);
+        const links=node('div',undefined,'ip-source-links');
+        for(const source of sources) {
+            if(!source.url)continue;
+            const link=node('a',sources.length>1?'元データを確認 · '+(source.filename||'資料'):'元データを確認','btn btn-outline');
+            link.href=source.url;link.target='_blank';link.rel='noopener';links.append(link);
+        }
+        body.append(links.childElementCount?links:node('p','元データなし','muted'));
+        if(!dialog.open)dialog.showModal();
+    }
+    document.querySelector('[data-source-detail-close]')?.addEventListener('click',()=>document.querySelector('#inspection-plan-source-detail').close());
     function invoiceLink(fact) {
-        const a=node('a',undefined,'ip-invoice-summary ip-chip');
+        const a=node('button',undefined,'ip-invoice-summary ip-chip');a.type='button';
         a.dataset.status='completed';
         const match=fact.summary.match(/\d{4}\/\d{2}\/\d{2}/);
         const day=match?match[0].slice(5):'日付不明';
         const content=fact.summary.replace(/^\d{4}\/\d{2}\/\d{2}\s*|^実施日不明\s*/,'').replace(/\s+実施$/,'');
         a.append(node('span','✓ '+day,'ip-invoice-date'),node('span',content,'ip-invoice-content'));
-        a.setAttribute('aria-label',fact.summary+' ／ 請求書原本を開く');
-        a.href=fact.source_url; a.target='_blank'; a.rel='noopener';
-        a.title=fact.summary+' ／ 請求書原本を開く';
-        if(fact.sources?.length>1) a.addEventListener('click',event=>{
-            event.preventDefault();
-            const dialog=document.querySelector('#inspection-plan-events');
-            dialog.querySelector('#ip-events-title').textContent='請求書原本';
-            const list=dialog.querySelector('[data-events-list]');list.replaceChildren();
-            for(const source of fact.sources) {
-                const link=node('a',source.filename,'btn btn-outline');
-                link.href=source.url;link.target='_blank';link.rel='noopener';list.append(link);
-            }
-            dialog.showModal();
-        });
+        a.setAttribute('aria-label',fact.summary+' ／ 詳細を見る');
+        a.title=fact.summary+' ／ 詳細を見る';
+        a.addEventListener('click',()=>showInvoiceDetail(fact));
         return a;
     }
     function vehicleCell(v) {
@@ -466,7 +481,7 @@
         const small=compact&&window.matchMedia('(max-width:700px)').matches;
         const shortNumber=String(v.number).trim().match(/(?:^|\s)([0-9０-９・･-]+)$/)?.[1]||v.number;
         if(entry.invoice || entry.p.invoice_summary) {
-            const fact=entry.invoice || {summary:entry.p.invoice_summary,source_url:entry.p.record_url,sources:entry.p.invoice_sources};
+            const fact={...(entry.invoice || {summary:entry.p.invoice_summary,source_url:entry.p.record_url,sources:entry.p.invoice_sources}),vehicle_record_id:v.id};
             const a=invoiceLink(fact);
             const content=fact.summary.replace(/^\d{4}\/\d{2}\/\d{2}\s*/,'').replace(/\s+実施$/,'');
             a.replaceChildren(node('span',compact?'実施':'実施済み','ip-cal-event-type'),
@@ -474,7 +489,7 @@
             if(!compact)a.append(node('span',content));
             if(small&&view==='calendar'){a.classList.add('ip-month-event-lines');a.replaceChildren(node('span',shortNumber),node('span','整備'));}
             if(small&&view==='year'){a.classList.add('ip-year-event-lines');a.replaceChildren(node('span',shortNumber+' 実施','ip-year-event-heading'),node('span',content,'ip-year-event-detail'));}
-            a.title=v.number+' ／ '+fact.summary+' ／ 請求書原本を開く';
+            a.title=v.number+' ／ '+fact.summary+' ／ 詳細を見る';
             a.setAttribute('aria-label',a.title);
             a.classList.add('ip-cal-event');a.dataset.event='actual';
             if(compact)a.classList.add('ip-cal-event-compact');
@@ -499,18 +514,47 @@
         if(Math.abs(dx)<72 || Math.abs(dx)<Math.abs(dy)*2.5) return 0;
         return dx<0&&start.left>=maximum-2?1:dx>0&&start.left<=2?-1:0;
     }
+    function yearGestureAxis(dx,dy) {
+        if(Math.max(Math.abs(dx),Math.abs(dy))<10)return '';
+        return Math.abs(dx)>=Math.abs(dy)*2?'x':'y';
+    }
+    function bindYearTouchAxis(scroll) {
+        let origin=null,axis='',suppress=false,releaseTimer=null;
+        const finish=()=>{
+            if(axis==='x'){scroll.style.scrollSnapType='';scroll.dataset.yearTouchAxis='';scroll.dispatchEvent(new Event('scroll'));releaseTimer=setTimeout(()=>{suppress=false;releaseTimer=null;},350);}
+            origin=null;axis='';
+        };
+        scroll.addEventListener('touchstart',event=>{
+            finish();if(releaseTimer!==null){clearTimeout(releaseTimer);releaseTimer=null;}suppress=false;
+            if(event.touches.length!==1)return;
+            const t=event.touches[0];origin={x:t.clientX,y:t.clientY,left:scroll.scrollLeft};
+        },{passive:true});
+        scroll.addEventListener('touchmove',event=>{
+            if(!origin)return;
+            if(event.touches.length!==1){finish();return;}
+            const t=event.touches[0],dx=t.clientX-origin.x,dy=t.clientY-origin.y;
+            if(!axis)axis=yearGestureAxis(dx,dy);
+            if(axis!=='x')return; // Native vertical pan and pinch remain available.
+            if(!event.cancelable){finish();return;}
+            event.preventDefault();suppress=true;scroll.dataset.yearTouchAxis='x';scroll.style.scrollSnapType='none';
+            scroll.scrollLeft=origin.left-dx;
+        },{passive:false});
+        scroll.addEventListener('touchend',finish,{passive:true});
+        scroll.addEventListener('touchcancel',finish,{passive:true});
+        scroll.addEventListener('click',event=>{if(suppress){event.preventDefault();event.stopPropagation();}},{capture:true});
+    }
     function bindYearEdgeSwipe(scroll, months) {
         let start=null, moved=false, pending=false, suppressClick=false;
         scroll.addEventListener('touchstart',event=>{
             start=null;moved=false;
             if(event.touches.length!==1||yearNavigationPending||activeLoad||pending||event.target?.closest('button,a,input,select,textarea,[role="button"]'))return;
-            const t=event.touches[0];start={x:t.clientX,y:t.clientY,left:scroll.scrollLeft};
+            const t=event.touches[0];start={x:t.clientX,y:t.clientY,left:scroll.scrollLeft,axis:''};
         },{passive:true});
-        scroll.addEventListener('touchmove',event=>{if(event.touches.length!==1){start=null;return;}if(start)moved=true;},{passive:true});
+        scroll.addEventListener('touchmove',event=>{if(event.touches.length!==1){start=null;return;}if(start){moved=true;const t=event.touches[0];if(!start.axis)start.axis=yearGestureAxis(t.clientX-start.x,t.clientY-start.y);}},{passive:true});
         scroll.addEventListener('touchcancel',()=>{start=null;},{passive:true});
         scroll.addEventListener('touchend',async event=>{
             const origin=start;start=null;
-            if(!origin||!moved||pending||yearNavigationPending||activeLoad||event.changedTouches.length!==1||view!=='year'||!scroll.isConnected)return;
+            if(!origin||origin.axis!=='x'||!moved||pending||yearNavigationPending||activeLoad||event.changedTouches.length!==1||view!=='year'||!scroll.isConnected)return;
             const t=event.changedTouches[0],direction=yearEdgeDirection(origin,{x:t.clientX,y:t.clientY},scroll.scrollWidth-scroll.clientWidth);
             if(!direction)return;
             const target=shiftedMonth(direction>0?months.at(-1):months[0],direction);
@@ -530,7 +574,7 @@
         const grid=node('div',undefined,'ip-year-days-grid');
         const byMonth=months.map(mon=>calendarEntries(rows,mon));
         grid.append(node('div','日','ip-year-day-label ip-year-head'));
-        months.forEach(mon=>{const h=node('h3',Number(mon.slice(5))+'月','ip-year-month-head');h.dataset.month=mon;h.title=mon;h.append(node('small',mon.slice(0,4)+'年'));if(mon===localMonth())h.classList.add('is-current');grid.append(h);});
+        months.forEach(mon=>{const h=node('h3',Number(mon.slice(5))+'月','ip-year-month-head');h.dataset.month=mon;h.title=mon;h.setAttribute('aria-label',mon);h.append(node('small',mon.slice(0,4)+'年'));if(mon===localMonth())h.classList.add('is-current');grid.append(h);});
         for(let day=1;day<=31;day++) {
             grid.append(node('div',day+'日','ip-year-day-label'));
             months.forEach((mon,index)=>{
@@ -552,7 +596,7 @@
         let settled;
         const monthLeft=h=>Math.max(0,h.offsetLeft-grid.offsetLeft-grid.querySelector('.ip-year-head').offsetWidth);
         scroll.addEventListener('scroll',()=>{clearTimeout(settled);settled=setTimeout(()=>{
-            if(view!=='year'||!scroll.isConnected)return;
+            if(view!=='year'||!scroll.isConnected||scroll.dataset.yearTouchAxis==='x')return;
             const selectedHead=headers.find(h=>h.dataset.month===yearCursor),maximum=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
             // At the final columns several selected months share the same clamped position.
             if(selectedHead&&Math.abs(Math.min(monthLeft(selectedHead),maximum)-scroll.scrollLeft)<=2)return;
@@ -560,6 +604,7 @@
             if(nearest)showYearMonth(nearest.dataset.month);
         },120);},{passive:true});
         const key=months.join(',');
+        bindYearTouchAxis(scroll);
         bindYearEdgeSwipe(scroll,months);
         const fresh=yearFocusKey!==key;yearFocusKey=key;
         const target=yearTarget||(fresh?(months.includes(localMonth())?localMonth():monthInput.value):yearCursor);
@@ -675,7 +720,7 @@
         planner.dataset.view=view;
         periodHome.append(periodControl);
         const selectedMonth=filters.elements.month.value;
-        planner.querySelector('[data-period-title]').textContent=view==='year'?(yearCursor||selectedMonth).replace('-', '年')+'月':(view==='calendar'?'':Number(selectedMonth.slice(0,4))+'年')+Number(selectedMonth.slice(5))+'月';
+        planner.querySelector('[data-period-title]').textContent=view==='year'?fiscalYear(yearCursor||selectedMonth)+'年度':(view==='calendar'?'':Number(selectedMonth.slice(0,4))+'年')+Number(selectedMonth.slice(5))+'月';
         periodControl.querySelector('[data-period="-1"]').setAttribute('aria-label','前の月');
         periodControl.querySelector('[data-period="1"]').setAttribute('aria-label','次の月');
         const period=periodRows(), rows=visiblePlans();
@@ -818,7 +863,7 @@
     planner.querySelector('[data-plan-today]').addEventListener('click',()=>navigateMonth(localMonth()));
     planner.querySelector('[data-plan-focus]').addEventListener('click',()=>{focus=null;safeLoad();});
     planner.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;selected.clear();draw();}));
-    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();if(viewDialog?.open)viewDialog.close();}));
+    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();if(viewDialog?.matches(':popover-open')){viewDialog.hidePopover();planner.querySelector('[data-plan-view-toggle]').focus();}}));
     planner.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{
         navigateMonth(shiftedMonth(view==='year'?(yearCursor||monthInput.value):monthInput.value,Number(b.dataset.period)));
     }));
@@ -868,7 +913,12 @@
     });
     planner.querySelector('[data-clear-filters]').addEventListener('click',()=>{kind='';state='';focus=null;filters.elements.search.value='';selected.clear();safeLoad();});
     planner.querySelector('[data-plan-search-toggle]').addEventListener('click',openSearch);
-    planner.querySelector('[data-plan-view-toggle]').addEventListener('click',()=>{syncFilterPresentation();viewDialog.showModal();planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','true');});
+    planner.querySelector('[data-plan-view-toggle]').addEventListener('click',()=>{syncFilterPresentation();if(viewDialog.matches(':popover-open')){viewDialog.hidePopover();return;}
+        const rect=planner.querySelector('[data-plan-view-toggle]').getBoundingClientRect();
+        viewDialog.showPopover();const box=viewDialog.getBoundingClientRect();
+        viewDialog.style.left=Math.max(8,Math.min(rect.right-box.width,window.innerWidth-box.width-8))+'px';
+        viewDialog.style.top=Math.max(8,Math.min(rect.bottom+6,window.innerHeight-box.height-8))+'px';
+        viewSwitch.querySelector('[aria-pressed="true"]')?.focus();});
     planner.querySelector('[data-plan-filter-toggle]').addEventListener('click',()=>openFilterPanel());
     planner.querySelector('[data-plan-clear-mobile]').addEventListener('click',()=>planner.querySelector('[data-clear-filters]').click());
     planner.querySelector('[data-empty-add]').addEventListener('click',()=>newPlan());

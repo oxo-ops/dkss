@@ -96,16 +96,16 @@ try:
           length=int(self.headers.get('Content-Length','0'));assert 0<length<8192
           assert self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded')
           data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
-          assert path=='/demo/role' and set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
+          assert path=='/demo/role' and set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
           post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
-          assert res.status_code==302 and res.location=='/'
+          assert res.status_code==302 and (res.location=='/' if role=='manager' else urlsplit(res.location).path==urlsplit(target).path)
          elif path in ('/demo','/','/vehicle/checklists',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
           if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id') in (None,[str(case.vehicle_id)])
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')
          if 300<=res.status_code<400:
           assert res.status_code==302
-          assert res.location=='/' or (path=='/vehicle/checklists' and urlsplit(res.location).path==urlsplit(target).path)
+          assert res.location=='/' or (path=='/demo/role' and role=='driver' and urlsplit(res.location).path==urlsplit(target).path) or (path=='/vehicle/checklists' and urlsplit(res.location).path==urlsplit(target).path)
          requests.append({'method':method,'path':path,'status':res.status_code})
          self.send_response(res.status_code)
          for k,v in res.headers.items():
@@ -126,13 +126,15 @@ try:
       record={'width':width,'role':role,'scenario':scenario,'status':'running'};report['cases'].append(record)
       try:
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
-       entry_url=urlsplit(page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')); expected_entry=urlsplit(target.split('&year=')[0])
-       assert entry_url.path==expected_entry.path and parse_qs(entry_url.query)=={**parse_qs(expected_entry.query),'__aonagi_entry':['1']}
+       assert page.get_by_role('button',name='点検する',exact=True).is_visible()
+       assert page.get_by_role('button',name='結果・管理を見る',exact=True).is_visible()
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
-       page.wait_for_url(lambda u:urlsplit(u).path=='/' and parse_qs(urlsplit(u).query)=={'__aonagi_entry':['1']});page.wait_for_load_state('networkidle')
+       page.locator('.public-demo-notice').wait_for(state='detached')
+       page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
+       page.goto(origin+'/',wait_until='networkidle')
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-home.png'),full_page=True)
        # Actual sidebar -> daily checklist -> vehicle choice, without a direct target goto.
        sidebar=page.locator('a[href="/vehicle/checklists"]')
@@ -159,7 +161,9 @@ try:
        assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
-       header=page.locator('.vehicle-workspace-header')
+       header=page.locator('.vehicle-workspace-top') # rendered outer box; inner header is display:contents on mobile
+       change_vehicle=header.locator('[data-vehicle-open-details="vehicle-target-settings"]')
+       if change_vehicle.count():assert change_vehicle.evaluate("e=>Boolean(e.closest('.header-actions'))")
        assert header.is_visible() and '品川' in header.inner_text()
        date=page.locator('#vehicle_workspace_date');assert date.input_value()=='2026-10-23'
        assert date.bounding_box()['height']>=44
