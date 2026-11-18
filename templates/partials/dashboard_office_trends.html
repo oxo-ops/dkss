@@ -20,7 +20,7 @@
 {% macro action_rows(rows) %}
 <ul class="office-action-list">
 {% for item in rows %}
-<li><a href="{{ item.url }}" class="office-action-link">
+<li data-action-kind="{{ item.kind }}"><a href="{{ item.url }}" class="office-action-link">
     {% if item.kind == '安全' %}
     <span class="dashboard-safety-state" data-state="{{ item.state }}">{{ item.state }}</span>
     {% elif item.priority in ['高', '中', '低'] %}
@@ -43,11 +43,21 @@
         {% elif dashboard_scope_office %}<p class="dashboard-office-empty">この期間に評価可能な点検記録がありません。</p>
         {% else %}<p class="dashboard-office-empty">所属営業所が未設定です。</p>{% endif %}
     </section>
-    <section class="office-action-panel">
+    <section class="office-action-panel" data-office-actions>
         <h4>営業所内の対応事項</h4>
         {% if actions %}
-        {{ action_rows(actions[:5]) }}
-        {% if actions|length > 5 %}<details class="office-panel-more"><summary>残り{{ actions|length - 5 }}件</summary>{{ action_rows(actions[5:]) }}</details>{% endif %}
+        <div class="office-action-tabs" role="tablist" aria-label="対応事項の種類" hidden>
+        {% for kind in ['安全', '車両'] %}{% set group = actions|selectattr('kind', 'equalto', kind)|list %}
+        {% if group %}<button type="button" role="tab" id="officeActionsTab{{ loop.index }}" data-action-tab="{{ kind }}" aria-controls="officeActionsRows">{{ kind }} <span>{{ group|length }}</span></button>{% endif %}
+        {% endfor %}
+        </div>
+        <div id="officeActionsRows" class="office-action-page">{{ action_rows(actions) }}</div>
+        <nav class="office-action-pager" aria-label="対応事項のページ" hidden>
+            <button type="button" data-action-prev aria-label="前の5件">‹</button>
+            <span data-action-range role="status" aria-live="polite"></span>
+            <button type="button" data-action-next aria-label="次の5件">›</button>
+        </nav>
         {% else %}<p class="dashboard-office-empty">現在、確認できる対応事項はありません。</p>{% endif %}
     </section>
 </div>
+<script src="{{ url_for('static', filename='js/dashboard_office_actions.js', v='20261119-1') }}" defer></script>

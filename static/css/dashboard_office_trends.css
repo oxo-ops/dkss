@@ -38,3 +38,16 @@
     .office-trends-video > section { padding: 10px; }
     .office-action-link { min-height: 52px; }
 }
+
+/* Bounded category pages replace expansion in the existing panel. */
+.office-action-tabs { display:flex; gap:4px; margin:0 0 8px; padding:3px; border-radius:8px; background:#e6eff7; }
+.office-action-tabs button { flex:1; min-width:0; min-height:44px; padding:6px 10px; border:0; border-radius:6px; background:transparent; color:#42617d; font:inherit; font-size:12px; cursor:pointer; }
+.office-action-tabs button[aria-selected="true"] { background:#fff; color:#245e91; box-shadow:0 1px 3px #1c4b7020; font-weight:600; }
+.office-action-tabs span { margin-left:4px; font-variant-numeric:tabular-nums; }
+.office-action-pager { display:flex; justify-content:center; align-items:center; gap:12px; margin-top:8px; font-size:12px; color:#42617d; }
+.office-action-pager button { width:44px; height:44px; padding:0; border:1px solid #cddde9; border-radius:7px; background:#fff; color:#245e91; font-size:22px; cursor:pointer; }
+.office-action-pager button:disabled { opacity:.35; cursor:default; }
+.office-action-pager [data-action-range] { min-width:90px; text-align:center; font-variant-numeric:tabular-nums; }
+.office-action-tabs button:focus-visible,.office-action-pager button:focus-visible { outline:3px solid #3478c8; outline-offset:2px; }
+.office-action-tabs[hidden],.office-action-pager[hidden],.office-action-list > li[hidden] { display:none; }
+
