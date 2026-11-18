@@ -92,11 +92,10 @@ try:
     assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview > li').all():
-     for selector in ['.dashboard-reference-action','td:nth-child(3)','td:nth-child(4)']:
-      assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
-     assert row.locator('.dashboard-reference-action').inner_text().strip()
-     assert row.locator('td:last-child a').get_attribute('href')
-     assert row.locator('.dashboard-reference-reason').count()==0
+     for selector in ['.dashboard-video-copy strong','.dashboard-video-copy > span','.dashboard-video-vehicle']:
+      assert row.locator(selector).is_visible(),f'hidden proposal title/action/vehicle: {selector}'
+      assert row.locator(selector).inner_text().strip()
+     assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
     measure=page.evaluate('''()=>({safetyHeight:document.querySelector('.dashboard-safety-attention').getBoundingClientRect().height, overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure

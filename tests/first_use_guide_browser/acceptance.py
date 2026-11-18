@@ -14,7 +14,7 @@ def html(role='driver',mode='demo',notice=False,page='dashboard',saved=False):
  guide=env.get_template('partials/first_use_guide.html').render(session=session,request=N(endpoint=page),checklist={'fixed_template_code':'daily_inspection_truck_trailer'},url_for=lambda endpoint,filename,**kw:'/static/'+filename)
  target='<a class="dashboard-vehicle-action-primary dashboard-vehicle-action" href="/detail">日常点検表</a>' if role=='driver' else ''
  body=(('<div class="public-demo-notice">役割選択</div>') if notice else '')+f'<button id="sidebarToggle">メニュー</button><h1>合成検証</h1>{target}'
- if page=='vehicle_checklist_results':body+='<form id="vehicle_check_filter"><select name="vehicle_record_id"><option>対象車両</option></select></form><button class="js-open-detail inspection-item-detail" type="button">詳細</button>'
+ if page=='vehicle_checklist_results':body+='<form id="vehicle_check_filter"><input id="vehicle_search" placeholder="車両を検索"><input type="hidden" name="vehicle_record_id"></form><button class="js-open-detail inspection-item-detail" type="button">詳細</button>'
  if page=='vehicle_checklist_results':
   body+='<div class="check-choice-buttons"><label>✓<input type="radio" name="value" value="✓"></label><label>×<input type="radio" name="value" value="×"></label></div><div class="vehicle-check-complete-form"><input class="approval-user-search" data-guide-title="運行判断の依頼先を選ぶ" placeholder="名前で検索"></div>'
   body+=('<input id="reminder_notify_user_search">' if role=='admin' else '<div class="reminder-readonly">点検未実施通知先 未設定</div>')
@@ -58,6 +58,10 @@ with sync_playwright() as p:
    page.goto('https://fixture.invalid/?page=vehicle_checklist_results');panel.wait_for(state='visible')
    page.locator('[data-guide-next]').click();assert '詳細' in page.locator('#firstGuidePanel [data-guide-title]').inner_text()
    page.locator('.js-open-detail').click();assert not panel.is_visible();assert page.locator('.js-open-detail').evaluate('(e)=>e===document.activeElement');assert page.locator('#draft').input_value()=='未保存の入力';assert not posts
+   page.locator('[data-guide-open]').click()
+   assert page.locator('#firstGuidePanel [data-guide-title]').inner_text()=='評価を入れる'
+   page.keyboard.press('Escape');expect(panel).not_to_be_visible()
+   assert page.locator('[data-guide-open]').evaluate('(e)=>e===document.activeElement')
    page.locator('[data-guide-open]').click()
    expected=['車両を選ぶ','項目の詳細を見る','評価を入れる','運行判断の依頼先を選ぶ',
              '点検未実施通知先を選ぶ' if role=='admin' else '点検未実施通知先を確認する','点検を完了する']
