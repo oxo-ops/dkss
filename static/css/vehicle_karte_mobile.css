@@ -122,3 +122,15 @@
 body.ka-analysis-detail-open > .ka-reference-drawer {
   max-width: 100%; height: 100%; max-height: 100%;
 }
+
+/* Enlarged narrow header only: keep every field, release the fixed icon/label columns. */
+@media (max-width: 640px) {
+ body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact {
+  container-type: inline-size; container-name: karte-header;
+ }
+ @container karte-header (max-width: 200px) {
+  body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact > :is(.vehicle-karte-photo-area,.vehicle-karte-basic-info,.vehicle-karte-summary) { grid-column: 1 / -1; min-width: 0; }
+  body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact :is(.vehicle-karte-number-row,.vehicle-karte-basic-grid > div,.vehicle-karte-metrics,.vehicle-karte-deadlines) { grid-template-columns: minmax(0,1fr); flex-wrap: wrap; }
+  body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact :is(h2,.vehicle-karte-model,dt,dd,.vehicle-karte-metric) { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+ }
+}
