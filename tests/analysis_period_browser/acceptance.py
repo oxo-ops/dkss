@@ -24,11 +24,12 @@ async def main():
      context=await browser.new_context(viewport={'width':width,'height':900},locale=locale)
      await context.route('**/*',lambda route:route.abort())
      page=await context.new_page();await page.route_web_socket('**/*',lambda ws:ws.close())
-     await page.set_content('<html><body class="vehicle-list-ppt"><div class="ka3-shell"><div class="karte-costs karte-analysis ka3-page ka7-page"><header class="ka7-toolbar">'+form+'</header></div></div></body></html>')
+     await page.set_content('<html><body class="vehicle-list-ppt"><div class="ka3-shell"><div class="karte-maintenance karte-costs karte-analysis ka3-page ka7-page ka10-page"><header class="ka7-toolbar">'+form+'</header></div></div></body></html>')
      await page.add_style_tag(content=(BASE/'static/css/style.css').read_text())
      await page.add_style_tag(content=(C/'static/css/vehicle_karte_analysis.css').read_text())
+     label=await page.locator('label[for=ka-end-date]').bounding_box();assert label['width']<=1 and label['height']<=1
      boxes=[await page.locator(s).bounding_box() for s in ['#ka-start-date','#ka-end-date','.ka-period-form button']]
-     assert all(x and x['height']>=44 for x in boxes)
+     assert all(x and x['height']>=44 and x['width']>=44 for x in boxes)
      if width<=500: assert max(x['y'] for x in boxes)-min(x['y'] for x in boxes)<2
      assert all(x['x']>=0 and x['x']+x['width']<=width+1 for x in boxes)
      await page.locator('#ka-start-date').fill('2026-01-01');await page.locator('#ka-end-date').fill('2026-11-18')
