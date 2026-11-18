@@ -26,7 +26,7 @@ for(const name of names)for(const width of [320,390,1316])for(const zoom of [1,2
  else {const selected=page.locator('.vehicle-karte-tab[aria-current=page]');assert.equal(await selected.evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');assert((await selected.evaluate(e=>getComputedStyle(e).backgroundImage)).includes('rgb(36, 92, 168)'));assert(await page.locator('.vehicle-karte-tab').evaluateAll(es=>es.every(e=>e.getBoundingClientRect().height>=44)));assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no document horizontal overflow');}
  if(name==='vehicle_karte_analysis'){
  const opener=page.locator('.ka-reference-detail-button').first();await opener.click();const drawer=page.locator('.ka-reference-drawer');await drawer.waitFor({state:'visible'});
- assert((await drawer.innerText()).includes('前回の点検記録と今回の確認結果を照合'));
+ assert((await drawer.locator('.ka-drawer-summary-action').innerText()).includes('長い点検・整備記録の内容を確認し、対象車両のタイヤとバルブおよび周辺部品を点検して記録する。'));
  assert(await drawer.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'drawer no internal horizontal overflow');
  const close=drawer.locator('.ka-drawer-close');assert(await close.isVisible());
  await page.screenshot({path:path.join(out,`${name}-${width}-${zoom}x-drawer.png`),fullPage:true});await close.click();await drawer.waitFor({state:'hidden'});assert(await opener.evaluate(e=>document.activeElement===e),'drawer focus returns');
