@@ -260,6 +260,6 @@ body .main-content .inspection-plans[data-inspection-planner] > .ip-view-switch 
 
 /* Small six-week screens retain a first short identifier before overflow. */
 @media(max-width:700px){
- body .main-content .inspection-plans[data-inspection-planner] .ip-cal-items :is(a,button).ip-cal-event-tight{height:18px!important;min-height:18px!important;max-height:18px!important;line-height:16px!important;}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-cal-items :is(a,button).ip-cal-event-tight{height:18px!important;min-height:18px!important;max-height:18px!important;line-height:16px!important;white-space:nowrap!important;text-overflow:ellipsis!important;}
  body .main-content .inspection-plans[data-inspection-planner] .ip-cal-items .ip-cal-event-tight > span{display:inline!important;line-height:16px!important;}
 }
