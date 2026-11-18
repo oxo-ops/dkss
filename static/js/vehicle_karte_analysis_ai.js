@@ -1051,7 +1051,11 @@
             ordered.forEach((item,index) => {
                 const row=node("li", "ka-video-proposal");
                 row.dataset.priority=priorityPresentation?.read(item).label || "";
-                row.append(responsePriorityBadge(item, "ka7-priority"));
+                const listPriority = responsePriorityBadge(item, "ka7-priority");
+                const priorityFact = priorityPresentation?.read(item);
+                // The compact list shows the category; the detail retains its score and source.
+                if (priorityFact?.valid && priorityFact.label) listPriority.textContent = priorityFact.label;
+                row.append(listPriority);
                 const copy=node("div", "ka-video-copy");
                 copy.append(node("strong", "", item.target || item.title || "確認項目"));
                 copy.append(node("p", "", item.action || item.title || "詳細を確認"));

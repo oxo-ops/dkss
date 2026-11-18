@@ -86,12 +86,15 @@ try:
      control.focus();page.keyboard.press('Tab')
     bell_roundtrip(page)
     # Compare real rendered direct-link and parent-button alignment; preserve initial state.
-    toggle=page.locator('#sidebarToggle');was_expanded=toggle.get_attribute('aria-expanded')=='true'
+    toggle=page.locator('#sidebarToggle')
+    expanded="()=>innerWidth<=900?document.body.classList.contains('sidebar-open'):!document.body.classList.contains('sidebar-collapsed')"
+    was_expanded=page.evaluate(expanded)
     if not was_expanded:toggle.click()
-    assert toggle.get_attribute('aria-expanded')=='true'
+    page.wait_for_function(expanded)
     dashboard=page.locator('.sidebar-nav > a.menu-item').filter(has_text='ダッシュボード')
     parent_menu=page.locator('.sidebar-group > .sidebar-parent').first
     assert dashboard.is_visible() and parent_menu.is_visible()
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
     sidebar_alignment={}
     for part in ['.menu-icon','.menu-text']:
      dr=dashboard.locator(part).bounding_box();pr=parent_menu.locator(part).bounding_box()
@@ -99,9 +102,9 @@ try:
      sidebar_alignment[part]={'dashboard_x':dr['x'],'parent_x':pr['x']}
     assert urlsplit(dashboard.get_attribute('href')).path=='/'
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-expanded.png'))
-    toggle.click();assert toggle.get_attribute('aria-expanded')=='false'
+    toggle.click();page.wait_for_function('()=>!('+expanded+')()')
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-collapsed.png'))
-    toggle.click();assert toggle.get_attribute('aria-expanded')=='true'
+    toggle.click();page.wait_for_function(expanded)
     assert dashboard.is_visible()
     if not was_expanded:toggle.click()
     page.evaluate('window.scrollTo(0,0)')
