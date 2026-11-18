@@ -462,7 +462,16 @@
     record.open = true;
     return true;
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord};
+  // A guide step is not navigation. Keep the current viewport whenever the
+  // target is already visible; large regions only need to intersect it.
+  function revealOptions(rect, viewport, reducedMotion) {
+    const margin=0, left=viewport.left+margin, top=viewport.top+margin;
+    const right=viewport.left+viewport.width-margin, bottom=viewport.top+viewport.height-margin;
+    const fits=(start,end,low,high)=>end-start>high-low ? end>low && start<high : start>=low && end<=high;
+    if(fits(rect.left,rect.right,left,right) && fits(rect.top,rect.bottom,top,bottom)) return null;
+    return {block:'nearest',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord,revealOptions};
   if (typeof document === 'undefined') return;
   const root=document.getElementById('firstUseGuide');
   if (!root) return;
@@ -511,7 +520,11 @@
     if(picture) picture.hidden=s.selector!=='.inspection-item-detail';
     if(aiPicture) aiPicture.hidden=s.selector!=='.ka7-proposals .ka-reference-detail-button';
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
-    active.scrollIntoView({block:'center',behavior:'instant'});position();
+    const visual=window.visualViewport;
+    const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
+    const options=revealOptions(active.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(options) active.scrollIntoView(options);
+    position();
   }
   function open(manual){
     if(document.querySelector('dialog[open], .modal-bg.is-open, .ka-reference-drawer:not([hidden])')) return;
