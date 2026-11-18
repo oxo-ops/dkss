@@ -670,7 +670,7 @@
         if(mobile){
             const viewport=window.DkssViewport?.height() ?? Math.min(window.innerHeight,window.visualViewport?.height||window.innerHeight);
             const top=Math.max(0,grid.getBoundingClientRect().top);
-            grid.style.setProperty('--ip-mobile-calendar-height',Math.max(280,viewport-top-12)+'px');
+            grid.style.setProperty('--ip-mobile-calendar-height',Math.max(280,viewport-top-12-(document.body.classList.contains('ip-mobile-workspace')?72:0))+'px');
         }
         for(const cell of grid.querySelectorAll('[data-date]')) {
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();

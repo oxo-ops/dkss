@@ -396,3 +396,5 @@ body:has([data-inspection-planner]) .main-content > .top-bar :is(.notification-m
  body[data-responsive-shell].ip-mobile-workspace .inspection-plans[data-inspection-planner]{padding-bottom:76px!important}
  body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-grid-scroll{scroll-padding-bottom:72px}
 }
+
+@media(max-width:700px){body[data-responsive-shell].ip-mobile-workspace .main-content .inspection-plans .ip-view-popover .ip-view-switch>button[data-view]{display:flex!important;align-items:center!important;justify-content:flex-start!important;box-sizing:border-box!important;width:100%!important;min-width:0!important}}
