@@ -2,6 +2,8 @@
 from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
+import re
+from pathlib import Path
 import unittest
 from datetime import date
 from unittest.mock import patch
@@ -40,6 +42,11 @@ class DrivingReadershipTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         text=response.get_data(as_text=True)
         self.assertIn('自分の運転実績',text);self.assertIn('実績が0件であることを意味しません',text)
+        # Ignore only the fixed decorative bell bytes, never response data or attributes.
+        # Its base64 PNG happens to contain the report sentinel "DTG".
+        bell = (Path(__file__).resolve().parents[1] / 'templates/partials/notification_bell_image.html').read_text(encoding='utf-8')
+        for data_url in set(re.findall(r'data:image/png;base64,[A-Za-z0-9+/=]+', bell)):
+            text = text.replace(data_url, '[built-in notification bell]')
         self.assertNotIn('DTG',text)
         self.assertIn('no-store',response.headers['Cache-Control'])
 
