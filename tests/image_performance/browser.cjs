@@ -23,7 +23,8 @@ for(const width of [320,390,768,1316])for(const version of ['old','inline'])for(
  const sourceWidth=await bell.evaluate(async i=>{const raw=new Image();raw.src=i.currentSrc;await raw.decode();return raw.naturalWidth;});
  // All srcset assets were verified byte-identical. Pin 76px for a transport-only pixel comparison.
  await bell.evaluate(async (i,version)=>{i.removeAttribute('srcset');if(version==='old')i.src='/static/icons/notification-display-76.png';await i.decode();},version);
- const pixels=await bell.screenshot({animations:'disabled'});fs.writeFileSync(path.join(out,`${version}-${width}-${unread}-bell.png`),pixels);
+ // The unchanged live badge is separately asserted above, not part of the image asset.
+ const pixels=await bell.screenshot({animations:'disabled',mask:[p.locator('#notificationBell .notification-count')]});fs.writeFileSync(path.join(out,`${version}-${width}-${unread}-bell.png`),pixels);
  await p.locator('#notificationBell').click();await p.locator('#notificationPopover').waitFor({state:'visible'});await p.locator('#notificationPopoverClose').click();await p.locator('#notificationPopover').waitFor({state:'hidden'});
  await p.locator('#notificationBell').focus();await p.keyboard.press('Enter');await p.locator('#notificationPopover').waitFor({state:'visible'});await p.keyboard.press('Escape');await p.locator('#notificationPopover').waitFor({state:'hidden'});
  const attachment=p.locator('img.detail-image').first();await attachment.scrollIntoViewIfNeeded();await attachment.evaluate(i=>i.decode());const size=await attachment.evaluate(i=>({natural:i.naturalWidth,w:i.getBoundingClientRect().width,src:i.currentSrc}));const decodedWidth=await attachment.evaluate(async i=>{const raw=new Image();raw.src=i.currentSrc;await raw.decode();return raw.naturalWidth;});assert([480,960].includes(decodedWidth),'selected file pixel width');assert(size.src.includes('preview='));
