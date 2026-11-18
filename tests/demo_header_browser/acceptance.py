@@ -48,6 +48,12 @@ def click_target(page, control, label):
     return geometry
 
 def bell_roundtrip(page):
+    # Finish the real first-use overlay before measuring underlying controls.
+    # Do not hide it via CSS/DOM or weaken any notification hit-target assertion.
+    guide = page.locator('#firstGuidePanel')
+    if guide.is_visible():
+        guide.get_by_role('button', name='操作ガイドを閉じる', exact=True).click()
+        require(not guide.is_visible(), 'first-use guide did not close')
     click_target(page,page.locator('#notificationBell'),'notificationBell')
     require(page.locator('#notificationBell').get_attribute('aria-expanded')=='true','bell did not open')
     page.locator('#notificationPopoverList').get_by_text('長い架空通知',exact=False).first.wait_for()
