@@ -64,7 +64,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (vehicleButton && subtitle) {
-            subtitle.insertBefore(vehicleButton, dateField || null);
+            const compactActions = workspaceHeader.closest('.vehicle-workspace-top')
+                ? workspaceHeader.querySelector('.header-actions') : null;
+            if (compactActions) compactActions.appendChild(vehicleButton);
+            else subtitle.insertBefore(vehicleButton, dateField || null);
         }
 
         if (workspaceTools.children.length) {
@@ -1969,7 +1972,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 const img =
                     document.createElement("img");
 
-                img.src = path;
+                img.src = path + "?preview=480";
+                img.srcset = path + "?preview=480 480w, " + path + "?preview=960 960w";
+                img.sizes = "(max-width: 600px) calc(100vw - 48px), 480px";
+                img.loading = "lazy";
+                img.decoding = "async";
                 img.className = "preview-image";
 
                 img.addEventListener(

@@ -243,13 +243,7 @@
                     aria-controls="notificationPopover"
                     aria-expanded="false"
                 >
-                    <img
-                        src="{{ url_for('static', filename='icons/notification-display-76.png') }}"
-                        srcset="{{ url_for('static', filename='icons/notification-display-76.png') }} 76w, {{ url_for('static', filename='icons/notification-display-152.png') }} 152w, {{ url_for('static', filename='icons/notification-display-304.png') }} 304w"
-                        sizes="38px"
-                        width="38" height="38"
-                        alt=""
-                    >
+                    {% include 'partials/notification_bell_image.html' %}
 
                     {% if unread_notification_count > 0 %}
                         <span class="notification-count">
@@ -525,4 +519,5 @@
 {% endif %}
 </body>
 </html>
+
 

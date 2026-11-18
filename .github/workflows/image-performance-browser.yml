@@ -1,0 +1,49 @@
+name: Image performance isolated browser
+on:
+  push:
+    branches: ['review/image-performance-20261119']
+permissions:
+  contents: read
+concurrency:
+  group: image-performance-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Run isolated route and browser checks
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+          output="$RUNNER_TEMP/image-performance"
+          mkdir -p "$output/html" "$output/browser"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$output/html" python tests/image_performance/render.py 2>&1 | tee "$output/route.log"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" PRODUCT_REPO="$PWD" python tests/image_performance/test_preview_unit.py 2>&1 | tee "$output/unit.log"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" PRODUCT_REPO="$PWD" python tests/image_performance/benchmark.py > "$output/benchmark.json"
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$output/html" ARTIFACTS="$output/browser" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/image_performance/browser.cjs
+          printf '%s\n' "$EXPECTED_SHA" > "$output/head.txt"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: image-performance-${{ github.sha }}
+          path: ${{ runner.temp }}/image-performance/
+          retention-days: 14
