@@ -36,7 +36,7 @@ try:
    try:
     for width in (390,1316):
      for role in ('driver','manager'):
-      case.setUp();before=snap();target='/safety';client=case.app.test_client(use_cookies=False)
+      case.setUp();before=snap();target='/pointouts';client=case.app.test_client(use_cookies=False)
       record={'width':width,'role':role,'status':'running'};report['cases'].append(record);requests=[]
       class Handler(BaseHTTPRequestHandler):
        def log_message(self,*args):pass
@@ -45,8 +45,8 @@ try:
        def handle_request(self):
         try:
          u=urlsplit(self.path);path=u.path;assert not u.scheme and not u.netloc and '..' not in path.split('/')
-         allowed=path in ('/demo','/demo/role','/','/login','/safety','/static/manifest.webmanifest','/favicon.ico','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
-         assert allowed,'unapproved path'
+         allowed=path in ('/demo','/demo/role','/','/login','/safety','/pointouts','/static/manifest.webmanifest','/favicon.ico','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
+         assert allowed,'unapproved path:'+path
          headers={'Cookie':self.headers.get('Cookie','')}
          if self.command=='POST':
           length=int(self.headers.get('Content-Length','0'));assert 0<length<8192 and path=='/demo/role'
