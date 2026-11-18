@@ -34,7 +34,9 @@ def build_overview(g, vehicle):
     periodic = [r for r in rows('VehiclePeriodicInspectionRecord') if not g['periodic_inspection_synthetic_evidence'](r)]
     reference = g['build_vehicle_karte_mileage_reference'](
         maintenance, canonical_operations(rows('VehicleOperationRecord'), rows('VehicleDrivingReportRecord')), today.isoformat(), periodic, include_points=True)
-    history = g['get_vehicle_karte_history_entries'](code, vid, read_snapshot=read_snapshot)
+    history = g['get_vehicle_karte_history_entries'](
+        code, vid, read_snapshot=read_snapshot,
+        maintenance_preview=({r.id for r in maintenance}, today.isoformat(), 5))
     factual_ids = {f'maintenance:{r.id}' for r in maintenance}
     periodic_ids = {f'periodic:{r.id}' for r in periodic}
     by_maintenance = {r.id: r for r in maintenance}
