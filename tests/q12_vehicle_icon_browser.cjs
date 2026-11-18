@@ -50,7 +50,10 @@ const output = process.argv[3];
             await page.screenshot({path:output.replace('.json', '-dpr' + dpr + '.png')});
             await Promise.all([page.waitForURL(base + '/vehicle/karte/6/documents', {waitUntil:'load'}),
                 page.locator('.karte-vehicle-switcher-link[href$="/6/documents"]').click()]);
-            assert((await image.getAttribute('src')).endsWith('/car.png'));
+            await image.evaluate(i => i.decode());
+            assert((await image.getAttribute('src')).endsWith('/car-display-96.png'));
+            assert((await image.evaluate(i => new URL(i.currentSrc).pathname)).endsWith('/car-display-' + size + '.png'));
+            assert.equal(await image.evaluate(i => i.width === 50 && i.height === 50), true);
             await page.goBack({waitUntil:'load'});
             assert.equal(new URL(page.url()).pathname, '/vehicle/karte/1/documents');
             assert.equal(await image.evaluate(i => i.complete && i.width === 50), true);
@@ -62,7 +65,7 @@ const output = process.argv[3];
             const denied = await context.request.get(base + '/vehicle/karte/1/documents/q12-pdf/source?download=1', {maxRedirects:0});
             assert([302,401,403,404].includes(denied.status()));
             assert.deepEqual(errors, []);
-            results.push({dpr, initial, cache, nonTruckUnchanged:true, back:true, logoutBackAndPrivateSourceDenied:true, errors});
+            results.push({dpr, initial, cache, carDerivativeSelected:true, back:true, logoutBackAndPrivateSourceDenied:true, errors});
             await context.close();
         }
         fs.writeFileSync(output, JSON.stringify(results, null, 2));
