@@ -22,7 +22,8 @@ cookies={}
 for role,name in [('user','two'),('admin','admin')]:
  client=app.test_client();user=case.m.User.query.filter_by(company_code='TEST',username=name).one()
  with client.session_transaction() as s:s.update(account_identity=identity_for('TEST',name,app=app),company_code='TEST',username=name,role=role,password_changed_at=user.password_changed_at)
- cookies[role]=client.get_cookie(app.config.get('SESSION_COOKIE_NAME','session')).value
+ cookie_name=app.config.get('SESSION_COOKIE_NAME','session')
+ cookies[role]={'name':cookie_name,'value':client.get_cookie(cookie_name).value}
 (out/'cookies.json').write_text(json.dumps(cookies))
 if args.preflight:
  for route in ['/safety/driving-reports?scope=self','/safety/driving-reports/office-summary']:

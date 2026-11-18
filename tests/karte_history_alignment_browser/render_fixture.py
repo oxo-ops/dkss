@@ -5,7 +5,7 @@ repo=Path(sys.argv[1]);out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=Tru
 e=Environment(loader=FileSystemLoader(repo/'templates'),autoescape=True)
 s=(repo/'templates/vehicle_karte.html').read_text();a=s.index('<ol class="ko-timeline">');b=s.index('</ol>',a)+5
 kinds=['日常点検','異常・指摘','整備','担当者変更','営業所変更','車検']
-rows=[dict(kind=k,date='2026-11-18',content='内容を保持した確認記録 '+k,status='確認待ち',mileage=None,link='/unchanged/'+str(i)) for i,k in enumerate(kinds)]
+rows=[dict(kind=k,date='2025-11-18' if i==1 else '2026-11-18',content='内容を保持した確認記録 '+k,status='確認待ち',mileage=None,link='/unchanged/'+str(i)) for i,k in enumerate(kinds)]
 e.filters['distance_km']=str
 snippet=e.from_string("{% from 'vehicle_history_symbol.html' import history_symbol %}"+s[a:b]).render(karte_recent_entries=rows,vehicle={'id':1},url_for=lambda *a,**k:'/fallback')
 macro=e.get_template('vehicle_history_symbol.html').module.history_symbol
