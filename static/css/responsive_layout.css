@@ -1,5 +1,12 @@
 /* Geometry only; shared by every page through base.html, after page styles. */
 @media screen {
+    /* Submenu links share the menu's centered hit area, not top-aligned block text. */
+    body[data-responsive-shell] .sidebar .submenu-item {
+        display:flex; align-items:center; min-height:44px; min-width:0;
+    }
+    body[data-responsive-shell] .sidebar .submenu-item .menu-text {
+        min-width:0; white-space:normal; overflow-wrap:anywhere;
+    }
     :root { --app-viewport-height:100dvh; --app-viewport-width:100vw; }
     body[data-responsive-shell] .app-layout,
     body[data-responsive-shell] .main-content { box-sizing:border-box; min-inline-size:0; max-inline-size:100%; }
