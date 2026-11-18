@@ -120,6 +120,9 @@ def brand_roundtrip(page, width, out, role, scene=0):
         # The existing drawer toggle animates for 0.25s. Wait for its real
         # actionable, stable position before measuring or taking a screenshot.
         toggle.click(trial=True)
+        # Stable click targeting can sample between transition frames. Await the
+        # actual CSS animations too, without changing their duration or styles.
+        page.locator('.sidebar').evaluate("e=>Promise.all(e.getAnimations({subtree:true}).map(a=>a.finished.catch(()=>{})))")
         word = page.locator('.alseon-wordmark')
         symbol = page.locator('.alseon-symbol')
         require(word.is_visible() == (state == 'expanded'), 'wrong wordmark visibility')
