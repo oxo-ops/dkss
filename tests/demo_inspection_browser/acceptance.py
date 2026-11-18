@@ -123,13 +123,14 @@ try:
       record={'width':width,'role':role,'status':'running'};report['cases'].append(record)
       try:
        page.goto(origin+'/demo',wait_until='networkidle');assert page.locator('.public-demo-notice').is_visible()
-       entry_url=urlsplit(page.get_by_role('link',name='日常点検を開く',exact=True).get_attribute('href')); expected_entry=urlsplit(target)
-       assert entry_url.path==expected_entry.path and parse_qs(entry_url.query)=={**parse_qs(expected_entry.query),'__aonagi_entry':['1']}
+       assert page.get_by_role('button',name='点検する',exact=True).is_visible()
+       assert page.get_by_role('button',name='結果・管理を見る',exact=True).is_visible()
        page.screenshot(path=str(out/f'{width}-{role}-entry.png'),full_page=True)
        page.locator(f'form[action="/demo/role"] button[name="role"][value="{role}"]').click()
-       page.wait_for_url(lambda u:urlsplit(u).path=='/' and parse_qs(urlsplit(u).query)=={'__aonagi_entry':['1']});page.wait_for_load_state('networkidle')
+       page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
+       page.goto(origin+'/',wait_until='networkidle')
        toolbar=page.locator('.top-bar');help_button=toolbar.locator('[data-guide-open]');user=toolbar.locator('.top-bar-user')
        assert help_button.is_visible() and user.is_visible()
        hb=help_button.bounding_box();ub=user.bounding_box()

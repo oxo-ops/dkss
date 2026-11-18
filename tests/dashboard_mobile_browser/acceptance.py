@@ -80,7 +80,7 @@ try:
      page.evaluate("""()=>{const values=Array.from(document.querySelectorAll('.public-demo-notice,.public-demo-notice *,.dashboard-page,.dashboard-page *')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)*2]);for(const [e,size] of values)e.style.setProperty('font-size',size+'px','important')}""")
     assert page.locator('.public-demo-notice form[action="/logout"]').count()==0
     notice_text_visibility(page)
-    for label in ['日常点検を開く','運転者','管理者']:
+    for label in ['点検する','結果・管理を見る']:
      control=page.get_by_text(label,exact=True)
      click_target(page,control,label)
      control.focus();page.keyboard.press('Tab')
