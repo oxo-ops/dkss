@@ -129,7 +129,7 @@ def brand_roundtrip(page, width, out, role, scene=0):
         require(logo.locator('img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth>0)'), 'logo asset failed to load')
         geometry = logo.evaluate('''e=>{const r=e.getBoundingClientRect(),t=document.querySelector('#sidebarToggle').getBoundingClientRect(),s=e.closest('.sidebar').getBoundingClientRect();
           const contained=q=>q.left>=s.left-1&&q.right<=s.right+1&&q.top>=s.top-1&&q.bottom<=s.bottom+1;
-          return {width:r.width,height:r.height,sidebarContainsLogo:contained(r),sidebarContainsToggle:contained(t),inside:r.left>=0&&r.right<=innerWidth,
+          return {width:r.width,height:r.height,sidebarWidth:s.width,sidebarRight:s.right,toggleRight:t.right,sidebarContainsLogo:contained(r),sidebarContainsToggle:contained(t),inside:r.left>=0&&r.right<=innerWidth,
             overlap:r.left<t.right&&r.right>t.left&&r.top<t.bottom&&r.bottom>t.top}}''')
         require(geometry['inside'] and geometry['sidebarContainsLogo'] and geometry['sidebarContainsToggle'] and not geometry['overlap'], f'brand clips/overlaps toggle: {geometry}')
         page.screenshot(path=str(out / f'brand-{role}-{width}-{scene}-{state}.png'), full_page=False)

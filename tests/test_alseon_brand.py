@@ -22,7 +22,11 @@ class AlseonBrandTests(unittest.TestCase):
         self.assertIn('@media (max-width: 900px)', css)
         self.assertIn('body.sidebar-collapsed .alseon-wordmark { display: block; }', css)
         self.assertIn('body.sidebar-collapsed .alseon-symbol { display: none; }', css)
-        self.assertNotIn('.sidebar {', css)
+        desktop, mobile = css.split('@media (max-width: 900px)', 1)
+        self.assertNotIn('.sidebar {', desktop)
+        self.assertIn('width: var(--app-drawer-width);', mobile)
+        self.assertIn('min-width: var(--app-drawer-width);', mobile)
+        self.assertIn('padding-right: 68px;', mobile)
 
     def test_brand_shrinks_without_clipping_toggle(self):
         css = (ROOT / 'static/css/alseon_brand.css').read_text()

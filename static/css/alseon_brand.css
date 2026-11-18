@@ -25,6 +25,12 @@
 }
 /* Mobile sidebar is an expanded drawer even with a persisted desktop collapse. */
 @media (max-width: 900px) {
+    /* Page-specific desktop widths must not override the shared mobile drawer. */
+    body[data-responsive-shell]:has(.alseon-logo) aside.sidebar {
+        width: var(--app-drawer-width);
+        min-width: var(--app-drawer-width);
+    }
+    body[data-responsive-shell]:has(.alseon-logo) .sidebar-head { padding-right: 68px; }
     body.sidebar-collapsed .alseon-wordmark { display: block; }
     body.sidebar-collapsed .alseon-symbol { display: none; }
 }
