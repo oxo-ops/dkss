@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-REPO=$(realpath "$1"); PY=$(realpath "$2"); MODE=${3:-http}
+REPO=$(realpath "$1"); PY=$2; MODE=${3:-http}
+[[ "$PY" = /* && -x "$PY" ]] || exit 2
 [[ $MODE == http || $MODE == browser ]]
 [[ $(git -C "$REPO" rev-parse HEAD) == "$EXPECTED_HEAD" ]]
 [[ -z $(git -C "$REPO" status --porcelain) ]]

@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-REPO=$(realpath "$1"); PY=$(realpath "$2")
+REPO=$(realpath "$1"); PY=$2
+[[ "$PY" = /* && -x "$PY" ]] || exit 2
 [[ $(git -C "$REPO" rev-parse HEAD) == "$EXPECTED_HEAD" ]]
 [[ -z $(git -C "$REPO" status --porcelain) ]]
 RUN=$(mktemp -d);mkdir -p "$RUN/home" "$RUN/tmp"
