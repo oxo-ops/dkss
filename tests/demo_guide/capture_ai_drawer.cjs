@@ -15,6 +15,6 @@ const payload=require('./synthetic-analysis.json');
  });
  await page.goto('https://fixture.invalid/capture');const opener=page.locator('.ka-reference-detail-button').first();await opener.click();const drawer=page.locator('.ka-reference-drawer');await drawer.waitFor({state:'visible'});assert((await drawer.innerText()).includes('運行前'));
  await drawer.screenshot({path:path.join(out,`${width}-ai-detail-open.png`)});
- await drawer.locator('.ka-action-evidence > summary').click();assert(await drawer.locator('.ka-action-evidence').evaluate(e=>e.open));await drawer.screenshot({path:path.join(out,`${width}-ai-evidence-open.png`)});
+ await drawer.locator('.ka-action-evidence > summary').click();assert(await drawer.locator('.ka-action-evidence').evaluate(e=>e.open));await drawer.locator('.ka-action-evidence').scrollIntoViewIfNeeded();await drawer.screenshot({path:path.join(out,`${width}-ai-evidence-open.png`)});
  reports.push({width,actual_product_renderer:true,synthetic_data:true,drawer_open:true,evidence_open:true});await context.close();
  }assert.equal(posts,0);assert.equal(network,0);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({cases:reports,posts,external:network,live:false},null,2));}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

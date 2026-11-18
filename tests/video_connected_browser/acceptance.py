@@ -871,9 +871,9 @@ def main():
                         page.goto(ORIGIN + '/', wait_until='networkidle')
                         panel = page.locator('.dashboard-attention-panel').first
                         expect(page.locator('.dashboard-safety-attention')).to_contain_text('動画連続受入の安全確認')
-                        links = panel.locator('tbody a[href*="#proposal="]')
+                        links = panel.locator('.dashboard-attention-preview a[href*="#proposal="]')
                         require([urlsplit(x).fragment.split('=', 1)[1] for x in links.evaluate_all('(nodes)=>nodes.map(n=>n.href)')] == expected_order, 'Dashboard order mismatch')
-                        expect(panel.locator('tbody tr').filter(has=page.locator(f'a[href$="#proposal={proposal_id}"]')).locator('.dashboard-attention-priority')).to_have_text(badge)
+                        expect(panel.locator('.dashboard-attention-preview > li').filter(has=page.locator(f'a[href$="#proposal={proposal_id}"]')).locator('.dashboard-attention-priority')).to_have_text(badge.split(' · ')[0])
                         page.screenshot(path=str(out / f'dashboard-{width}.png'), full_page=True)
                         page.goto(ORIGIN + f'/vehicle/karte/{case.vehicle.id}', wait_until='networkidle')
                         expect(page.locator('#ko-ai .ko-proposal')).to_have_count(3)

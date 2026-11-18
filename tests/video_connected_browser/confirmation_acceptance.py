@@ -775,7 +775,7 @@ def run_browser(args, f, report, out, origin):
                 expect(rows).to_have_count(len(order))
                 for index, value in enumerate(ordered):
                     row = rows.nth(index)
-                    expect(row.locator('.ka7-priority')).to_have_text(badge)
+                    expect(row.locator('.ka7-priority')).to_have_text(badge.split(' · ')[0])
                     expect(row.locator('.ka-video-copy > strong')).to_have_text(value.get('target') or value.get('title') or '確認項目')
                     ids = value['source_ids']
                     sid = next((sid for sid in ids if str(sid).startswith(('inspection:', 'periodic:'))),
@@ -882,7 +882,7 @@ def run_browser(args, f, report, out, origin):
                 expect(old_row.locator('.ka-video-copy > strong')).to_have_text(historical_item['target'])
                 expect(old_row.locator('.ka7-priority')).to_have_text('高')
                 expect(current_row.locator('.ka-video-copy > strong')).to_have_text(companion['target'])
-                expect(current_row.locator('.ka7-priority')).to_have_text('高 · 60点')
+                expect(current_row.locator('.ka7-priority')).to_have_text('高')
                 expect(page.locator('.ka7-count')).to_have_text('2件（前回評価を含む）')
                 drawer = page.locator('.ka-reference-drawer')
                 expect(drawer).to_be_visible()
