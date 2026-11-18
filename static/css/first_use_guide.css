@@ -53,3 +53,9 @@
 .first-guide-panel[data-side="below"] .first-guide-arrow{top:-7px;border-top:1px solid #93b9ee;border-left:1px solid #93b9ee}
 .first-guide-panel[data-side="above"] .first-guide-arrow{bottom:-7px;border-bottom:1px solid #93b9ee;border-right:1px solid #93b9ee}
 .first-guide-panel[data-side="overlap"] .first-guide-arrow{display:none}
+
+/* Keep short action labels readable when the viewport is enlarged. */
+.first-guide-actions button{padding-inline:4px;white-space:nowrap}
+/* A visible coachmark must not be occluded by the fixed navigation toggle.
+   Only the existing header stacking context is raised while help is open. */
+body[data-responsive-shell] .main-content > .top-bar:has(.first-guide-panel:not([hidden])){z-index:1101}
