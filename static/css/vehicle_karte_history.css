@@ -66,7 +66,7 @@
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table tbody { display:table-row-group; }
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table tr { display:table-row; margin:0; padding:0; border:0; border-radius:0; }
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td) { display:table-cell; width:auto; min-width:0; padding:8px 5px; border:0; border-bottom:1px solid #dce6f0; text-align:left; vertical-align:top; font-size:12px; line-height:1.5; white-space:normal; overflow-wrap:anywhere; }
- body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td):nth-child(1) { width:56px; }
+ body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td):nth-child(1) { width:64px; }
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td):nth-child(2) { width:62px; }
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td):nth-child(n+4) { display:none; }
  body.vehicle-list-ppt .vehicle-karte-history-table.responsive-table :is(th,td):nth-child(6) { display:table-cell; width:60px; }
@@ -80,4 +80,8 @@
  body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-kind { white-space:normal; flex-wrap:wrap; gap:3px; }
  body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-kind > span { white-space:normal; padding:2px 3px; }
  body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-kind > svg { width:22px; height:22px; flex-basis:22px; padding:3px; }
+}
+
+@media(max-width:768px) {
+ body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-mobile-date { white-space:nowrap; overflow-wrap:normal; }
 }
