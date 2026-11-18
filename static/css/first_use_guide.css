@@ -36,3 +36,20 @@
 
 /* Keep the forward/end action at the trailing edge on every viewport. */
 .first-guide-panel > [data-guide-next]{display:block;margin-left:auto}
+
+/* Contextual coach mark: no blanket; controls and real content remain visible. */
+.first-guide-target{outline:2px solid var(--dkss-action-blue,#2563eb)!important;outline-offset:4px}
+.first-guide-panel{display:flex;flex-direction:column;overflow:visible;border-color:#93b9ee;border-radius:14px;box-shadow:0 6px 22px #183b6924;padding:12px 14px;color:#24314c}
+.first-guide-top{flex:none;font-size:13px;color:#64748b;margin:0 0 4px}
+.first-guide-body{min-height:0;overflow:auto;overscroll-behavior:contain}
+.first-guide-body strong{font-size:16px;line-height:1.45}
+.first-guide-body p{font-size:14px;line-height:1.55;margin:6px 0 10px}
+.first-guide-actions{display:flex;flex:none;justify-content:space-between;gap:12px;align-items:stretch;padding-top:8px}
+.first-guide-actions button{min-height:44px;min-width:44px;flex:1 1 0;font-size:14px;border-radius:9px}
+.first-guide-actions [data-guide-close]{background:#fff;border-color:#cbd5e1;color:#475569}
+.first-guide-actions [data-guide-next]{margin-left:auto;background:var(--dkss-action-blue,#2563eb);border-color:var(--dkss-action-blue,#2563eb);color:#fff}
+.first-guide-panel button:focus-visible{outline:3px solid var(--dkss-action-blue,#2563eb);outline-offset:3px}
+.first-guide-arrow{position:absolute;left:var(--guide-arrow-x,30px);width:12px;height:12px;background:#fff;transform:translateX(-50%) rotate(45deg);pointer-events:none}
+.first-guide-panel[data-side="below"] .first-guide-arrow{top:-7px;border-top:1px solid #93b9ee;border-left:1px solid #93b9ee}
+.first-guide-panel[data-side="above"] .first-guide-arrow{bottom:-7px;border-bottom:1px solid #93b9ee;border-right:1px solid #93b9ee}
+.first-guide-panel[data-side="overlap"] .first-guide-arrow{display:none}
