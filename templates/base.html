@@ -39,7 +39,7 @@
 
     <meta name="theme-color" content="#2f73f6">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261028-invoice-actuals-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261111-priority-1') }}">
     {% if import_flow %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
@@ -229,6 +229,7 @@
             </script>
             {% endif %}
             {% block top_bar_heading %}{% endblock %}
+            {% include 'partials/first_use_guide.html' %}
             <div class="notification-menu" id="notificationMenu">
                 <a
                     href="{{ url_for('notifications') }}"
@@ -514,7 +515,7 @@
 <div id="mentionBox" class="mention-box"></div>
 
 
-{% include 'partials/first_use_guide.html' %}
+
 {% if session.get('aonagi_readonly_demo') and public_demo_shared|default(false) and request.endpoint in ['dashboard', 'vehicle_checklist_results'] %}
 <script defer src="{{ url_for('static', filename='js/public_demo_share.js', v='20261117-1') }}"></script>
 {% endif %}

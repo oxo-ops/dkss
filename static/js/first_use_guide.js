@@ -8,7 +8,7 @@
     ],
     vehicle_checklist_results: [
       { selector: '#vehicle_check_filter select[name="vehicle_record_id"]', title: '車両を選ぶ', text: 'ここで、点検表を表示する車両を選べます。' },
-      { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '詳細から項目の内容を確認できます。入力できる記録では、コメントや写真も追加できます。' }
+      { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。' }
     ]
   };
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }

@@ -129,6 +129,14 @@ try:
        page.wait_for_url(lambda u:urlsplit(u).path=='/' and parse_qs(urlsplit(u).query)=={'__aonagi_entry':['1']});page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
+       toolbar=page.locator('.top-bar');help_button=toolbar.locator('[data-guide-open]');user=toolbar.locator('.top-bar-user')
+       assert help_button.is_visible() and user.is_visible()
+       hb=help_button.bounding_box();ub=user.bounding_box()
+       assert hb['x']+hb['width']<=ub['x']+1 or ub['x']+ub['width']<=hb['x']+1 or hb['y']+hb['height']<=ub['y']+1 or ub['y']+ub['height']<=hb['y']+1,(hb,ub)
+       assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
+       title=page.locator('.dashboard-header')
+       if title.count():
+        tb=toolbar.bounding_box();db=title.bounding_box();assert tb['y']+tb['height']<=db['y']+1,(tb,db)
        page.screenshot(path=str(out/f'{width}-{role}-home.png'),full_page=True)
        page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
@@ -158,12 +166,17 @@ try:
         assert all(b['width']>=43.5 and b['height']>=43.5 for b in [detail.bounding_box()])
         for d in table.locator('th.mobile-current-date .mobile-date-label').all():
          if d.is_visible():assert d.inner_text().strip().endswith('日') and d.inner_text().strip()[:-1].isdigit(),d.inner_text()
+        for header in table.locator('th.mobile-previous-date, th.mobile-current-date').all():
+         if header.is_visible():
+          assert header.evaluate('(e)=>{const r=document.createRange();r.selectNodeContents(e);const t=r.getBoundingClientRect(),b=e.getBoundingClientRect();return t.left>=b.left-1&&t.right<=b.right+1}'),header.inner_text()
+        wrapper=page.locator('.vehicle-check-table-scroll.vehicle-standard-daily-table').first
+        assert wrapper.evaluate('(e)=>{const a=e.getBoundingClientRect(),b=e.parentElement.getBoundingClientRect();return a.left>=b.left-1&&a.right<=b.right+1}')
         record['columns']=boxes
        else:detail=next(x for x in table.locator('.inspection-item-detail').all() if x.is_visible())
        page.screenshot(path=str(out/f'{width}-{role}-inspection.png'),full_page=True)
        assert table.locator('.mobile-detail-cell, .mobile-detail-header, .desktop-detail-button').count()==0
        assert detail.get_attribute('type')=='button' and detail.locator('xpath=ancestor::form').count()==0
-       assert detail.evaluate('(e)=>getComputedStyle(e).textDecorationLine').find('underline')>=0
+       assert 'underline' not in detail.evaluate('(e)=>getComputedStyle(e).textDecorationLine')
        detail.focus();detail.press('Enter');assert page.locator('#detailModal').is_visible()
        page.locator('#detailModal .js-close-detail-modal').click()
        detail.focus();detail.press('Space');assert page.locator('#detailModal').is_visible()

@@ -2632,23 +2632,18 @@ body.sidebar-collapsed .main-content {
     margin-left: 0;
 }
 
-/* ダッシュボード・マスタ管理のアイコンと文字位置を統一 */
+/* 直リンクも親メニューと同じ余白・縦位置を使う。
+   ここで個別paddingを指定するとスマホ/タブレットの共通余白を上書きしてしまう。 */
 .sidebar-nav > a.menu-item {
     display: flex;
     align-items: center;
     justify-content: flex-start;
     gap: 12px;
-    padding-left: 24px;
 }
 
 .sidebar-nav > a.menu-item .menu-icon {
     flex: 0 0 28px;
     margin-left: 0;
-}
-
-.sidebar-nav > a.menu-item .menu-text {
-    position: relative;
-    top: 1px;
 }
 
 .dashboard-grid{

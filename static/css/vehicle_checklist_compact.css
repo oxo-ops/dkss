@@ -4,8 +4,8 @@
 .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table .desktop-detail-button { min-height: 44px; }
 @media (max-width: 768px) {
   .vehicle-check-table-scroll.vehicle-standard-daily-table {
-    margin-left: -8px; margin-right: -8px;
-    width: calc(100% + 16px); max-width: calc(100% + 16px);
+    margin-left: 0; margin-right: 0;
+    width: 100%; max-width: 100%;
   }
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table { table-layout: fixed; }
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table .fixed-category {
@@ -17,7 +17,7 @@
     left: 32px !important; font-size: 13px; line-height: 1.4;
   }
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table .mobile-previous-date {
-    width: 24px !important; min-width: 24px !important; max-width: 24px !important;
+    width: 36px !important; min-width: 36px !important; max-width: 36px !important;
     padding: 4px 1px;
   }
   .vehicle-check-table-scroll.vehicle-standard-daily-table .monthly-check-table .mobile-current-date {
@@ -59,11 +59,12 @@
   min-width: 0;
   padding: 10px 16px;
   margin: 0;
-  border: 1px solid var(--dkss-action-blue);
-  border-radius: 10px;
+  /* Match the shared standard action buttons in style.css. */
+  border: 1px solid #d4dcf3;
+  border-radius: 8px;
   font-family: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 22px;
   text-align: center;
   box-shadow: none;
@@ -77,20 +78,18 @@
 #detailModal .action-row > .btn { width: 100%; }
 #detailModal .vehicle-detail-file-upload { width: 100%; min-width: 0; gap: 8px; }
 #detailModal .vehicle-detail-file-upload > .file-upload-button { width: 96px; min-width: 96px; }
-#detailModal .action-row > button[type="submit"],
-#detailModal .file-upload-button-camera {
-  background: var(--dkss-action-blue);
-  color: var(--dkss-surface);
+#detailModal .action-row > .btn,
+#detailModal .vehicle-detail-file-upload > .file-upload-button {
+  background: linear-gradient(180deg, var(--dkss-surface), #f5f5ff);
+  color: #405589;
+  box-shadow: 0 2px 6px rgba(42,59,119,.045);
 }
-#detailModal .action-row > .btn-back,
-#detailModal .file-upload-button-secondary {
-  background: var(--dkss-surface);
-  color: var(--dkss-action-blue);
+#detailModal .action-row > .btn:hover:not(:disabled),
+#detailModal .vehicle-detail-file-upload > .file-upload-button:hover {
+  border-color: #bdb4f3;
+  background: #eeebff;
+  color: var(--dk-accent-dark);
 }
-#detailModal .action-row > button[type="submit"]:hover:not(:disabled),
-#detailModal .file-upload-button-camera:hover { background: #1d4ed8; }
-#detailModal .action-row > .btn-back:hover,
-#detailModal .file-upload-button-secondary:hover { background: #eff6ff; }
 #detailModal .action-row > .btn:disabled {
   background: #e2e8f0;
   color: #475569;
@@ -100,7 +99,7 @@
 }
 #detailModal .action-row > .btn:focus-visible,
 #detailModal .file-upload-button:focus-within {
-  outline: 2px solid var(--dkss-action-blue);
+  outline: 2px solid #9184e2;
   outline-offset: 2px;
 }
 /* Never override permission-driven native hidden states. */
@@ -118,12 +117,10 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--dkss-action-blue);
+  color: inherit;
   font: inherit;
   text-align: left;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-decoration: none;
   white-space: normal;
   overflow-wrap: anywhere;
   box-shadow: none;

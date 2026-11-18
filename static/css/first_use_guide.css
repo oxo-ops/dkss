@@ -3,6 +3,15 @@
 .first-guide-panel[hidden]{display:none}.first-guide-panel strong{display:block;font-size:18px}.first-guide-panel p{margin:8px 0 12px}.first-guide-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .first-guide-panel button,.first-guide-launch{min-height:44px;min-width:44px;border:1px solid #b4b1e5;border-radius:10px;background:#f4f3ff;color:#353080;font:inherit;padding:8px 12px;cursor:pointer}
 .first-guide-panel button:focus-visible,.first-guide-launch:focus-visible{outline:3px solid #5147cc;outline-offset:3px}
-#firstUseGuide{margin:12px 16px;padding-bottom:env(safe-area-inset-bottom)}
-.first-guide-launch{position:static;font-size:13px;background:#fff}
+#firstUseGuide{margin:0;padding:0;flex:0 0 auto}
+.first-guide-launch{position:static;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;font-size:13px;background:#fff;border-color:#d8dfed;color:#24314c;padding:8px 10px}
+.first-guide-help-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid currentColor;border-radius:50%;font-weight:700;font-size:13px;line-height:1}
 @media(prefers-reduced-motion:reduce){.first-guide-panel{scroll-behavior:auto}}
+/* The help entry shares the account toolbar without reserving a fixed width.
+   Keep whole controls and the existing account name; wrap when space is tight. */
+.top-bar:has(#firstUseGuide){flex-wrap:wrap}
+.top-bar > #firstUseGuide{margin-right:auto}
+/* Dashboard previously overlaid this toolbar on its title with a 245px reserve.
+   Use normal flow on guided pages so added controls cannot overlap the title. */
+.main-content:has(> .dashboard-page) > .top-bar:has(#firstUseGuide){position:static;margin-bottom:12px}
+.main-content:has(> .top-bar #firstUseGuide) > .dashboard-page .dashboard-header{padding-right:0}
