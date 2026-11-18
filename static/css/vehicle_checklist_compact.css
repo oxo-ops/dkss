@@ -243,7 +243,7 @@
   .vehicle-workspace-top .vehicle-workspace-date { display:flex; align-items:center; margin:0; padding:0; min-width:0; flex:0 0 144px; height:44px; }
   .vehicle-workspace-top .vehicle-workspace-date > span { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   .vehicle-workspace-top .vehicle-workspace-date > input { box-sizing:border-box; width:144px; min-width:0; max-width:100%; min-height:44px; height:44px; margin:0; padding:6px; font-size:16px; }
-  .vehicle-workspace-top .header-actions > .btn { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; min-height:44px; margin:0; padding:8px 10px; width:auto; font-size:13px; line-height:1.35; white-space:normal; max-width:100%; overflow-wrap:anywhere; }
+  .vehicle-workspace-top .vehicle-workspace-header .header-actions > .btn { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; min-height:44px; margin:0; padding:8px 10px; width:auto; font-size:13px; line-height:1.35; white-space:normal; max-width:100%; overflow-wrap:anywhere; }
   .vehicle-workspace-top > .vehicle-target-settings { box-sizing:border-box; margin:0; padding:0; min-width:0; max-width:100%; }
   .vehicle-workspace-top > .vehicle-target-settings:not(.vehicle-controlled-details) > summary { box-sizing:border-box; display:flex; align-items:center; min-height:44px; margin:0; padding:8px 6px; font-size:13px; line-height:1.35; }
   .vehicle-workspace-top > .vehicle-target-settings[open] { flex:0 0 100%; }

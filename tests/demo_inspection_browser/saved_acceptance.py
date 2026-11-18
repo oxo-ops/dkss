@@ -159,7 +159,7 @@ try:
        assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
-       header=page.locator('.vehicle-workspace-header')
+       header=page.locator('.vehicle-workspace-top') # rendered outer box; inner header is display:contents on mobile
        assert header.is_visible() and '品川' in header.inner_text()
        date=page.locator('#vehicle_workspace_date');assert date.input_value()=='2026-10-23'
        assert date.bounding_box()['height']>=44
