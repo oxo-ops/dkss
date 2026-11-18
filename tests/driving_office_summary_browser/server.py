@@ -24,6 +24,25 @@ for role,name in [('user','two'),('admin','admin')]:
  with client.session_transaction() as s:s.update(account_identity=identity_for('TEST',name,app=app),company_code='TEST',username=name,role=role,password_changed_at=user.password_changed_at)
  cookie_name=app.config.get('SESSION_COOKIE_NAME','session')
  cookies[role]={'name':cookie_name,'value':client.get_cookie(cookie_name).value}
+# Existing admin notification poll initializes a scheduling-check marker once.
+# Exercise and account for it before measuring read-only office navigation.
+initial=dict(snapshot())
+admin_client=app.test_client();admin_cookie=cookies['admin']
+admin_client.set_cookie(admin_cookie['name'],admin_cookie['value'])
+assert admin_client.get('/api/notifications/unread-count').status_code==200
+case.m.db.session.expire_all();warmed=dict(snapshot())
+changed={name for name in initial if initial[name]!=warmed[name]}
+assert changed=={'inspection_plan_alert_run'},changed
+assert initial['inspection_plan_alert_run']==[]
+assert len(warmed['inspection_plan_alert_run'])==1
+marker=warmed['inspection_plan_alert_run'][0]
+assert marker['company_code']=='TEST'
+report=json.loads(marker['report_json'])
+assert report['notifications']==0 and report['plans']==0
+before=json.dumps(snapshot(),sort_keys=True,default=str)
+assert admin_client.get('/api/notifications/unread-count').status_code==200
+case.m.db.session.expire_all()
+assert json.dumps(snapshot(),sort_keys=True,default=str)==before
 (out/'cookies.json').write_text(json.dumps(cookies))
 if args.preflight:
  for route in ['/safety/driving-reports?scope=self','/safety/driving-reports/office-summary']:
