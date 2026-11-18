@@ -118,9 +118,19 @@ try:
     assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
     for row in page.locator('.dashboard-attention-preview > li').all():
-     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state','.dashboard-video-vehicle']:
+     for selector in ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-state']:
       assert row.locator(selector).is_visible(),f'hidden proposal title/action/vehicle: {selector}'
       assert row.locator(selector).inner_text().strip()
+     vehicle_label=row.locator('.dashboard-video-vehicle')
+     assert vehicle_label.inner_text().strip()
+     shared=row.locator('xpath=..').evaluate("e=>e.classList.contains('dashboard-proposals-shared-vehicle')")
+     if width<=600 and shared:
+      heading=row.locator('xpath=../preceding-sibling::p[1]')
+      assert heading.is_visible() and heading.inner_text().strip()==vehicle_label.inner_text().strip(), 'shared vehicle heading lost'
+      assert not vehicle_label.is_visible(), 'duplicate mobile vehicle label'
+      assert vehicle_label.inner_text().strip() in row.locator('a.dashboard-video-proposal').get_attribute('aria-label')
+     else:
+      assert vehicle_label.is_visible(), 'individual vehicle label lost'
      assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
     # Latest home request: readable inset, one status/arrow line, unchanged anchor.
@@ -155,13 +165,14 @@ try:
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
     if width<=600:assert measure['direction']=='row',measure
     for card in page.locator('.dashboard-safety-content').all():
-     if not card.is_visible():continue
+     row=card.locator('xpath=..')
+     if not row.is_visible():continue
      context=card.locator(':scope > p');office=card.locator(':scope > small')
      assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
      assert '11/19' in context.inner_text() and '2026-11-19' not in context.inner_text()
      assert card.locator('time').get_attribute('datetime')=='2026-11-19'
      assert card.locator('time').get_attribute('title')=='2026-11-19'
-     due=card.locator('time');dr=due.bounding_box();bounds=card.bounding_box()
+     due=card.locator('time');dr=due.bounding_box();bounds=row.bounding_box()
      assert dr['x']>=bounds['x']-1 and dr['x']+dr['width']<=bounds['x']+bounds['width']+1,('deadline clipped',dr,bounds)
      assert '写真と対策内容を確認' in context.inner_text()
      assert '架空構内' in office.inner_text()
@@ -206,3 +217,4 @@ try:
  report['passed']=True
 finally:
  (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));case.doCleanups();case.tearDown();case.tearDownClass()
+
