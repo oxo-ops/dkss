@@ -3,6 +3,12 @@
 
 {% block title %}車両マスタ{% endblock %}
 
+{% block page_styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-1') }}"></script>
+{% endblock %}
+
 {% block content %}
 {% set invoice_review_view = invoice_review_rows is defined %}
 {% set pending_view = pending_detail is defined or request.args.get('view') == 'pending' %}
@@ -603,7 +609,7 @@
 <div class="card vehicle-master-filter-card vehicle-search-card">
     <h3 class="vehicle-search-heading">検索条件</h3>
 
-    <form method="get" class="vehicle-master-filter-form vehicle-search-form">
+    <form method="get" class="vehicle-master-filter-form vehicle-search-form" data-search-clear-scope="vehicle">
         <input type="hidden" name="edit_origin" value="{{ request.args.get('edit_origin', '') }}">
         <div class="vehicle-search-field">
             <label for="vehicle_search_plate_number">車番</label>
@@ -710,7 +716,7 @@
 
         <div class="vehicle-filter-actions">
             <a href="{{ url_for('vehicle_master', edit_origin=request.args.get('edit_origin', '')) }}" class="btn btn-outline">
-                クリア
+                条件をすべて解除
             </a>
             <button type="submit" class="btn btn-primary">検索</button>
         </div>
