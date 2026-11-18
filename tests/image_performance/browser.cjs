@@ -19,7 +19,7 @@ for(const width of [320,390,768,1316])for(const version of ['old','inline'])for(
  if(await p.locator('#firstGuidePanel').isVisible())await p.locator('[data-guide-close]').click();
  await p.waitForFunction(()=>document.querySelector('#notificationBell img').complete);assert.equal(bellRequests,version==='inline'?0:1);
  // Measure readiness first; compare identical-resolution assets after async badge settles.
- await p.waitForTimeout(1400);
+ if(unread==='delay')await p.waitForFunction(()=>document.querySelector('#notificationBell .notification-count')?.textContent==='3');
  const sourceWidth=await bell.evaluate(async i=>{const raw=new Image();raw.src=i.currentSrc;await raw.decode();return raw.naturalWidth;});
  // All srcset assets were verified byte-identical. Pin 76px for a transport-only pixel comparison.
  await bell.evaluate(async (i,version)=>{i.removeAttribute('srcset');if(version==='old')i.src='/static/icons/notification-display-76.png';await i.decode();},version);
