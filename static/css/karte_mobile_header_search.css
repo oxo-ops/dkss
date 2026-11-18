@@ -1,4 +1,5 @@
-.karte-mobile-search-trigger { display: none; }
+.karte-mobile-search-trigger, .karte-mobile-search-clear { display: none; }
+.karte-mobile-search-field { display: contents; }
 .karte-mobile-search-dialog:not([open]) { display: none; }
 @media (max-width: 767px) {
     body .top-bar .top-bar-user-name { display: none; }
@@ -9,7 +10,11 @@
     .karte-mobile-search-dialog .vehicle-karte-search > label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
     .karte-mobile-search-dialog input[type=search] { width:100%; min-height:44px; border-radius:24px; font-size:16px; background:white; box-sizing:border-box; }
     .karte-mobile-search-close { position:absolute; top:calc(12px + env(safe-area-inset-top)); right:8px; width:44px; height:44px; padding:0; border:0; background:transparent; font-size:28px; color:inherit; }
-    .karte-mobile-search-clear { min-width:44px; min-height:44px; margin-top:8px; border:0; background:transparent; color:#245c9a; }
+    .karte-mobile-search-field { display:block; position:relative; }
+    .karte-mobile-search-dialog input[type=search] { padding-right:44px; }
+    .karte-mobile-search-dialog input[type=search]::-webkit-search-cancel-button { -webkit-appearance:none; appearance:none; }
+    .karte-mobile-search-clear { display:inline-flex; align-items:center; justify-content:center; position:absolute; right:0; top:0; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:50%; background:transparent; color:#245c9a; font-size:22px; }
+    .karte-mobile-search-clear[hidden] { display:none!important; }
     .karte-mobile-search-dialog .vehicle-karte-search-results { position:static; max-height:none; width:100%; box-sizing:border-box; }
     .karte-mobile-search-dialog .vehicle-karte-search-result { min-height:44px; }
     .karte-mobile-search-trigger:focus-visible, .karte-mobile-search-close:focus-visible, .karte-mobile-search-clear:focus-visible { outline:2px solid #176db4; outline-offset:2px; }

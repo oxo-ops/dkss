@@ -23,8 +23,14 @@
     close.textContent = '×'; close.setAttribute('aria-label', '検索を閉じる');
     const clear = document.createElement('button');
     clear.type = 'button'; clear.className = 'karte-mobile-search-clear';
-    clear.textContent = '消去'; clear.setAttribute('aria-label', '検索文字を消去');
-    dialog.append(close, clear); document.body.append(dialog);
+    clear.textContent = '×'; clear.setAttribute('aria-label', '検索文字を消去');
+    const field = document.createElement('span');
+    field.className = 'karte-mobile-search-field';
+    input.before(field); field.append(input, clear);
+    const syncClear = () => { clear.hidden = !input.value || input.disabled || input.readOnly; };
+    input.addEventListener('input', syncClear); input.addEventListener('change', syncClear);
+    syncClear();
+    dialog.append(close); document.body.append(dialog);
     let previous = '';
     const dismiss = (restoreFocus = true) => {
         if (!dialog.open) return;
@@ -39,6 +45,7 @@
     });
     close.addEventListener('click', () => dismiss());
     clear.addEventListener('click', () => {
+        if (input.disabled || input.readOnly) return;
         input.value = ''; input.dispatchEvent(new Event('input', {bubbles:true})); input.focus();
     });
     dialog.addEventListener('cancel', event => { event.preventDefault(); dismiss(); });
