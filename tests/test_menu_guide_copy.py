@@ -23,7 +23,7 @@ class MenuGuideCopyTests(unittest.TestCase):
     def test_new_copy_can_bypass_stale_asset_cache_without_resetting_seen(self):
         partial = (ROOT / 'templates/partials/first_use_guide.html').read_text()
         guide = (ROOT / 'static/js/first_use_guide.js').read_text()
-        self.assertIn("v='20261119-blue-coachmark-zoom-3'", partial)
+        self.assertIn("v='20261119-blue-coachmark-zoom-4'", partial)
         self.assertIn("dkss:first-guide:v1:", guide)
 
 if __name__ == '__main__':
