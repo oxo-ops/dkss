@@ -23,3 +23,5 @@ body .main-content .patrol-search-box>.query-clear-field{grid-column:1/-1}
 #notificationLayout .notification-search-control .query-clear-field>input{width:0;min-width:0;flex:1}
 #notificationLayout .notification-search-control input[data-search-clear-ready]::-webkit-search-cancel-button{display:none}
 #notificationLayout .notification-filter-reset-all{display:inline-flex;align-items:center;min-height:44px;width:max-content;max-width:100%;color:#245c9a;font-size:13px}
+
+#notificationLayout .notification-search-control .query-clear-field>input[type="search"]{color:#253247;background:transparent;border-color:transparent;box-shadow:none}

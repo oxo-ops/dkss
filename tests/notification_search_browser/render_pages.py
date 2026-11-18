@@ -29,6 +29,8 @@ class Pages(CompactDemoTests):
    result=self.client.get(p);self.assertEqual(result.status_code,200)
    self.assertIn('search_field_clear.js',result.text)
    self.assertIn('empty-text',result.text)
+   if key!='reset':self.assertIn('条件に一致する通知はありません。',result.text)
+   else:self.assertIn('未読の通知はありません。',result.text)
    (out/(key+'.html')).write_text(result.text)
    routes.append(dict(key=key,path=p))
   (out/'routes.json').write_text(json.dumps(dict(routes=routes,category=category,type=kind),ensure_ascii=False))

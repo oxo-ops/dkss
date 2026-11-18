@@ -484,7 +484,9 @@
         </div>
     {% else %}
         <p class="empty-text">
-            {% if current_view == "deleted" %}
+            {% if search_query or selected_category or selected_type %}
+                条件に一致する通知はありません。
+            {% elif current_view == "deleted" %}
                 削除済みの通知はありません。
             {% elif current_view == "unread" %}
                 未読の通知はありません。
