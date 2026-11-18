@@ -11,6 +11,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from . import profile_images
 
 WIDTHS = {480, 960}
+MAX_PREVIEW_PIXELS = 16_000_000  # Avoid full decoding oversized originals in web workers.
 
 
 def display_preview(filename):
@@ -34,7 +35,9 @@ def display_preview(filename):
                 if data is None:
                     original = read()
                     with Image.open(BytesIO(original)) as image:
-                        if getattr(image, "is_animated", False) or image.mode not in {"RGB", "RGBA"}:
+                        if (image.width * image.height > MAX_PREVIEW_PIXELS
+                                or getattr(image, "is_animated", False)
+                                or image.mode not in {"RGB", "RGBA"}):
                             return None
                         image_width = image.height if image.getexif().get(274) in (5, 6, 7, 8) else image.width
                         if image_width <= width:

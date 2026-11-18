@@ -9,7 +9,7 @@ for(const width of [320,390,768,1316])for(const version of ['old','inline'])for(
  await c.route('**/*',async r=>{const u=new URL(r.request().url());if(r.request().method()!=='GET'||u.origin!=='https://fixture.invalid'){report.unsafe++;return r.abort()}
  if(u.pathname==='/'){let html=fs.readFileSync(path.join(dir,'detail.html'),'utf8');if(version==='old')html=html.replace(/<img\s+src="data:image\/png;base64,[\s\S]*?alt=""\s*>/,'<img src="/static/icons/notification-display-76.png" width="38" height="38" alt="">');return r.fulfill({contentType:'text/html',body:html});}
  if(u.pathname==='/api/notifications/unread-count'){if(unread==='delay')await new Promise(x=>setTimeout(x,1200));return r.fulfill({status:unread==='error'?503:200,contentType:'application/json',body:JSON.stringify({unread_count:3})});}
- if(u.pathname==='/api/notifications/recent')return r.fulfill({status:503,body:'offline'});
+ if(u.pathname==='/api/notifications/recent')return r.fulfill({contentType:'application/json',body:JSON.stringify({notifications:[],unread_count:3})});
  if(u.pathname.startsWith('/files/uploads/'))return r.fulfill({path:path.join(dir,u.searchParams.has('preview')?'preview-'+u.searchParams.get('preview')+'.webp':'original.jpg')});
  const file=path.resolve(root,'.'+u.pathname);if(u.pathname.startsWith('/static/')&&file.startsWith(root+'/static/')&&fs.existsSync(file)){if(u.pathname.includes('notification-display-')){bellRequests++;await new Promise(x=>setTimeout(x,1800));}return r.fulfill({path:file});}
  return r.fulfill({status:404,body:'offline'});
@@ -25,5 +25,6 @@ for(const width of [320,390,768,1316])for(const version of ['old','inline'])for(
  const popupPromise=c.waitForEvent('page');await attachment.click();const popup=await popupPromise;await popup.waitForLoadState();assert(!popup.url().includes('preview='));await popup.close();
  await p.screenshot({path:path.join(out,`${version}-${width}-${unread}.png`),fullPage:true});report.cases.push({width,version,unread,readyAtDom,bellRequests,size,passed:true});await c.close();c=null;
 }
+for(const width of [320,390,768,1316])for(const mode of ['delay','error'])assert(fs.readFileSync(path.join(out,`old-${width}-${mode}-bell.png`)).equals(fs.readFileSync(path.join(out,`inline-${width}-${mode}-bell.png`))),'bell pixels changed');
 assert.equal(report.unsafe,0);assert.equal(report.cases.length,16);
 }catch(e){report.error=String(e);if(p)await p.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{if(c)await c.close();if(b)await b.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));}})().catch(e=>{console.error(e);process.exitCode=1});

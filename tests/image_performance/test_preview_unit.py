@@ -33,4 +33,8 @@ class Tests(unittest.TestCase):
   out=BytesIO();Image.new('RGB',(600,400),'red').save(out,'GIF',save_all=True,append_images=[Image.new('RGB',(600,400),'blue')],duration=100);self.raw=out.getvalue();self.assertIsNone(self.get())
  def test_rotated_full_frame(self):
   out=BytesIO();im=Image.new('RGB',(800,1200),'blue');ex=im.getexif();ex[274]=6;im.save(out,'PNG',exif=ex);self.raw=out.getvalue();data,_=self.get();self.assertEqual(Image.open(BytesIO(data)).size,(480,320))
+ def test_oversized_image_bypasses_full_decode(self):
+  out=BytesIO();im=Image.new('RGB',(5000,4000),'red');im.save(out,'PNG');im.close();self.raw=out.getvalue()
+  with patch.object(p,'_encode',side_effect=AssertionError('oversized decode')):
+   self.assertIsNone(self.get())
 if __name__=='__main__':unittest.main()
