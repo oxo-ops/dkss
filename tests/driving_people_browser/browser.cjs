@@ -21,6 +21,7 @@ const dataRow=box.locator('tr').filter({has:page.locator('.driving-person-metric
 assert.equal(await dataRow.count(),1);assert.equal(await dataRow.locator('.driving-person-metric').count(),2);
 assert.equal(await dataRow.locator('.driving-change-direction[aria-label="減少"]').innerText(),'↓');
 assert.equal(await dataRow.locator('.driving-change-direction[aria-label="増加"]').innerText(),'↑');
+await page.screenshot({path:path.join(out,`${mode}-${width}-${scale}-diagnostic.png`),fullPage:true});
 if(width<=650)assert(await dataRow.evaluate(row=>row.children[2].getBoundingClientRect().bottom<=row.children[1].getBoundingClientRect().top+1),'trip summary before metrics');
 const geometry=await box.evaluate(root=>{
  const errors=[],eps=2;

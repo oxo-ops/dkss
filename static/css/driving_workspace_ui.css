@@ -315,7 +315,7 @@ body:has(.driving-designed) .sidebar-nav .menu-text{white-space:normal}
 .driving-page.driving-designed .driving-directory-table a.driving-open-analysis:hover{background:#dfe7f6!important}
 @media(min-width:901px){.driving-designed .driving-directory-table .driving-person-metrics{grid-template-columns:1fr}}
 @media(max-width:650px){
- .driving-page.driving-designed .driving-directory-table>tbody>tr{display:grid;grid-template-columns:minmax(0,1fr);border-radius:10px}
+ .driving-page.driving-designed .driving-directory-table>tbody>tr{display:grid!important;grid-template-columns:minmax(0,1fr);border-radius:10px}
  .driving-page.driving-designed .driving-directory-table>tbody>tr>td{grid-column:1/-1;font-size:14px;padding:10px 12px}
  .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(1){grid-row:1}
  .driving-page.driving-designed .driving-directory-table>tbody>tr>td:nth-child(3){grid-row:2}
