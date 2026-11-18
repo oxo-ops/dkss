@@ -43,13 +43,17 @@ with sync_playwright() as p:
    assert page.locator('.first-guide-target').count()==1
    assert page.locator('#draft').input_value()=='未保存の入力'
    if role=='admin':assert page.locator('#firstGuidePanel [data-guide-title]').inner_text()=='メニューから画面を選ぶ'
+   def icon():
+    assert page.locator('.first-guide-help-icon').inner_text()=='?'
+   icon()
    def bounds():
+    icon()
     page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
     b=panel.bounding_box();assert b and b['x']>=0 and b['y']>=0 and b['x']+b['width']<=page.viewport_size['width']+1
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     assert page.locator('[data-guide-next]').evaluate('(e)=>{const p=e.parentElement,r=e.getBoundingClientRect(),b=p.getBoundingClientRect(),s=getComputedStyle(p);return Math.abs(b.right-r.right-parseFloat(s.paddingRight)-parseFloat(s.borderRightWidth))<2}')
    bounds();page.screenshot(path=str(OUT/f'{role}-{width}-initial.png'),full_page=False)
-   page.locator('[data-guide-close]').click();assert not panel.is_visible()
+   page.locator('[data-guide-close]').click();assert not panel.is_visible();icon()
    page.reload();assert not panel.is_visible()
    page.locator('[data-guide-open]').click();assert page.locator('[data-guide-close]').evaluate('(e)=>e===document.activeElement')
    page.keyboard.press('Escape');assert not panel.is_visible();assert page.locator('[data-guide-open]').evaluate('(e)=>e===document.activeElement')
@@ -59,7 +63,8 @@ with sync_playwright() as p:
    page.goto('https://fixture.invalid/?page=vehicle_checklist_results');panel.wait_for(state='visible')
    page.locator('[data-guide-next]').click();assert '詳細' in page.locator('#firstGuidePanel [data-guide-title]').inner_text()
    page.locator('.js-open-detail').click();assert not panel.is_visible();assert page.locator('.js-open-detail').evaluate('(e)=>e===document.activeElement');assert page.locator('#draft').input_value()=='未保存の入力';assert not posts
-   page.locator('[data-guide-open]').click()
+   icon();assert page.locator('[data-guide-open]').get_attribute('aria-label')=='案内を再開'
+   page.locator('[data-guide-open]').click();icon()
    assert page.locator('#firstGuidePanel [data-guide-title]').inner_text()=='評価を入れる'
    page.keyboard.press('Escape');expect(panel).not_to_be_visible()
    assert page.locator('[data-guide-open]').evaluate('(e)=>e===document.activeElement')

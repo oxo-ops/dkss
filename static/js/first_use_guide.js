@@ -502,12 +502,13 @@
   let steps=[], index=0, active=null, previous=null;
   let resumeSelector=null;
   const resumable=root.dataset.mode==='demo' && root.dataset.page==='vehicle_checklist_results';
-  const launchLabel=launch.querySelector('span:last-child');
-  function clearResume(){resumeSelector=null;if(launchLabel)launchLabel.textContent='使い方';}
+  const launchLabel=launch.querySelector('.first-guide-launch-label');
+  function clearResume(){resumeSelector=null;launch.setAttribute('aria-label','この画面の使い方を見る');if(launchLabel)launchLabel.textContent='使い方';}
   function pauseForOperation(target){
     if(resumable && steps[index]) {
       const actedOnTarget=active && active.contains(target);
       resumeSelector=(actedOnTarget && steps[index+1] ? steps[index+1] : steps[index]).selector;
+      launch.setAttribute('aria-label','案内を再開');
       if(launchLabel)launchLabel.textContent='案内を再開';
     }
     close(false,true);

@@ -22,6 +22,19 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','pointo
  const newOpen=await motion(page,true);await page.screenshot({path:path.join(out,`menu-${width}-open.png`)});const newClose=await motion(page,false);
  for(const rows of [newOpen,newClose]){assert(rows.length>5);for(const p of rows)assert(p.x>=-1&&p.right<=width+1,'menu toggle outside viewport');let deltas=rows.slice(1).map((p,i)=>Math.abs(p.x-rows[i].x));assert(Math.max(...deltas)<80,'instant toggle jump');}
  fs.writeFileSync(path.join(out,`menu-motion-${width}.json`),JSON.stringify({oldOpen,oldClose,newOpen,newClose},null,2));}if(await guide.isVisible())await page.locator('[data-guide-close]').click();
+ if(await page.locator('.first-guide-help-icon').count()){
+  assert.equal(await page.locator('.first-guide-help-icon').innerText(),'?');
+  if(name==='dashboard'){
+   for(const stage of ['closed','opened','closed-again','reopened']){
+    if(stage==='opened'||stage==='reopened')await page.locator('[data-guide-open]').click();
+    if(stage==='closed-again')await page.locator('[data-guide-close]').click();
+    assert.equal(await page.locator('.first-guide-help-icon').innerText(),'?');
+    assert.equal(await guide.isVisible(),stage==='opened'||stage==='reopened');
+    await page.screenshot({path:path.join(out,`help-${width}-${stage}.png`)});
+   }
+   await page.locator('[data-guide-close]').click();
+  }
+ }
  if(name.includes('settings_')){assert(await page.locator('.settings-user-card').isVisible());for(const selector of ['.settings-notification-card','.settings-password-card','form[action="/logout"]'])assert.equal(await page.locator(selector).count(),name.startsWith('demo_')?0:1);}
  const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert(await avatar.isVisible());assert.equal(await bar.locator('.top-bar-user-name').isVisible(),width>767);
  const help=bar.locator('#firstUseGuide'),bell=bar.locator('.notification-menu');if(await help.count()){assert(await help.evaluate((e)=>{let n=e.nextElementSibling;while(n&&['SCRIPT','LINK','STYLE'].includes(n.tagName))n=n.nextElementSibling;return n?.classList.contains('notification-menu');}),'help directly before notification');}
