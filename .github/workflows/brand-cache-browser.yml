@@ -1,7 +1,7 @@
 name: Brand Asset Cache Browser
 on:
   push:
-    branches: ['review/perf-brand-live34c8-20261119']
+    branches: ['review/perf-brand-live34c8-20261119', 'validation/release-integrated-20261119']
 permissions:
   contents: read
 jobs:

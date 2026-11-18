@@ -2,7 +2,7 @@ name: Regression Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, validation/release-integrated-20261119]
   pull_request:
   workflow_dispatch:
 
