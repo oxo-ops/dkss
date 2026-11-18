@@ -16,7 +16,7 @@ await clear.click();assert.equal(await input.inputValue(),'');assert(!await clea
 assert.equal(await form.locator('[name=category]').inputValue(),data.category);assert.equal(await form.locator('[name=type]').inputValue(),data.type);
 await form.locator('button[type=submit]').click();await page.waitForURL(u=>u.searchParams.get('q')==='');
 assert.equal(await form.locator('[name=category]').inputValue(),data.category);assert.equal(await form.locator('[name=type]').inputValue(),data.type);assert(await page.locator('.empty-text').isVisible());
-await page.goBack();await page.waitForURL(u=>u.searchParams.get('q')==='表示確認');assert.equal(await input.inputValue(),'表示確認');
+await page.goBack();await page.waitForURL(u=>u.searchParams.get('q')==='表示確認');await page.waitForFunction(()=>document.getElementById('notificationSearch').value==='表示確認');assert.equal(await input.inputValue(),'表示確認');
 await input.fill('存在しない通知検索');await form.locator('button[type=submit]').click();await page.waitForURL(u=>u.searchParams.get('q')==='存在しない通知検索');
 assert(await page.locator('.empty-text').isVisible());assert.equal(await form.locator('[name=category]').inputValue(),data.category);
 const box=await clear.boundingBox();assert(box.width>=44&&box.height>=44);assert(box.x>=0&&box.x+box.width<=width+1);

@@ -142,6 +142,26 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     window.addEventListener("pageshow", function (event) {
+        // Browser form restoration can retain an edited query after Back even
+        // though the URL and rendered results belong to the earlier search.
+        const navigation = performance.getEntriesByType("navigation")[0];
+        if (event.persisted || navigation?.type === "back_forward") {
+            const params = new URLSearchParams(window.location.search);
+            const query = document.getElementById("notificationSearch");
+            if (query) {
+                query.value = (params.get("q") || "").trim().slice(0, 200);
+                query.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            for (const [id, key] of [
+                ["notificationCategory", "category"], ["notificationType", "type"]
+            ]) {
+                const select = document.getElementById(id);
+                const value = params.get(key) || "";
+                if (select && Array.from(select.options).some(option => option.value === value)) {
+                    select.value = value;
+                }
+            }
+        }
         if (event.persisted) {
             history.replaceState(
                 {
