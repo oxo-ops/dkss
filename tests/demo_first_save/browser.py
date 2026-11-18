@@ -50,18 +50,22 @@ try:
      modal.locator('input[type=file][multiple]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':PNG})
      first=case.client.post(case.url+'/save-one',data={**case.params,'item_no':'0','value':'×','csrf_token':csrf},headers={'X-DKSS-Validation-Only':'1','X-DKSS-Demo-Snapshot':token});assert first.json['saved'] is True
      before=case.models.VehicleChecklistResult.query.one().answers_json
+     before_url=page.url
+     assert urlsplit(before_url).netloc=='fixture.invalid'
+     document_id=page.evaluate('()=>{window.__syntheticDocumentId=crypto.randomUUID();return window.__syntheticDocumentId}')
      modal.get_by_role('button',name='保存',exact=True).click()
      notice=page.locator('#demoInspectionPreserved');notice.wait_for(state='visible')
-     assert page.url=='https://fixture.invalid'+url
+     assert page.url==before_url, (before_url,page.url)
+     assert page.evaluate('window.__syntheticDocumentId')==document_id
      assert modal.locator('#detailCommentEditor').inner_text()=='synthetic unsaved draft'
      assert modal.locator('input[type=file][multiple]').evaluate('(el)=>el.files.length')==1
      link=notice.get_by_role('link');assert link.get_attribute('target')=='_blank' and link.get_attribute('rel')=='noopener'
      modal.get_by_role('button',name='保存',exact=True).click();page.wait_for_timeout(100);assert len(posts)==1
      assert case.models.VehicleChecklistResult.query.one().answers_json==before and not blocked
      page.screenshot(path=str(OUT/f'{width}-preserved.png'),full_page=True)
-     report['cases'].append({'width':width,'passed':True,'posts':len(posts),'file_count':1})
+     report['cases'].append({'width':width,'passed':True,'posts':len(posts),'file_count':1,'before_url':before_url,'after_url':page.url,'same_document':True})
     except BaseException as error:
-     report['cases'].append({'width':width,'passed':False,'error_type':type(error).__name__,'error':str(error),'posts':posts,'blocked':blocked})
+     report['cases'].append({'width':width,'passed':False,'error_type':type(error).__name__,'error':str(error),'posts':posts,'blocked':blocked,'url':page.url,'before_url':locals().get('before_url')})
      try:page.screenshot(path=str(OUT/f'{width}-FAILED.png'),full_page=True)
      except BaseException:pass
      raise
