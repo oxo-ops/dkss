@@ -14,7 +14,7 @@ for(const width of [320,390,1440])for(const info of routes){
  await box.locator('.selected-vehicle-tag').filter({hasText:'通知担当太郎'}).waitFor({state:'visible'});
  assert(!/\badmin\b/.test(await box.innerText()));
  if(info.role==='driver')assert.equal(await box.locator('button').count(),0);
- else assert.equal(await box.locator('[data-user-name="admin"]').first().getAttribute('data-user-name'),'admin');
+ else {await box.locator('button.reminder-tag-remove-btn[data-username="admin"]').waitFor({state:'visible'});assert.equal(await box.locator('button.reminder-tag-remove-btn').getAttribute('data-username'),'admin');}
  await box.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,info.endpoint+'-'+width+'.png')});
  assert.deepEqual(blocked,[]);report.push({page:info.endpoint,width,nameVisible:true,role:info.role,externalOrPosts:0});await c.close();
 }
