@@ -23,6 +23,12 @@ def snapshot():
  return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json,r.status,r.operation_judgment_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
 def setup():
  case.setUp();case.begin(defect=True)
+ # Synthetic principals have the same explicit usage-vehicle affordance tested here.
+ for username in ('checker','admin'):
+  driver=case.models.Driver.query.filter_by(company_code='A',employee_id=username).first()
+  if driver is None:
+   driver=case.models.Driver(company_code='A',employee_id=username,name='Synthetic '+username);case.db.session.add(driver)
+  driver.vehicles_json=json.dumps([str(case.vehicle_id)])
  # Deterministic display date matches the synthetic saved record; no Live clock/data changes.
  from unittest.mock import patch
  from datetime import datetime
@@ -45,6 +51,8 @@ try:
     token,html=case.enter();before=snapshot()
     response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
     assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    unselected=case.client.get(urlsplit(target).path).get_data(as_text=True)
+    assert 'usage-vehicle-shortcut' in unselected and ('data-vehicle-id="'+str(case.vehicle_id)+'"') in unselected
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
     assert 'vehicle-operation-panel' in text and '現在の未解消不具合の対応状況' in text
