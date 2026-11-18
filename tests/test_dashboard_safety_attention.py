@@ -51,7 +51,11 @@ class DashboardSafetyAttentionTests(unittest.TestCase):
         self.assertIn('安全管理：次の対応', region.text)
         self.assertIn('車両管理：AIの整備提案', region.text)
         self.assertIn('対策確認待ち', region.text)
-        self.assertIn('2026-11-20', region.text)
+        self.assertIn('11/20', region.text)
+        self.assertNotIn('2026-11-20', region.text)
+        due = region.find(tag='time')[0]
+        self.assertEqual(due.attrs['datetime'], '2026-11-20')
+        self.assertEqual(due.attrs['title'], '2026-11-20')
         self.assertIn('写真と対策の確認対象', region.text)  # Unresolved record remains visible without scope prose.
         href = region.find(cls='dashboard-safety-content')[0].find(tag='a')[0].attrs['href']
         self.assertEqual(href, f'/pointouts/{row.id}')

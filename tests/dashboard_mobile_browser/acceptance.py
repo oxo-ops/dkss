@@ -123,6 +123,29 @@ try:
       assert row.locator(selector).inner_text().strip()
      assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
+    # Latest home request: readable inset, one status/arrow line, unchanged anchor.
+    for proposal in page.locator('.dashboard-attention-preview .dashboard-video-proposal').all():
+     assert proposal.get_attribute('aria-label')
+     assert proposal.locator('.dashboard-video-detail').inner_text().strip()=='›'
+     geom=proposal.evaluate("e=>{const r=e.getBoundingClientRect(),s=e.querySelector('.dashboard-video-state').getBoundingClientRect(),d=e.querySelector('.dashboard-video-detail').getBoundingClientRect();return {left:parseFloat(getComputedStyle(e).paddingLeft),right:parseFloat(getComputedStyle(e).paddingRight),height:r.height,s:s.y+s.height/2,d:d.y+d.height/2,overflow:e.scrollWidth>e.clientWidth+1}}")
+     assert not geom['overflow'],geom
+     assert geom['height']>=44,geom
+     if width<=600:
+      assert geom['left']>=12 and geom['right']>=12 and abs(geom['s']-geom['d'])<=1,geom
+    if width<=600:
+     main_title=page.locator('.dashboard-attention-list>.dashboard-reference-title').bounding_box()
+     ai_title=page.locator('.dashboard-vehicle-attention-heading').bounding_box()
+     assert abs(main_title['x']-ai_title['x'])<=1,(main_title,ai_title)
+     vehicle_card=page.locator('.dashboard-vehicle-card').first
+     name=vehicle_card.locator('.dashboard-vehicle-entry-main').bounding_box()
+     toolbar=vehicle_card.locator('.dashboard-vehicle-toolbar').bounding_box()
+     assert name['x']+name['width']<=toolbar['x']+1,(name,toolbar)
+     for link in vehicle_card.locator('.dashboard-vehicle-action').all():
+      assert link.bounding_box()['height']>=44
+      assert '/vehicle/checklists/' in link.get_attribute('href')
+     page.locator('.dashboard-vehicles-section').scroll_into_view_if_needed()
+     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-vehicle-inline.png'))
+
     measure=page.evaluate('''()=>({safetyHeight:document.querySelector('.dashboard-safety-attention').getBoundingClientRect().height, overflow:document.documentElement.scrollWidth>innerWidth+1, direction:getComputedStyle(document.querySelector('.dashboard-safety-items>li')).flexDirection, linkSize:getComputedStyle(document.querySelector('.dashboard-safety-content a')).fontSize})''')
     assert not measure['overflow'],measure
     if width>=1251:
@@ -135,7 +158,9 @@ try:
      if not card.is_visible():continue
      context=card.locator(':scope > p');office=card.locator(':scope > small')
      assert context.is_visible() and office.is_visible(),'hidden safety action/deadline/office'
-     assert '2026-11-19' in context.inner_text()
+     assert '11/19' in context.inner_text() and '2026-11-19' not in context.inner_text()
+     assert card.locator('time').get_attribute('datetime')=='2026-11-19'
+     assert card.locator('time').get_attribute('title')=='2026-11-19'
      due=card.locator('time');dr=due.bounding_box();bounds=card.bounding_box()
      assert dr['x']>=bounds['x']-1 and dr['x']+dr['width']<=bounds['x']+bounds['width']+1,('deadline clipped',dr,bounds)
      assert '写真と対策内容を確認' in context.inner_text()
@@ -156,6 +181,13 @@ try:
     summary=page.locator('.dashboard-safety-more>summary');summary.focus();page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is not None
     assert page.locator('.dashboard-safety-content').last.is_visible()
     page.keyboard.press('Enter');assert page.locator('.dashboard-safety-more').get_attribute('open') is None
+    if width<=600:
+     plate=page.locator('.dashboard-vehicle-id').first
+     plate.evaluate("e=>e.textContent='合成長い地域名 123 あ 12345'")
+     assert not plate.evaluate('e=>e.scrollWidth>e.clientWidth+1')
+     assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
+     page.locator('.dashboard-vehicles-section').scroll_into_view_if_needed()
+     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-vehicle-long-label.png'))
     report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,'sidebar_alignment':sidebar_alignment,**measure});ctx.close()
   case.login('checker')
   ctx=browser.new_context(viewport={'width':390,'height':740},java_script_enabled=False,service_workers='block')
