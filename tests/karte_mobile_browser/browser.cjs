@@ -14,14 +14,14 @@ for(const name of names)for(const width of [320,390,768,1316]){
  const f=path.resolve(repo,'.'+u.pathname);if(u.pathname.startsWith('/static/')&&f.startsWith(repo+'/static/')&&fs.existsSync(f))return r.fulfill({path:f});return r.fulfill({status:404,body:'offline fixture'});});
  await page.goto('https://fixture.invalid/page');await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  if(await page.locator('#firstGuidePanel').isVisible())await page.locator('[data-guide-close]').click();
- await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(100);
+ await page.evaluate(()=>document.fonts.ready);await page.evaluate(()=>scrollTo({top:0,left:0,behavior:'instant'}));await page.waitForTimeout(100);
  const snapshot=()=>page.evaluate(()=>({text:document.querySelector('.main-content').innerText,links:[...document.querySelectorAll('.main-content a')].map(a=>[a.textContent.trim(),a.getAttribute('href')]),states:[...document.querySelectorAll('.ko-badge,.vi-badge,.km-status,.ka-priority-badge')].map(e=>[e.textContent,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]),tabs:[...document.querySelectorAll('.vehicle-karte-tab')].map(e=>[e.textContent.trim(),e.getAttribute('aria-current')]),geometry:[...document.querySelectorAll('.main-content *')].map(e=>{let r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})}));
  const beforePNG=await page.screenshot({path:path.join(out,`${name}-${width}-before.png`),fullPage:true});const before=await snapshot();assert.equal(before.tabs.length,8);
  await page.addStyleTag({content:css});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));const afterPNG=await page.screenshot({path:path.join(out,`${name}-${width}-after.png`),fullPage:true});const after=await snapshot();
  for(const key of ['text','links','states','tabs'])assert.deepEqual(after[key],before[key],`${name} ${width}: ${key}`);
  if(width>640 && JSON.stringify(after.geometry)!==JSON.stringify(before.geometry))fs.writeFileSync(path.join(out,'geometry-diff.json'),JSON.stringify({name,width,before:before.geometry,after:after.geometry}));
  if(width>640){assert.deepEqual(after.geometry,before.geometry,'desktop geometry');assert(beforePNG.equals(afterPNG),'desktop pixel unchanged');}
- else {assert(await page.locator('.vehicle-karte-tab').evaluateAll(es=>es.every(e=>e.getBoundingClientRect().height>=44)));assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no document horizontal overflow');}
+ else {const selected=page.locator('.vehicle-karte-tab[aria-current=page]');assert.equal(await selected.evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');assert((await selected.evaluate(e=>getComputedStyle(e).backgroundImage)).includes('rgb(36, 92, 168)'));assert(await page.locator('.vehicle-karte-tab').evaluateAll(es=>es.every(e=>e.getBoundingClientRect().height>=44)));assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no document horizontal overflow');}
  rows.push({name,width,passed:true,content_links_states_unchanged:true,desktop_pixel_unchanged:width>640});await context.close();
 }
 assert.equal(rows.length,32);assert.equal(posts,0);assert.equal(external,0);assert.equal(ws,0);
