@@ -621,6 +621,11 @@
         referenceDrawer.replaceChildren(header, summary, content);
         referenceDrawerContent = content;
         referenceDrawerOpener = opener;
+        // Preserve the selected proposal when returning from its original source.
+        if (item.proposal_id) {
+            window.history.replaceState(window.history.state, "",
+                window.location.pathname + window.location.search + `#proposal=${encodeURIComponent(item.proposal_id)}`);
+        }
         showReferenceDrawer();
         close.focus();
     }
@@ -962,7 +967,7 @@
                 button.type = "button";
                 button.addEventListener("click", () => openReferenceDrawer(item, detail, button, data.sources));
                 if (!referenceLinkedProposalOpened && item.proposal_id
-                    && window.location.hash === `#proposal=${item.proposal_id}`) {
+                    && window.location.hash === `#proposal=${encodeURIComponent(item.proposal_id)}`) {
                     referenceLinkedProposalOpened = true;
                     queueMicrotask(() => {
                         const group = button.closest("details");
