@@ -76,14 +76,14 @@ class NewKindTests(unittest.TestCase):
         self.m.db.session.commit()
         return plan
 
-    def test_unknown_overlap_requires_new_basis_and_preserves_old_plan(self):
+    def test_unknown_overlap_preserves_old_plan_without_extra_basis(self):
         old = self.legacy_plan()
         before = {c.name: getattr(old, c.name) for c in old.__table__.columns}
         payload = dict(vehicle_record_id=self.vehicle.id, kind='12month', performed_date='2026-09-12',
                        kind_contract='independent-v1')
         denied = self.client.post('/api/vehicle/inspection-plans/execution/preview', json=payload)
-        self.assertEqual(denied.status_code, 409)
-        self.complete('12month', confirmed=True, confirmation='新規分の12か月点検を原本で確認')
+        self.assertEqual(denied.status_code, 200)
+        self.complete('12month')
         self.m.db.session.refresh(old)
         self.assertEqual({c.name: getattr(old, c.name) for c in old.__table__.columns}, before)
         execution = self.m.inspection_plans.Execution.query.one()
@@ -104,13 +104,13 @@ class NewKindTests(unittest.TestCase):
 
     def test_plan_overlap_basis_and_candidates_are_audited(self):
         old = self.legacy_plan()
-        self.save_plan('vehicle_inspection', mon='2026-09', kind_confirmation='予約原本で車検を確認')
+        self.save_plan('vehicle_inspection', mon='2026-09')
         self.m.db.session.refresh(old)
         self.assertEqual((old.kind, old.status, old.version), ('12month', 'planned', 1))
         event = self.m.VehicleInspectionPlanEvent.query.one()
         detail = json.loads(event.detail_json)
         self.assertEqual(detail['duplicate_candidates'], [old.id])
-        self.assertEqual(detail['kind_confirmation'], '予約原本で車検を確認')
+        self.assertNotIn('kind_confirmation', detail)
 
     def test_unknown_old_unsent_plan_does_not_generate_notice(self):
         self.legacy_plan()

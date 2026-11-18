@@ -195,13 +195,13 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
     def serialize(row, *, resolved_kind=None):
         return {key: (resolved_kind if resolved_kind is not None else plan_kind(row)) if key == 'kind' else getattr(row, key) for key in ('id', 'vehicle_record_id', 'kind', 'period_key', 'planned_month', 'reservation_date', 'document_date', 'factory', 'note', 'source', 'source_record_id', 'completed_record_id', 'status', 'version', 'updated_by', 'updated_at')}
 
-    def record_event(row, action, before=None, kind_confirmation=None, duplicate_candidates=None):
+    def record_event(row, action, before=None, duplicate_candidates=None):
         row.updated_at = datetime.now(ZoneInfo('UTC')).isoformat()
         row.updated_by = session.get('username', '') if has_request_context() else ''
         db.session.flush([row])
         db.session.add(Event(company_code=row.company_code, plan_id=row.id, action=action,
                              detail_json=json.dumps({'before': before, 'after': serialize(row),
-                                'kind_confirmation': kind_confirmation, 'duplicate_candidates': duplicate_candidates}, ensure_ascii=False),
+                                'duplicate_candidates': duplicate_candidates}, ensure_ascii=False),
                              created_at=row.updated_at, created_by=row.updated_by))
 
     def records_for(code, ids):
@@ -795,11 +795,9 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             keys.add(unique)
             uncertain = [p.id for p in Plan.query.filter_by(company_code=code, vehicle_record_id=vid, kind='12month').all()
                          if plan_kind(p) == UNCONFIRMED and (mon in (p.period_key, p.planned_month) or key == p.period_key)] if kind in {'12month', 'vehicle_inspection'} else []
-            kind_confirmation = str(raw.get('kind_confirmation') or '').strip()
-            if len(kind_confirmation) > 1000:
-                abort(400, '種別確認の根拠は1000文字以内で入力してください。')
-            if not row and uncertain and not kind_confirmation:
-                abort(409, '区分未確認の旧予定と重なります。新規分の種別を確認した根拠を入力してください。旧予定は変更しません。')
+            # A new plan's explicitly selected kind is independent of legacy rows.
+            # Preserve unresolved old plans and audit duplicate candidates; do not
+            # require a free-text explanation or infer the old plan's identity.
             # Source provenance is derived server-side, never trusted from a browser.
             relevant = [r for r in facts_for(code, [vid]) if r.inspection_type == kind and iso_date(r.inspection_date) and r.inspection_date <= today().isoformat()]
             latest = relevant[-1] if relevant else None
@@ -810,7 +808,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             source = row.source if row and row.planned_month == mon else ('document' if explicit and explicit.id > 0 else 'calculated' if calculated and not reservation else 'manual')
             normalized.append((row, {'vehicle_record_id': vid, 'kind': kind, 'period_key': key, 'planned_month': mon,
                 'reservation_date': reservation, 'factory': factory, 'note': note, 'status': status,
-                'kind_confirmation': kind_confirmation, 'duplicate_candidates': uncertain,
+                'duplicate_candidates': uncertain,
                 'document_date': explicit.next_inspection_date if explicit else (row.document_date if row and row.planned_month == mon else None),
                 'source': source, 'source_record_id': explicit.id if explicit and explicit.id > 0 else (row.source_record_id if row and row.planned_month == mon else None)}, number(v)))
         return normalized
@@ -846,7 +844,6 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             if token != payload.get('token'):
                 abort(409, '確認後に予定が変わりました。変更内容を再確認してください。')
             for row, values, _ in rows:
-                kind_confirmation = values.pop('kind_confirmation', None)
                 duplicate_candidates = values.pop('duplicate_candidates', None)
                 before = serialize(row) if row else None
                 if row is None:
@@ -858,7 +855,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                             setattr(row, key, value)
                     row.version += 1
                 record_event(row, 'cancelled' if row.status == 'cancelled' else 'saved', before,
-                             kind_confirmation, duplicate_candidates)
+                             duplicate_candidates=duplicate_candidates)
             db.session.commit()
             return jsonify(saved=len(rows))
         except (IntegrityError, OperationalError):
@@ -1007,7 +1004,7 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
             abort(400, '点検種別と実施日を確認してください。未来の日は実施済みにできません。')
         plan = Plan.query.filter(Plan.kind.in_(kind_values(kind))).filter_by(company_code=code, vehicle_record_id=vid, id=pid).first_or_404() if pid else None
         if plan and plan_kind(plan) != kind:
-            abort(409, '旧予定の種別を確定できません。新規分の根拠を確認し、別の実績として登録してください。')
+            abort(409, '旧予定の種別を確定できません。対象予定を選ばず、別の実績として登録してください。')
         if plan and (plan.version != version or plan.status != 'planned'):
             abort(409, '予定が更新済み又は実施済みです。最新の内容を開き直してください。')
         actual = performed.isoformat()
@@ -1024,8 +1021,6 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         uncertain = [e.id for e in Execution.query.filter_by(company_code=code, vehicle_record_id=vid, performed_date=actual, kind='12month').all() if execution_kind(e) == UNCONFIRMED]
         uncertain_records = [r.id for r in Record.query.filter_by(company_code=code, vehicle_record_id=vid, inspection_date=actual, inspection_type='12month').all() if record_kind(r) == UNCONFIRMED]
         uncertain_plans = [p.id for p in Plan.query.filter_by(company_code=code, vehicle_record_id=vid, kind='12month').all() if plan_kind(p) == UNCONFIRMED and actual[:7] in (p.period_key, p.planned_month)]
-        if kind in {'12month', 'vehicle_inspection'} and (uncertain or uncertain_records or uncertain_plans) and not evidence:
-            abort(409, '区分未確認の旧記録と重なります。新規分の種別と実施を確認した根拠を入力してください。旧記録は変更しません。')
         factory, note = str(payload.get('factory') or '').strip(), str(payload.get('note') or '').strip()
         if len(factory) > 200 or len(note) > 1000:
             abort(400, '実施先・メモの文字数を確認してください。')

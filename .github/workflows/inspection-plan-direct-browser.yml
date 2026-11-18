@@ -1,0 +1,45 @@
+name: Isolated inspection plan direct-save acceptance
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vehicle_inspection_plans.py'
+      - 'static/js/vehicle_inspection_plans.js'
+      - 'templates/vehicle_inspection_plans.html'
+      - 'templates/vehicle_inspection_plan_panel.html'
+      - 'tests/inspection_plan_direct_browser/**'
+      - '.github/workflows/inspection-plan-direct-browser.yml' 
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          CHROME=$(node -e 'console.log(require(process.env.PLAYWRIGHT_MODULE).chromium.executablePath())')
+          bash tests/inspection_plan_direct_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/direct-plan" "$CHROME"
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: inspection-plan-direct-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/direct-plan/*.png
+            ${{ runner.temp }}/direct-plan/report.json
+            ${{ runner.temp }}/direct-plan/server.log

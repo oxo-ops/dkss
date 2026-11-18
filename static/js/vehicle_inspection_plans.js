@@ -62,7 +62,7 @@
         panel.querySelector('[data-plan-vehicle-label]').textContent = targetRows ? targetRows.length + '台を一括登録' : v.number;
         panel.querySelector('[data-plan-office-label]').textContent = v.office || '営業所未設定';
         panel.querySelector('[data-plan-month-label]').textContent = row.source === 'maintenance' ? '実施月' : '次回予定月';
-        ['planned_month', 'reservation_date', 'factory', 'note', 'kind_confirmation'].forEach(key => {
+        ['planned_month', 'reservation_date', 'factory', 'note'].forEach(key => {
             form.elements[key].value = row[key] || ''; form.elements[key].disabled = !editable;
         });
         panel.querySelector('[data-plan-source]').textContent = row.kind==='vehicle_inspection'&&row.status==='candidate'&&row.expiry_date ? '車検証満了日：'+row.expiry_date+' ／ 予定未登録（予約はまだ登録されていません）' : (sourceLabels[row.source] || '') + (row.document_date ? ' ／ 原本記載日 ' + row.document_date : '');
@@ -134,6 +134,17 @@
         if (dirty() && !window.confirm('未保存の変更があります。保存せずに年間計画へ移りますか？')) return;
         location.href = annualURL(b.dataset.planScope);
     }));
+    async function saveChangesHere(changes) {
+        const value = await api('/preview', { changes });
+        await api('/save', { changes, token: value.token });
+    }
+    async function finishPlanSave() {
+        initial = ''; panel.close();
+        if (planner) {
+            try { await load(); }
+            catch (_) { error(planner, '[data-planner-error]', '保存しました。最新の表示を取得できません。再登録せず画面を更新してください。'); }
+        } else location.reload();
+    }
     async function showReview(changes) {
         const value = await api('/preview', { changes });
         pending = { changes, token: value.token };
@@ -152,12 +163,13 @@
     form.addEventListener('submit', async e => {
         e.preventDefault();
         if (!form.reportValidity()) return;
-        const button = form.querySelector('[data-plan-save]'); button.disabled = true;
+        const button = form.querySelector('[data-plan-save]'); if(button.disabled)return; button.disabled = true;
         try {
             const values = Object.fromEntries(new FormData(form));
             const changes = (batchTargets || [current]).map(target => ({ ...target, ...values,
                 status: 'planned', period_key: target.id ? target.period_key : values.planned_month }));
-            await showReview(changes);
+            await saveChangesHere(changes);
+            await finishPlanSave();
         } catch (e) { error(panel, '[data-plan-error]', e.message); }
         finally { button.disabled = false; }
     });
@@ -631,6 +643,9 @@
             const office = v?.office || (data.office || newData.vehicles.find(v=>v.id===Number(select.value))?.office);
             if (office) offices.value = office;
             newForm.elements.kind.value = kind || '3month'; newForm.elements.month.value = mon;
+            newForm.elements.reservation_date.value=day;
+            for(const key of ['factory','note'])newForm.elements[key].value='';
+            error(newDialog,'[data-new-error]');
             refreshNewTargets(); newDialog.showModal();
         } catch (e) { window.alert(e.message); }
         finally { newLoading = false; }
@@ -664,16 +679,15 @@
                 return existing || {id:null,version:0,kind:k,vehicle_record_id:v.id,planned_month:mon,
                     period_key:mon,reservation_date:newForm.dataset.reservation?.slice(0,7)===mon?newForm.dataset.reservation:'',source:'manual',status:'candidate'};
             };
-            if(newScope==='vehicle'){
-                if(!targets.length)throw new Error('対象車両の情報が変わりました。開き直してください。');
-                const row=rowFor(targets[0]);newDialog.close();openEditor(row,targets[0],data.can_edit&&row.status!=='completed');return;
-            }
-            const changes = targets.map(rowFor).filter(p=>!['planned','completed'].includes(p.status));
-            if(!changes.length)throw new Error('対象車両にはこの月の予定・実施が登録済みです。');
+            if(!targets.length)throw new Error('対象車両の情報が変わりました。開き直してください。');
+            const existingRows=targets.map(rowFor).filter(p=>!['planned','completed'].includes(p.status));
+            if(!existingRows.length)throw new Error('登録済みの予定・実績があります。一覧の該当する予定から変更してください。');
+            const values=Object.fromEntries(new FormData(newForm));
+            const changes=existingRows.map(p=>({...p,status:'planned',reservation_date:values.reservation_date||p.reservation_date||'',factory:values.factory||'',note:values.note||''}));
             if(changes.length>1000)throw new Error('一括登録は1000台までです。営業所単位で登録してください。');
-            newDialog.close();
-            openEditor(changes[0],{...targets[0],number:changes.length+'台',office:newScope==='company'?'会社全体':newForm.elements.office.value},data.can_edit,changes);
-        } catch(e){window.alert(e.message);}
+            await saveChangesHere(changes);
+            newDialog.close();await finishPlanSave();
+        } catch(e){error(newDialog,'[data-new-error]',e.message);}
         finally { submitButton.disabled = false; }
     });
     planner.querySelector('[data-plan-generate]').addEventListener('click',async()=>{
