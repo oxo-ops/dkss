@@ -6,18 +6,19 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-1') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-1') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/master_compact.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/master_compact.js', v='20261119-1') }}"></script>
 {% endblock %}
 
 {% block content %}
 <div class="page-header driver-master-page-header">
     <div class="header-actions">
-        <a href="/master/drivers/new" class="btn">
-            新規登録
-        </a>
+        <a href="/master/drivers/new" class="btn master-compact-add entry-add-icon" aria-label="ドライバーを新規登録" title="ドライバーを新規登録"><span aria-hidden="true">＋</span></a>
+<button type="button" class="driver-filter-toggle master-filter-toggle" data-master-filter="driver" aria-label="ドライバーの検索条件を開く" aria-controls="driverFilterPanel" aria-expanded="true" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
     </div>
 </div>
 
-<div class="card driver-master-filter-card">
+<div class="card driver-master-filter-card" id="driverFilterPanel">
     <form method="get" class="driver-master-filter-form" data-search-clear-scope="driver">
         <div class="driver-filter-keyword">
             <label>ユーザーID・氏名検索</label>
@@ -129,7 +130,7 @@
 </div>
 <div class="mobile-card-list">
     {% for driver in drivers %}
-        <div class="mobile-list-card">
+        <details class="mobile-list-card master-compact-row"><summary><strong>{{ driver.name }}</strong><span>{{ driver.office or "-" }}</span></summary><div class="master-compact-detail">
 
             <div class="mobile-card-head">
                 <strong>{{ driver.name }}</strong>
@@ -207,7 +208,7 @@
                 </form>
             </div>
 
-        </div>
+        </div></details>
     {% else %}
         <div class="mobile-list-card">
             ドライバーが登録されていません。

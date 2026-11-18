@@ -2,6 +2,11 @@
 
 {% block title %}通知一覧{% endblock %}
 
+{% block page_styles %}{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-3') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-3') }}"></script>
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header notification-page-header">
@@ -106,12 +111,7 @@
                        maxlength="200"
                        placeholder="車両番号・点検表名・氏名・本文">
 
-                {% if search_query or selected_category or selected_type %}
-                    <a href="{{ url_for('notifications', view=current_view) }}"
-                       class="notification-filter-reset"
-                       aria-label="検索と絞り込みをすべて解除"
-                       title="条件をクリア">×</a>
-                {% endif %}
+
             </div>
         </div>
 
@@ -142,6 +142,10 @@
                 {% endfor %}
             </select>
         </div>
+        {% if search_query or selected_category or selected_type %}
+            <a href="{{ url_for('notifications', view=current_view) }}"
+               class="notification-filter-reset-all">条件をすべて解除</a>
+        {% endif %}
     </form>
 
     {% for message in get_flashed_messages(
@@ -480,7 +484,9 @@
         </div>
     {% else %}
         <p class="empty-text">
-            {% if current_view == "deleted" %}
+            {% if search_query or selected_category or selected_type %}
+                条件に一致する通知はありません。
+            {% elif current_view == "deleted" %}
                 削除済みの通知はありません。
             {% elif current_view == "unread" %}
                 未読の通知はありません。

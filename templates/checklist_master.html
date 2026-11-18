@@ -5,6 +5,9 @@
 {% block page_styles %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/checklist_master_compact.css', v='20261119-1') }}">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -59,7 +62,7 @@
 
         <div class="checklist-master-filter-actions">
             <button type="submit" class="btn">検索</button>
-            <a href="/master/checklists" class="btn btn-back">クリア</a>
+            <a href="/master/checklists" class="btn btn-back">条件をすべて解除</a>
         </div>
     </form>
 </div>
