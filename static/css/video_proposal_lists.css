@@ -38,3 +38,26 @@
  .dashboard-video-proposal>.dashboard-video-detail{grid-column:2;grid-row:3;justify-self:end;}
  .dashboard-video-copy>.dashboard-video-meta{gap:4px 8px;}
 }
+
+/* Narrow proposal rows: inset content; status and detail share the last line.
+   The existing whole-row anchor remains the single keyboard/touch target. */
+@media(max-width:600px){
+ .dashboard-attention-list>.dashboard-vehicle-attention-heading{padding-inline:0;}
+ .dashboard-video-proposal{padding:10px 12px;grid-template-columns:32px minmax(0,1fr) auto;gap:4px 8px;}
+ .dashboard-video-proposal>.dashboard-video-copy,
+ .dashboard-video-proposal>.dashboard-video-copy>.dashboard-video-meta{display:contents;}
+ .dashboard-video-proposal .dashboard-video-copy>strong{grid-column:2/-1;grid-row:2;}
+ .dashboard-video-proposal .dashboard-video-action{grid-column:2/-1;grid-row:3;margin:0;}
+ .dashboard-video-proposal .dashboard-video-timing{grid-column:2/-1;grid-row:4;font-size:12px;line-height:1.6;color:#425b70;}
+ .dashboard-video-proposal .dashboard-video-state{grid-column:2;grid-row:5;justify-self:start;align-self:center;}
+ .dashboard-video-proposal>.dashboard-video-detail{grid-column:3;grid-row:5;align-self:center;}
+}
+
+/* Home assigned vehicle: name and existing checklist links share a row. */
+@media(max-width:600px){
+ .dashboard-page.dashboard-design-v2 .dashboard-vehicle-entry{grid-template-columns:minmax(0,1fr) minmax(80px,auto);align-items:center;gap:8px;}
+ .dashboard-page.dashboard-design-v2 .dashboard-vehicle-entry-main{min-width:0;}
+ .dashboard-page.dashboard-design-v2 .dashboard-vehicle-id{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+ .dashboard-page.dashboard-design-v2 .dashboard-vehicle-toolbar{max-width:112px;justify-content:flex-end;gap:4px;}
+ .dashboard-page.dashboard-design-v2 .dashboard-vehicle-toolbar .dashboard-vehicle-action{min-height:44px;min-width:80px;padding:6px 8px;box-sizing:border-box;}
+}
