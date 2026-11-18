@@ -338,3 +338,36 @@ body .main-content .inspection-plans .ip-view-popover [data-view]{display:grid!i
  body #inspection-plan-new .ip-footer button[type=submit]{background:#245c9a;color:#fff;border-color:#245c9a;}
  body #inspection-plan-new .ip-error{margin:8px 0;font-size:13px;overflow-wrap:anywhere;}
 }
+
+/* Source facts open a detail sheet before any original document navigation. */
+#inspection-plan-source-detail { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; }
+#inspection-plan-source-detail .ip-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+#inspection-plan-source-detail h2 { font-size:18px; margin:0; }
+#inspection-plan-source-detail [data-source-detail-close] { min-width:44px; min-height:44px; }
+.ip-source-summary { white-space:pre-wrap; overflow-wrap:anywhere; }
+.ip-source-links { display:grid; gap:8px; }
+.ip-source-links a { min-height:44px; display:flex; align-items:center; overflow-wrap:anywhere; }
+@media(max-width:700px) {
+ #inspection-plan-source-detail { margin:auto 0 0; width:100%; max-width:none; max-height:70dvh; border-radius:18px 18px 0 0; padding:16px 16px max(16px,env(safe-area-inset-bottom)); box-sizing:border-box; }
+}
+
+/* Plan-only workspace: keep menu and help, hide unrelated header icons. */
+body:has([data-inspection-planner]) .main-content > .top-bar :is(.notification-menu,.top-bar-user){display:none!important}
+.inspection-plans .ip-year-days-scroll{touch-action:pan-y pinch-zoom}
+@media(max-width:700px){
+ body:has([data-inspection-planner]) .main-content > .top-bar{min-height:44px!important;padding-top:0!important;padding-bottom:0!important;margin-bottom:0!important}
+ body:has([data-inspection-planner]) .main-content .page-breadcrumb{padding-top:0!important;margin-bottom:4px!important}
+ .inspection-plans .ip-year-month-head small{display:none}
+}
+
+/* A single quiet action capsule rather than four nested button frames. */
+@media(max-width:700px){
+ body .main-content .inspection-plans[data-inspection-planner] .card-title-row{align-items:center;gap:6px;flex-wrap:wrap}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions{margin-left:auto;gap:0!important;padding:2px!important;border:1px solid #d5dfea;border-radius:24px;background:#f8fbff!important;box-shadow:0 1px 4px #183d6410}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions :is([data-plan-view-toggle],[data-plan-filter-toggle],[data-plan-search-toggle],[data-plan-add]){position:static!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;border:0!important;border-radius:50%!important;background:transparent!important;box-shadow:none!important;color:#24476b!important;padding:0!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions svg{width:22px;height:22px;stroke-width:1.8}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions button:focus-visible{outline:2px solid #2563eb!important;outline-offset:-3px}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions button:hover{background:#e8f1fa!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-add-icon{display:none!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-add-plus{display:inline!important;font-size:26px!important;line-height:1!important}
+}

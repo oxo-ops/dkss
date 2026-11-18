@@ -30,7 +30,11 @@ jobs:
           CAL=$?
           bash tests/plan_search_year_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/search-year-ui" "$CHROME"
           SEARCH=$?
-          test "$CAL" = 0 && test "$SEARCH" = 0
+          bash tests/plan_axis_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/axis-ui" "$CHROME"
+          AXIS=$?
+          bash tests/plan_event_detail_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/detail-ui" "$CHROME"
+          DETAIL=$?
+          test "$CAL" = 0 && test "$SEARCH" = 0 && test "$AXIS" = 0 && test "$DETAIL" = 0
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
       - uses: actions/upload-artifact@v7
@@ -43,3 +47,7 @@ jobs:
             ${{ runner.temp }}/search-year-ui/*.png
             ${{ runner.temp }}/search-year-ui/*.json
 
+            ${{ runner.temp }}/axis-ui/*.png
+            ${{ runner.temp }}/axis-ui/*.json
+            ${{ runner.temp }}/detail-ui/*.png
+            ${{ runner.temp }}/detail-ui/*.json
