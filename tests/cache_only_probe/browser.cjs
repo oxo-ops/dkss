@@ -26,7 +26,7 @@ const route='/vehicle/karte/'+manifest.vehicle_id+'/documents';
 for(const selection of ['closed','document:q12-jpg']){requests.length=0;await p.goto(base+route+'?document='+selection,{waitUntil:'load'});assert.equal(await p.locator('.top-bar-user').count(),1);assert.equal(await p.locator('script[src*="maintenance_invoice_pdf_viewer"]').count(),0);assert(!requests.some(x=>x.includes('/vendor/pdfjs/')||x.includes('maintenance_invoice_pdf_viewer')));
 if(selection!=='closed'){const image=p.locator('.kd-image-preview img');await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());
 assert.equal(await image.getAttribute('width'),'1600');assert.equal(await image.getAttribute('height'),'1000');
-assert.equal(await image.getAttribute('sizes'),'(min-width: 1440px) calc(31.25vw - 20px), 100vw');
+assert.equal(await image.getAttribute('sizes'),process.env.CACHE_ONLY === '1' ? null : '(min-width: 1440px) calc(31.25vw - 20px), 100vw');
 if(process.env.CACHE_ONLY === '1') assert(!(await image.evaluate(e=>e.currentSrc)).includes('preview=')); else assert((await image.evaluate(e=>e.currentSrc)).includes('preview='+(mobile?'960':'480')));
 await p.screenshot({path:output.replace('.json',mobile?'-image-mobile.png':'-image-pc.png')});
 assert(!(await image.getAttribute('src')).includes('thumb='));
