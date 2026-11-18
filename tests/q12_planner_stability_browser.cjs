@@ -20,7 +20,7 @@ let browser;
   await page.route('**/api/vehicle/inspection-plans?*',async route=>{
    const response=await route.fetch();seen();await hold;await route.fulfill({response});
   });
-  await page.goto(base+'/vehicle/inspection-plans',{waitUntil:'load'});
+  await page.goto(base+'/vehicle/inspection-plans?view=month',{waitUntil:'load'});
   await ready;await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(100);
   const geometry=()=>page.evaluate(()=>({
    period:document.querySelector('[data-plan-period]').getBoundingClientRect().toJSON(),
@@ -42,7 +42,8 @@ let browser;
   }
   assert.equal(await page.locator('[data-plan-states] button').count(),6);
   for(const view of ['calendar','year','month']){
-   await page.locator('[data-view="'+view+'"]').click();
+   if(width<=700)await page.locator('[data-plan-view-toggle]').click();
+   await page.locator('button[data-view="'+view+'"]').click();
    assert.equal(await page.locator('[data-inspection-planner]').getAttribute('data-view'),view);
   }
   assert.deepEqual(errors,[]);
