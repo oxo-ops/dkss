@@ -27,6 +27,7 @@ for(const name of names)for(const width of [320,390,1316])for(const zoom of [1,2
  if(name==='vehicle_karte_analysis'){
  const opener=page.locator('.ka-reference-detail-button').first();await opener.click();const drawer=page.locator('.ka-reference-drawer');await drawer.waitFor({state:'visible'});
  assert((await drawer.locator('.ka-drawer-summary-action').innerText()).includes('長い点検・整備記録の内容を確認し、対象車両のタイヤとバルブおよび周辺部品を点検して記録する。'));
+ if(!await drawer.evaluate(e=>e.scrollWidth<=e.clientWidth+1)) fs.writeFileSync(path.join(out,'overflow-report.json'),JSON.stringify(await drawer.evaluate(e=>({drawer:{width:e.clientWidth,scroll:e.scrollWidth},elements:[...e.querySelectorAll('*')].filter(x=>x.getBoundingClientRect().right>e.getBoundingClientRect().right+1).map(x=>({tag:x.tagName,cls:x.className,width:x.getBoundingClientRect().width,min:getComputedStyle(x).minWidth}))})),null,2));
  assert(await drawer.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'drawer no internal horizontal overflow');
  assert(await drawer.evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&r.top>=-1&&r.bottom<=innerHeight+1}),'entire drawer stays inside viewport');
  const close=drawer.locator('.ka-drawer-close');assert(await close.isVisible());

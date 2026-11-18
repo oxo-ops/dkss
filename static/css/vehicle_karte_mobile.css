@@ -84,12 +84,13 @@
   #vehicle-karte-overview, .karte-analysis { container-type: inline-size; container-name: karte-content; }
   body.ka-analysis-detail-open > .ka-reference-drawer {
     box-sizing: border-box; width: 100%; max-width: 100%; height: 100%; max-height: 100%;
+    container-type: inline-size; container-name: karte-drawer;
   }
   @container karte-content (max-width: 280px) {
     #vehicle-karte-overview .ko-status-strip,
     #vehicle-karte-overview .ko-plan-row,
     #vehicle-karte-overview .ko-cost .ko-heading,
-    body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis { grid-template-columns: minmax(0,1fr); }
+    body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-kpis { grid-template-columns: minmax(0,1fr) !important; }
     #vehicle-karte-overview .ko-plan-row > *,
     #vehicle-karte-overview .ko-cost .ko-heading > * { grid-column: 1; grid-row: auto; }
     #vehicle-karte-overview .ko-plan-edit { justify-self: start; }
@@ -97,4 +98,13 @@
     .karte-analysis .ka-video-proposal > * { grid-column: 1; min-width: 0; }
     .karte-analysis .ka-video-proposal > button { justify-self: end; }
   }
+}
+
+@media (max-width: 640px) {
+ @container karte-drawer (max-width: 280px) {
+  .ka-reference-drawer .ka-feedback { flex-wrap: wrap !important; }
+  .ka-reference-drawer .ka-feedback > button { flex: 1 1 100% !important; min-width: 0; max-width: 100%; }
+  .ka-reference-drawer :is(input, textarea, select, button) { box-sizing: border-box; max-width: 100%; min-width: 0; }
+  .ka-reference-drawer :is(.ka-reference-comment,.ka-reference-detail,.ka-drawer-heading) { min-width: 0; overflow-wrap: anywhere; }
+ }
 }
