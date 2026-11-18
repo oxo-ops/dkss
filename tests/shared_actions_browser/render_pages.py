@@ -31,8 +31,19 @@ class ActionPages(base.Pages):
    response=self.client.get(path);self.assertEqual(response.status_code,200,(name,response.status_code,response.headers.get('Location')))
    key='normal_'+name;(out/(key+'.html')).write_text(response.text)
    rows.append(dict(endpoint=key,path=path,status=200,synthetic_company='B',role='admin'))
+  # Existing real role/state fixtures: separate from initial unselected inspection page.
+  for state in json.loads((out/'inspection-states/states.json').read_text()):
+   key='inspection_'+state['role']+'_'+state['code']
+   (out/(key+'.html')).write_bytes((out/'inspection-states'/state['file']).read_bytes())
+   rows.append(dict(endpoint=key,path=state['path'],status=200,role=state['role'],inspection_state=state['code']))
+  for name,model in [('edit_vehicle_type',m.VehicleType),('edit_license_type',m.LicenseType),('edit_office',m.Office),('edit_delivery_place',m.DeliveryPlace),('edit_patrol_content_type',m.PatrolContentType),('edit_driver',m.Driver)]:
+   item=model.query.filter_by(company_code='B').order_by(model.id).first();self.assertIsNotNone(item)
+   with self.app.test_request_context():path=url_for(name,index=item.id)
+   response=self.client.get(path);self.assertEqual(response.status_code,200,(name,response.status_code))
+   key='normal_'+name;(out/(key+'.html')).write_text(response.text)
+   rows.append(dict(endpoint=key,path=path,status=200,synthetic_company='B',role='admin'))
   (out/'routes.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
-  (out/'coverage.json').write_text(json.dumps({'real_html_pages':len(list(out.glob('*.html'))),'added_normal_master_pages':len(names),'business_posts':0,'real_login':False,'live':False,'csrf_fixture':False},indent=2))
+  (out/'coverage.json').write_text(json.dumps({'real_html_pages':len(list(out.glob('*.html'))),'added_normal_master_pages':len(names)+6,'inspection_role_states':12,'business_posts':0,'real_login':False,'live':False,'csrf_fixture':False},indent=2))
 if __name__=='__main__':
  result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([ActionPages('test_action_pages')]))
  sys.exit(not result.wasSuccessful())

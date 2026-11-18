@@ -35,5 +35,16 @@ const after=await snapshots(controls);assert.equal(after.length,before.length);
 for(let i=0;i<before.length;i++){for(const k of ['text','attrs','display','visibility','opacity','pointer','disabled'])assert.deepEqual(after[i][k],before[i][k],`${name} control${i} ${k}`);for(const k of ['w','h'])assert(Math.abs(after[i][k]-before[i][k])<=1,`${name} control${i} geometry ${k}`)}
 const stateAfter=await snapshots(page.locator(state));assert.deepEqual(stateAfter,states,`${name} state/selection unchanged`);
 const focus=controls.filter({visible:true}).first();if(await focus.count()){await focus.focus();assert(await focus.evaluate(e=>e.disabled||document.activeElement===e),'focus');}
-await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});rows.push({endpoint:name,width,controls:before.length,stateControls:states.length});await c.close();}
+// Exercise the actual delegated driver_form.js handler without submitting the form.
+if(['normal_new_driver','normal_edit_driver'].includes(name)){
+ const licenseRows=page.locator('#license_area .license-row'),n=await licenseRows.count();
+ await page.locator('.js-add-license-row').click();assert.equal(await licenseRows.count(),n+1);
+ const added=licenseRows.last(),remove=added.locator('.js-remove-license-row');
+ assert.equal(await remove.evaluate(e=>getComputedStyle(e).color),'rgb(155, 48, 56)');
+ await remove.focus();assert(await remove.evaluate(e=>document.activeElement===e));
+ await page.screenshot({path:path.join(out,`${name}-${width}-license-added.png`),fullPage:true});
+ await remove.click();assert.equal(await licenseRows.count(),n);
+ assert.equal(posts,0,'license row operation must not submit');
+}
+await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});rows.push({endpoint:name,width,controls:before.length,stateControls:states.length,actualLicenseHandlerTested:['normal_new_driver','normal_edit_driver'].includes(name)});await c.close();}
 assert.equal(posts,0);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({rows,posts,blockedExternal:external,blockedWebsockets:websockets,synthetic:true,live:false,fullSystemAccepted:false},null,2));}catch(e){fs.writeFileSync(path.join(out,'failure-report.json'),JSON.stringify({case:currentCase,completed:rows,posts,external,websockets,error:String(e)},null,2));if(current&&!current.isClosed())await current.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
