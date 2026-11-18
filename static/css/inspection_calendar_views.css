@@ -374,25 +374,25 @@ body:has([data-inspection-planner]) .main-content > .top-bar :is(.notification-m
 
 /* Mobile workspace: menu left, all plan actions including help on the top row. */
 @media(max-width:700px){
- body.ip-mobile-workspace .main-content{padding: max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important}
- body.ip-mobile-workspace .main-content>.top-bar{display:none!important}
- body.ip-mobile-workspace .main-content>.page-breadcrumb{display:none!important}
- body.ip-mobile-workspace .inspection-plans[data-inspection-planner]{margin:0!important;padding:0 4px 8px!important;border:0!important;box-shadow:none!important;background:transparent!important}
- body.ip-mobile-workspace .inspection-plans .card-title-row{display:flex!important;flex-direction:column-reverse!important;align-items:stretch!important;gap:8px!important;margin:0 0 6px!important;padding:0!important}
- body.ip-mobile-workspace .inspection-plans .card-title-row h2{font-size:18px!important;line-height:1.3!important;margin:0!important;padding:0!important}
- body.ip-mobile-workspace .inspection-plans .ip-top-actions{flex-wrap:nowrap!important;min-height:48px;margin:0 0 0 auto!important;max-width:calc(100% - 48px)}
- body.ip-mobile-workspace .inspection-plans .ip-top-actions #firstUseGuide{margin:0!important;padding:0!important;flex:0 0 44px!important;min-width:0!important}
- body.ip-mobile-workspace .inspection-plans .ip-top-actions #firstUseGuide>.first-guide-launch{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#24476b!important}
- body.ip-mobile-workspace .inspection-plans .ip-active-filter{margin:4px 0!important}
- body.ip-mobile-workspace .inspection-plans .ip-view-popover{width:168px!important;padding:4px!important;border-radius:12px!important}
- body.ip-mobile-workspace .inspection-plans .ip-view-popover .ip-view-switch{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important;margin:0!important;padding:0!important}
- body.ip-mobile-workspace .inspection-plans .ip-view-popover .ip-view-switch>button[data-view]{min-width:0!important;width:100%!important;height:44px!important;min-height:44px!important;padding:6px 8px!important;grid-template-columns:20px minmax(0,1fr)!important}
+ body[data-responsive-shell].ip-mobile-workspace .main-content{padding: max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important}
+ body[data-responsive-shell].ip-mobile-workspace .main-content>.top-bar{display:none!important}
+ body[data-responsive-shell].ip-mobile-workspace .main-content>.page-breadcrumb{display:none!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans[data-inspection-planner]{margin:0!important;padding:0 4px 8px!important;border:0!important;box-shadow:none!important;background:transparent!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .card-title-row{display:flex!important;flex-direction:column-reverse!important;align-items:stretch!important;gap:8px!important;margin:0 0 6px!important;padding:0!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .card-title-row h2{font-size:18px!important;line-height:1.3!important;margin:0!important;padding:0!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-top-actions{flex-wrap:nowrap!important;min-height:48px;margin:0 0 0 auto!important;max-width:calc(100% - 48px)}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-top-actions #firstUseGuide{margin:0!important;padding:0!important;flex:0 0 44px!important;min-width:0!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-top-actions #firstUseGuide>.first-guide-launch{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#24476b!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-active-filter{margin:4px 0!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-view-popover{width:168px!important;padding:4px!important;border-radius:12px!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-view-popover .ip-view-switch{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important;margin:0!important;padding:0!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-view-popover .ip-view-switch>button[data-view]{min-width:0!important;width:100%!important;height:44px!important;min-height:44px!important;padding:6px 8px!important;grid-template-columns:20px minmax(0,1fr)!important}
 }
 
 @media(max-width:700px){
- body.ip-mobile-workspace .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add]{position:fixed!important;right:max(18px,env(safe-area-inset-right))!important;bottom:calc(18px + env(safe-area-inset-bottom))!important;z-index:30;width:52px!important;min-width:52px!important;height:52px!important;min-height:52px!important;border-radius:50%!important;background:#fff!important;color:#2059a1!important;border:1px solid #c5d2e0!important;box-shadow:0 3px 12px #17365330!important}
- body.ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-icon{display:block!important;width:24px!important;height:24px!important}
- body.ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-plus{display:none!important}
- body.ip-mobile-workspace .inspection-plans[data-inspection-planner]{padding-bottom:76px!important}
- body.ip-mobile-workspace .inspection-plans .ip-grid-scroll{scroll-padding-bottom:72px}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add]{position:fixed!important;right:max(18px,env(safe-area-inset-right))!important;bottom:calc(18px + env(safe-area-inset-bottom))!important;z-index:30;width:52px!important;min-width:52px!important;height:52px!important;min-height:52px!important;border-radius:50%!important;background:#fff!important;color:#2059a1!important;border:1px solid #c5d2e0!important;box-shadow:0 3px 12px #17365330!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-icon{display:block!important;width:24px!important;height:24px!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-top-actions [data-plan-add] .ip-add-plus{display:none!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans[data-inspection-planner]{padding-bottom:76px!important}
+ body[data-responsive-shell].ip-mobile-workspace .inspection-plans .ip-grid-scroll{scroll-padding-bottom:72px}
 }

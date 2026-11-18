@@ -519,26 +519,29 @@
         return Math.abs(dx)>=Math.abs(dy)*2?'x':'y';
     }
     function bindYearTouchAxis(scroll) {
-        let origin=null,axis='',suppress=false,releaseTimer=null;
+        let origin=null,axis='',suppress=false,releaseTimer=null,lockedLeft=null,unlockTimer=null;
         const finish=()=>{
+            if(axis==='y'&&origin){lockedLeft=origin.left;scroll.scrollLeft=lockedLeft;clearTimeout(unlockTimer);unlockTimer=setTimeout(()=>{lockedLeft=null;},400);}
             if(axis==='x'){scroll.style.scrollSnapType='';scroll.dataset.yearTouchAxis='';scroll.dispatchEvent(new Event('scroll'));releaseTimer=setTimeout(()=>{suppress=false;releaseTimer=null;},350);}
             origin=null;axis='';
         };
         scroll.addEventListener('touchstart',event=>{
-            finish();if(releaseTimer!==null){clearTimeout(releaseTimer);releaseTimer=null;}suppress=false;
+            finish();clearTimeout(unlockTimer);lockedLeft=null;if(releaseTimer!==null){clearTimeout(releaseTimer);releaseTimer=null;}suppress=false;
             if(event.touches.length!==1)return;
-            const t=event.touches[0];origin={x:t.clientX,y:t.clientY,left:scroll.scrollLeft};
+            const t=event.touches[0];origin={x:t.clientX,y:t.clientY,left:scroll.scrollLeft,top:scroll.scrollTop};
         },{passive:true});
         scroll.addEventListener('touchmove',event=>{
             if(!origin)return;
-            if(event.touches.length!==1){finish();return;}
+            if(event.touches.length!==1){finish();clearTimeout(unlockTimer);lockedLeft=null;return;}
             const t=event.touches[0],dx=t.clientX-origin.x,dy=t.clientY-origin.y;
             if(!axis)axis=yearGestureAxis(dx,dy);
-            if(axis!=='x')return; // Native vertical pan and pinch remain available.
-            if(!event.cancelable){finish();return;}
+            if(axis==='y'){lockedLeft=origin.left;scroll.scrollLeft=origin.left;return;} // Keep native vertical pan but reject horizontal drift.
+            if(axis!=='x')return;
+            if(!event.cancelable){axis='y';lockedLeft=origin.left;scroll.scrollLeft=origin.left;return;}
             event.preventDefault();suppress=true;scroll.dataset.yearTouchAxis='x';scroll.style.scrollSnapType='none';
-            scroll.scrollLeft=origin.left-dx;
+            scroll.scrollLeft=origin.left-dx;scroll.scrollTop=origin.top;
         },{passive:false});
+        scroll.addEventListener('scroll',()=>{if(lockedLeft!==null&&Math.abs(scroll.scrollLeft-lockedLeft)>1)scroll.scrollLeft=lockedLeft;if(axis==='x'&&origin&&scroll.scrollTop!==origin.top)scroll.scrollTop=origin.top;},{passive:true});
         scroll.addEventListener('touchend',finish,{passive:true});
         scroll.addEventListener('touchcancel',finish,{passive:true});
         scroll.addEventListener('click',event=>{if(suppress){event.preventDefault();event.stopPropagation();}},{capture:true});
@@ -601,7 +604,7 @@
             // At the final columns several selected months share the same clamped position.
             if(selectedHead&&Math.abs(Math.min(monthLeft(selectedHead),maximum)-scroll.scrollLeft)<=2)return;
             const nearest=headers.reduce((a,b)=>Math.abs(monthLeft(a)-scroll.scrollLeft)<=Math.abs(monthLeft(b)-scroll.scrollLeft)?a:b);
-            if(nearest)showYearMonth(nearest.dataset.month);
+            if(nearest){const targetLeft=Math.min(monthLeft(nearest),maximum);if(Math.abs(scroll.scrollLeft-targetLeft)>1)scroll.scrollLeft=targetLeft;showYearMonth(nearest.dataset.month);}
         },120);},{passive:true});
         const key=months.join(',');
         bindYearTouchAxis(scroll);
