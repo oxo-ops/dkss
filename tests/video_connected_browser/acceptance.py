@@ -714,7 +714,7 @@ def main():
                         # History opens this invoice's original PDF, not its
                         # maintenance-detail page. Follow that real rendered link.
                         page.goto(ORIGIN + paths[0], wait_until='networkidle')
-                        source_link = page.locator('.vehicle-history-record-link')
+                        source_link = page.locator('.vehicle-history-record-link:visible, .vehicle-history-mobile-content a:visible')
                         expect(source_link).to_have_count(1)
                         expect(source_link).to_have_attribute('href', invoice_source_path)
                         source_url = urljoin(ORIGIN, source_link.get_attribute('href'))

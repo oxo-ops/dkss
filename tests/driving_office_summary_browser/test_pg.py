@@ -5,6 +5,12 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from test_office_summary_restricted import OfficeSummaryTests
 class PostgreSQLTests(OfficeSummaryTests):
+ def save(self,i=1,**kw):
+  import hashlib
+  source=b"isolated synthetic driving report"
+  self.m.db.session.add(self.m.VehicleDocumentImportDraft(id="fixture-"+str(i),batch_id="fixture-batch-"+str(i),company_code="TEST",created_by_username="admin",document_type="driving_report",source_filename="synthetic.txt",source_file=source,source_sha256=hashlib.sha256(source).hexdigest(),status="confirmed"))
+  self.m.db.session.commit()
+  return super().save(i,**kw)
  @classmethod
  def setUpClass(cls):
   assert os.environ.get('DKSS_OFFICE_PG_ISOLATED')=='1'

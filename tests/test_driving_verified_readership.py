@@ -152,7 +152,9 @@ class VerifiedReadershipTests(DrivingIdentityFixture,unittest.TestCase):
         page,_=self.render(self.url)
         text=page.get_data(as_text=True)
         self.assertIn('実績が0件であることを意味しません',text)
-        self.assertIn('本人未確定',text);self.assertNotIn('NO10_PRIVATE',text)
+        self.assertIn('この条件で表示できる本人確認済みの日報はありません。',text)
+        self.assertNotIn('本人未確定',text)
+        self.assertNotIn('NO10_PRIVATE',text)
 
 
 class PostgresVerifiedReadershipTests(DisposablePostgres,VerifiedReadershipTests):
