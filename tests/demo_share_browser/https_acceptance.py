@@ -78,7 +78,8 @@ try:
      count=c.models.VehicleChecklistResult.query.count()
      page.locator(f'button[name="role"][value="{role}"]').click();page.locator('.public-demo-notice').wait_for(state='detached');page.wait_for_load_state('networkidle')
      assert urlsplit(page.url).path==('/' if role=='manager' else path)
-     if role=='manager':page.goto(origin+target,wait_until='networkidle')
+     # Purpose entry opens the current day; select the dated synthetic record for save coverage.
+     page.goto(origin+target,wait_until='networkidle')
      assert urlsplit(page.url).path==path and f'vehicle_record_id={c.vehicle_id}' in page.url
      assert page.locator('#vehicle_workspace_date').is_visible()
      assert c.models.VehicleChecklistResult.query.count()==count
