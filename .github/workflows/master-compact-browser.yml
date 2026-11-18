@@ -1,7 +1,7 @@
 name: Master Compact Browser
 on:
   push:
-    branches: [validation/master-compact-20261119, validation/search-master-batch-20261119]
+    branches: [validation/master-compact-20261119, validation/search-master-batch-20261119, validation/search-plan-integrated-20261119]
 permissions:
   contents: read
 jobs:

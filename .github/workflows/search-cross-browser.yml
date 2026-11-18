@@ -1,7 +1,7 @@
 name: Search Cross Browser
 on:
   push:
-    branches: [validation/search-cross-20261119, validation/search-master-batch-20261119]
+    branches: [validation/search-cross-20261119, validation/search-master-batch-20261119, validation/search-plan-integrated-20261119]
 permissions:
   contents: read
 jobs:

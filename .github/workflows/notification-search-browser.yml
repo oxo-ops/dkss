@@ -1,7 +1,7 @@
 name: Notification Search Browser
 on:
   push:
-    branches: [validation/notification-search-20261119, validation/search-master-batch-20261119]
+    branches: [validation/notification-search-20261119, validation/search-master-batch-20261119, validation/search-plan-integrated-20261119]
 permissions:
   contents: read
 jobs:
