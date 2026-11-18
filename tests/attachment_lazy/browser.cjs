@@ -14,6 +14,10 @@ assert(!template.includes('preview='));
 const requests=[],external=[],cases=[];
 const png=Buffer.from('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','base64');
 const server=http.createServer((req,res)=>{
+ if(req.url==='/detail'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(fs.readFileSync(path.join(process.env.HTML_OUT,'detail.html')));}
+ if(req.url.startsWith('/static/')){const asset=path.resolve(repo,'.'+req.url.split('?')[0]);if(!asset.startsWith(repo+'/static/')||!fs.existsSync(asset)){res.statusCode=404;return res.end();}
+ const ext=path.extname(asset);res.setHeader('Content-Type',({'.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'})[ext]||'application/octet-stream');return res.end(fs.readFileSync(asset));}
+ if(req.url.startsWith('/files/uploads/avatar.jpg')){res.setHeader('Content-Type','image/jpeg');return res.end(fs.readFileSync(path.join(process.env.HTML_OUT,'original.jpg')));}
  if(req.url.startsWith('/files/')){requests.push(req.url);res.setHeader('Content-Type','image/png');res.setHeader('Cache-Control','no-store');return res.end(png);}
  res.setHeader('Content-Type','text/html; charset=utf-8');
  res.end('<meta name="viewport" content="width=device-width"><style>body{margin:16px;font:16px sans-serif}.preview-image,.detail-image{width:160px;height:120px;object-fit:contain}#below{margin-top:15000px}</style><h1>添付画像の隔離確認</h1><div id="visible"></div><div id="below"></div><script>'+fn+';window.renderFiles=renderFiles;renderFiles("visible","first.png,second.png,report.pdf","添付");renderFiles("below","offscreen.png","画面外");<\/script>');
@@ -46,6 +50,23 @@ const server=http.createServer((req,res)=>{
   await context.close();
  }
  assert.equal(external.length,0);
+ const appCases=[];
+ for(const width of [390,1316]){
+  const context=await browser.newContext({viewport:{width,height:844}});
+  await context.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());
+  const page=await context.newPage();await page.goto(origin+'/detail');
+  const img=page.locator('.detail-image').first();await img.scrollIntoViewIfNeeded();
+  await img.evaluate(e=>e.decode());
+  assert.equal(await img.getAttribute('src'),'/files/uploads/avatar.jpg');
+  const box=await img.boundingBox();assert(box.width>60&&box.x>=0&&box.x+box.width<=width+1);
+  const ratio=await img.evaluate(e=>({n:e.naturalWidth/e.naturalHeight,r:e.getBoundingClientRect().width/e.getBoundingClientRect().height}));
+  assert(Math.abs(ratio.n-ratio.r)<.02,'image aspect ratio changed');
+  await page.screenshot({path:path.join(out,width+'-actual-detail.png')});
+  const next=page.waitForEvent('popup');await img.click();const original=await next;await original.waitForLoadState();assert(original.url().endsWith('/files/uploads/avatar.jpg'));await original.close();
+  appCases.push({width,passed:true,originalLink:true,noImageOverflow:true,aspectRatioRetained:true});
+  await context.close();
+ }
+ fs.writeFileSync(path.join(out,'actual-template.json'),JSON.stringify(appCases,null,2));
  fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({fixtureOnly:true,notRealSafari:true,authorization:'unchanged server path; synthetic browser does not prove server auth',cases},null,2));
  }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
