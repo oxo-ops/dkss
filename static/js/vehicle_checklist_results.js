@@ -64,7 +64,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (vehicleButton && subtitle) {
-            subtitle.insertBefore(vehicleButton, dateField || null);
+            const compactActions = workspaceHeader.closest('.vehicle-workspace-top')
+                ? workspaceHeader.querySelector('.header-actions') : null;
+            if (compactActions) compactActions.appendChild(vehicleButton);
+            else subtitle.insertBefore(vehicleButton, dateField || null);
         }
 
         if (workspaceTools.children.length) {
