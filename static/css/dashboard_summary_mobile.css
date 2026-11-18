@@ -32,3 +32,12 @@
   .dashboard-design-v2 .dashboard-analysis-targets-header,
   .dashboard-design-v2 .dashboard-history-heading { flex-wrap: wrap; gap: 6px 10px; }
 }
+
+/* Same control surface as the dashboard's existing report/filter buttons. */
+.dashboard-page.dashboard-design-v2 .dashboard-history-open {
+ min-height:32px; margin-left:auto; padding:6px 11px;
+ border:1px solid #d7d8e6; border-radius:9px;
+ background:linear-gradient(var(--dkss-surface),#f0eff7);
+ color:var(--dash-purple); box-shadow:inset 0 1px 0 var(--dkss-surface),0 2px 4px #38345b0c;
+ font:inherit; cursor:pointer; flex-shrink:0;
+}

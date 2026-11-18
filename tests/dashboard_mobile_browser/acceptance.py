@@ -103,10 +103,14 @@ try:
     assert urlsplit(dashboard.get_attribute('href')).path=='/'
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-expanded.png'))
     toggle.click();page.wait_for_function('()=>!('+expanded+')()')
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
+    if width<=768:
+     assert page.locator('.sidebar-overlay').evaluate("e=>getComputedStyle(e).visibility==='hidden' && getComputedStyle(e).pointerEvents==='none'"), 'sidebar overlay remains after close'
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-sidebar-collapsed.png'))
     toggle.click();page.wait_for_function(expanded)
     assert dashboard.is_visible()
     if not was_expanded:toggle.click()
+    page.evaluate("async()=>{await Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))}")
     page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-top.png'))
     page.locator('.dashboard-safety-attention').evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
@@ -140,19 +144,10 @@ try:
      assert opening.get_attribute('href').startswith('/pointouts/')
      assert '接触・負傷なし。' in opening.inner_text()
      assert card.locator('.dashboard-safety-story').count()==0
-    controls=page.locator('#dashboardFilterForm')
-    period=controls.locator('select[name=period]');custom=controls.locator('#dashboardCustomizeButton')
-    pr=period.bounding_box();cr=custom.bounding_box()
-    if width<=768:
-     assert abs((pr['y']+pr['height'])-(cr['y']+cr['height']))<=2,(pr,cr)
-     assert pr['x']+pr['width']<=cr['x']+1,(pr,cr)
-     assert min(pr['height'],cr['height'])>=43,(pr,cr)
-    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
+    assert page.locator('#dashboardFilterForm').count()==0
+    assert page.locator('#dashboardCustomizeButton').count()==0
+    assert page.locator('#dashboardCustomizePanel').count()==0
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-display.png'))
-    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
-    assert custom.get_attribute('aria-expanded')=='false'
-    custom.click();assert page.locator('#dashboardCustomizePanel').is_visible()
-    page.keyboard.press('Escape');assert not page.locator('#dashboardCustomizePanel').is_visible()
     for loc in ['.public-demo-notice a','.public-demo-notice button','.dashboard-safety-items:first-of-type .dashboard-safety-content a','.dashboard-attention-table td a']:
      for e in page.locator(loc).all():
       if not e.is_visible():continue

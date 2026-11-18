@@ -315,18 +315,10 @@ def register_driving_reports(app, db, g):
 
     def view_navigation(filters, board, user_office):
         if not readership.administrator():return None
-        owner=[session['company_code'],session['username']]
         fields=('scope','office','focus','driver','listing','breakdown')
-        remembered=session.get('driving_manager_view',{})
-        if not board['personal_view']:
-            manager={key:filters[key] for key in fields if key in filters}
-            session['driving_manager_view']={'owner':owner,'filters':manager}
-        else:
-            manager=remembered.get('filters',{}) if remembered.get('owner')==owner else {}
-            valid=(manager.get('scope')=='company' or manager.get('scope')=='office' and
-                any(item['key']==manager.get('office') for item in board['office_choices']))
-            if not valid:
-                manager=workspace.scope_filter(dict(scope='',office='',focus='',driver='',state='',listing='offices',breakdown='people'),board['office_choices'],user_office,True)
+        # The explicit office switch always opens the signed-in user's office.
+        # Do not restore a remembered company/person view behind this label.
+        manager=workspace.scope_filter(dict(scope='office',office='',focus='',driver='',state='',listing='people',breakdown='people'),board['office_choices'],user_office,True)
         own=dict(filters,scope='self',office='',focus='',driver='',listing='offices',breakdown='vehicles',page=1)
         return {'self':url_for('driving_reports',**own),
                 'manager':url_for('driving_reports',**dict({key:value for key,value in filters.items() if key not in fields},**manager,page=1))}
@@ -352,6 +344,25 @@ def register_driving_reports(app, db, g):
             driving_vehicles=vehicle_links.build(board,facts,filters),
             driving_can_manage=readership.administrator(),driving_is_admin=not board['personal_view'],
             insight_number=number,reader_users=g['User'].query.filter(g['User'].company_code==session['company_code'],g['User'].role.in_(readership.READER_ROLES)).order_by(g['User'].username).all() if readership.administrator() else [])
+
+    @app.route('/safety/driving-reports/office-summary')
+    def driving_office_summary():
+        access()
+        if request.args:abort(400)
+        user=g['User'].query.filter_by(company_code=session['company_code'],username=session['username']).first()
+        if not user or user.account_identity!=session.get('account_identity'):abort(403)
+        from driving_office_summary import build, month_start
+        today=datetime.now(ZoneInfo('Asia/Tokyo')).date()
+        office=user.office or ''
+        if not office.strip():office=''
+        rows=[];operations=[]
+        if office and office!='所属不明':
+            rows=Record.query.filter(Record.company_code==session['company_code'],Record.operation_date>=month_start(today,-5).isoformat(),Record.operation_date<=today.isoformat()).all()
+            rows=[row for row in rows if workspace.report_office(row)==office]
+            ids={row.vehicle_record_id for row in rows}
+            if ids:operations=Operation.query.filter(Operation.company_code==session['company_code'],Operation.vehicle_record_id.in_(ids),Operation.operation_date>=month_start(today,-5).isoformat(),Operation.operation_date<=today.isoformat()).all()
+        summary=build(session['company_code'],office,rows,operations,today)
+        return render_template('driving_office_summary.html',office=office,summary=summary),200,{'Cache-Control':'private, no-store'}
 
     @app.route('/safety/driving-reports/vehicle-candidates', methods=['POST'])
     def driving_vehicle_candidates():

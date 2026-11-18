@@ -8,6 +8,25 @@ from flask import abort, current_app, g, redirect, request, session
 
 MARKER = 'aonagi_readonly_demo'
 SHARE_QUERY = '__aonagi_entry'
+RECOVERY_COOKIE = 'dkss_demo_return'
+RECOVERY_ENDPOINTS = frozenset({'dashboard', 'safety', 'pointouts', 'pointout_detail', 'new_pointout', 'edit_pointout', 'safety_checklists', 'safety_checklist_results', 'driving_reports', 'vehicle_daily_inspection_entry', 'vehicle_checklists', 'vehicle_checklist_results', 'vehicle_karte', 'vehicle_karte_list', 'vehicle_karte_history', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_documents', 'vehicle_karte_inspections', 'vehicle_karte_analysis', 'vehicle_inspection_plans'})
+
+
+def recovery_signer():
+    from itsdangerous import URLSafeSerializer
+    return URLSafeSerializer(current_app.secret_key, salt='public-demo-return-v1')
+
+
+def recovery_valid():
+    # This hint never authenticates a user. It only selects the existing /demo entry.
+    from itsdangerous import BadData
+    try:
+        value = recovery_signer().loads(request.cookies.get(RECOVERY_COOKIE, ''))
+    except BadData:
+        return False
+    return value == {'epoch': current_app.config['PUBLIC_DEMO_EPOCH'],
+                     'until': current_app.config['PUBLIC_DEMO_UNTIL']}
+
 SHARE_ENDPOINTS = {'dashboard': frozenset(), 'vehicle_checklist_results': frozenset({'vehicle_record_id', 'year', 'month', 'active_day', 'vehicle_return_year', 'vehicle_return_month', 'vehicle_return_day', 'vehicle_saved'})}
 READ_ENDPOINTS = frozenset({
     'vehicle_karte', 'vehicle_karte_list', 'vehicle_karte_history',
@@ -65,6 +84,8 @@ def install(app):
         return user
 
     def guard():
+        g.public_demo_entry_ok = False
+        g.public_demo_recovery_redirect = False
         marked = SHARE_QUERY in request.args
         if marked:
             if request.method != 'GET':
@@ -91,6 +112,14 @@ def install(app):
             if request.path == '/demo' or marked:
                 abort(404)
             return None
+        if (not marked and not session and request.method == 'GET'
+                and request.endpoint in RECOVERY_ENDPOINTS
+                and current_app.config.get('PUBLIC_DEMO_SHARED_COMPANY')
+                and int(time.time()) >= current_app.config.get('PUBLIC_DEMO_FROM', 0)
+                and not expired() and recovery_valid()):
+            # No original URL/role is replayed, and no business POST is repeated.
+            g.public_demo_recovery_redirect = True
+            return redirect('/demo')
         if request.path == '/demo' or (marked and not is_demo()):
             from .extensions import limiter
             if limiter.enabled:
@@ -127,6 +156,7 @@ def install(app):
                 issue(state)
                 session.clear()
                 session.update(state)
+            g.public_demo_entry_ok = True
             session.setdefault('demo_role', 'driver')
             session[MARKER] = True
             session['demo_epoch'] = current_app.config['PUBLIC_DEMO_EPOCH']
@@ -198,7 +228,17 @@ def install(app):
         # durable session revocation and company state after this guard.
 
     def no_cache(response):
-        if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args:
+        if getattr(g, 'public_demo_entry_ok', False) and response.status_code < 400:
+            remaining = max(0, current_app.config['PUBLIC_DEMO_UNTIL'] - int(time.time()))
+            response.set_cookie(RECOVERY_COOKIE, recovery_signer().dumps({
+                'epoch': current_app.config['PUBLIC_DEMO_EPOCH'],
+                'until': current_app.config['PUBLIC_DEMO_UNTIL']}),
+                max_age=remaining, secure=True, httponly=True, samesite='Lax')
+        elif (request.endpoint in {'login', 'logout', 'mfa'} or response.status_code in {410, 503}
+              or (session.get('username') and not is_demo())):
+            if RECOVERY_COOKIE in request.cookies:
+                response.delete_cookie(RECOVERY_COOKIE, secure=True, httponly=True, samesite='Lax')
+        if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args or getattr(g, 'public_demo_recovery_redirect', False):
             response.headers['Cache-Control'] = 'private, no-store'
             # Keep HTTPS same-origin CSRF checks working without leaking demo URLs externally.
             response.headers['Referrer-Policy'] = 'same-origin'

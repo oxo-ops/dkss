@@ -116,6 +116,18 @@ def enrich(board, facts, previous, drivers, users, bindings, choices, filters, a
                                                selected_office, filters['scope'] == 'company'))
         person['review_states'] = sorted({(payload(f['row']).get('review') or {}).get('state', 'unreviewed')
                                          for f in facts if f['driver_key'] == person['key']})
+        # Only the already-authorized, period-filtered facts for this person.
+        person['review_contents'] = []
+        for fact in facts:
+            if fact['driver_key'] != person['key']:
+                continue
+            review = payload(fact['row']).get('review') or {}
+            fields = [(label, review.get(key)) for key, label in
+                      [('note', '確認内容'), ('action', '改善する行動'),
+                       ('driver_explanation', '本人の説明'), ('comparison_note', '比較条件と根拠')]]
+            fields = [(label, text) for label, text in fields if isinstance(text, str) and text.strip()]
+            if fields:
+                person['review_contents'].append({'date': fact['date'], 'fields': fields})
         person['next_date'] = min(((payload(f['row']).get('review') or {}).get('next_date')
                                    for f in facts if f['driver_key'] == person['key'] and
                                    (payload(f['row']).get('review') or {}).get('next_date')), default='')

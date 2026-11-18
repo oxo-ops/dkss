@@ -33,11 +33,6 @@
             "text": "車検期限が近い車両など、下の集計を開けます。"
         },
         {
-            "selector": ".dashboard-filter-form",
-            "title": "表示する内容を選ぶ",
-            "text": "期間と表示項目で、ホームに表示する内容を絞れます。"
-        },
-        {
             "selector": "#sidebarToggle",
             "title": "メニューから画面を選ぶ",
             "text": "メニューを開き、安全管理や車両管理の画面へ進めます。"

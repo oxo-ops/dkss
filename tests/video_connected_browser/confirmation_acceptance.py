@@ -25,7 +25,7 @@ from unittest.mock import patch
 import json
 import os
 from pathlib import Path
-from urllib.parse import urlsplit, urljoin
+from urllib.parse import quote, urlsplit, urljoin
 from native_pdf_navigation import NativePdfNavigation
 from overview_layout_contract import assert_overview_readability
 
@@ -926,10 +926,11 @@ def run_browser(args, f, report, out, origin):
                 page.screenshot(path=str(out / f'{args.case}-historical-source-gap-{view_width}.png'), full_page=True)
                 drawer.locator('.ka-drawer-close').click()
                 expect(drawer).to_be_hidden()
+                expect(page).to_have_url(origin + f.analysis)
                 current_row.locator('.ka-reference-detail-button').click()
                 expect(drawer).to_be_visible()
-                # A row button opens the drawer without adding a deep-link hash.
-                expect(page).to_have_url(origin + f.analysis)
+                # Opening a row retains its exact selected proposal for Back from original evidence.
+                expect(page).to_have_url(origin + f.analysis + '#proposal=' + quote(companion['proposal_id'], safe=''))
                 expect(drawer.locator('#ka-reference-drawer-title')).to_have_text(companion['target'])
                 expect(drawer.locator('.ka-drawer-priority-row .ka-ai-priority')).to_have_text('高 · 60点')
                 expect(drawer.locator('.ka-historical-source-gap')).to_have_count(0)

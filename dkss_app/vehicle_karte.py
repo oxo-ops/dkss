@@ -3163,6 +3163,7 @@ def vehicle_karte_history(vehicle_record_id):
 
     return _dkss_common.render_template(
         "vehicle_karte_history.html",
+        history_current_year=_dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo")).year,
         vehicle=vehicle,
         vehicle_number=number,
         history_page=history_page,

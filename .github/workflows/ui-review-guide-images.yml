@@ -87,3 +87,64 @@ jobs:
           path: |
             ${{ runner.temp }}/calendar-ui/*.png
             ${{ runner.temp }}/calendar-ui/report.json
+
+  driving-people-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          mkdir -p "$RUNNER_TEMP/browser"
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: bash tests/driving_people_browser/run.sh
+        env:
+          PRODUCT_REPO: ${{ github.workspace }}
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+          ARTIFACTS: ${{ runner.temp }}/driving-people
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: driving-people-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/driving-people/*.png
+            ${{ runner.temp }}/driving-people/report.json
+
+  karte-history-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install jinja2
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          python tests/karte_history_alignment_browser/render_fixture.py . "$RUNNER_TEMP/history-layout"
+          node tests/karte_history_alignment_browser/browser.cjs "$RUNNER_TEMP/history-layout"
+        env:
+          NODE_PATH: ${{ runner.temp }}/browser/node_modules
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: karte-history-layout-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/history-layout/*.png
+            ${{ runner.temp }}/history-layout/report.json

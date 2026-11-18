@@ -88,7 +88,7 @@ def get_dashboard_office_maintenance_trend(company_code, office):
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from sqlalchemy.orm import load_only
-    from .maintenance_facts import MaintenanceCostService
+    from .maintenance_facts import MaintenanceCostService, cost_office
 
     today = datetime.now(ZoneInfo("Asia/Tokyo")).date()
     rows = []
@@ -121,6 +121,10 @@ def get_dashboard_office_maintenance_trend(company_code, office):
             .filter(recorded_date.between(start, today.isoformat()))
             .all()
         )
+    # Only confirmed historical ownership belongs in this office panel.
+    # Never infer it from the vehicle's current office or surface company-wide
+    # unassigned/excluded records alongside the office chart.
+    rows = [row for row in rows if cost_office(row) == office] if office else []
     result = MaintenanceCostService.office_months(rows, office, today)
     months = result["months"]
 

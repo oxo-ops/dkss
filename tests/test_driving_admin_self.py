@@ -54,7 +54,7 @@ class AdminSelfTests(unittest.TestCase):
         self.assertEqual(ctx['driving_vehicles']['user_id'],self.admin.id)
         html=response.get_data(as_text=True)
         self.assertIn('自分の運転実績',html);self.assertIn('自分の実績</a>',html)
-        self.assertIn('管理画面</a>',html);self.assertNotIn('他人の運行秘密',html)
+        self.assertIn('営業所の実績</a>',html);self.assertNotIn('他人の運行秘密',html)
         self.assertNotIn('id="driver-comparison"',html)
         self.assertEqual(ctx['insights']['shared_vehicle_usage'],{})
         with self.client.session_transaction() as state:self.assertEqual(state['role'],'admin')
@@ -140,7 +140,7 @@ class AdminSelfTests(unittest.TestCase):
         self.assertEqual(response.status_code,302);self.assertIn('scope=self',response.location)
 
 
-    def test_one_click_links_keep_conditions_and_restore_company_view(self):
+    def test_one_click_links_keep_conditions_and_open_own_office(self):
         url='/safety/driving-reports?period=custom&start=2026-10-01&end=2026-10-27&scope=company&vehicle='+str(self.vehicle.id)+'&category=economy&compare=custom&compare_start=2026-09-01&compare_end=2026-09-30'
         _,manager=self.render(url)
         response,own=self.render(manager['driving_view_navigation']['self'])
@@ -149,18 +149,18 @@ class AdminSelfTests(unittest.TestCase):
         for name in ['period','vehicle','category','compare','compare_start','compare_end']:
             self.assertEqual(own['filters'][name],manager['filters'][name])
         _,back=self.render(own['driving_view_navigation']['manager'])
-        self.assertEqual(back['filters']['scope'],'company');self.assertEqual(back['total'],3)
+        self.assertEqual(back['filters']['scope'],'office');self.assertEqual(back['total'],3)
         for name in ['period','vehicle','category','compare','compare_start','compare_end']:
             self.assertEqual(back['filters'][name],manager['filters'][name])
 
-    def test_one_click_restores_office_and_people_search(self):
+    def test_one_click_opens_office_without_other_person_search(self):
         _,manager=self.render(self.base+'&driver=他人&listing=people')
         _,own=self.render(manager['driving_view_navigation']['self'])
         self.assertEqual(own['total'],1)
         _,back=self.render(own['driving_view_navigation']['manager'])
-        self.assertEqual(back['total'],1);self.assertEqual(back['reports'][0]['row'].id,self.theirs.id)
+        self.assertEqual(back['total'],3)
         self.assertEqual(back['filters']['office'],manager['filters']['office'])
-        self.assertEqual(back['filters']['driver'],'他人');self.assertEqual(back['filters']['listing'],'people')
+        self.assertEqual(back['filters']['driver'],'');self.assertEqual(back['filters']['listing'],'people')
 
     def test_direct_self_link_returns_to_default_office(self):
         _,own=self.render(self.base+'&scope=self')
@@ -178,10 +178,15 @@ class AdminSelfTests(unittest.TestCase):
             _,back=self.render(own['driving_view_navigation']['manager'])
             self.assertEqual(back['filters']['scope'],'office');self.assertNotIn('秘密',back['filters'].values())
 
-    def test_regular_user_has_no_management_switch(self):
+    def test_regular_user_has_only_restricted_office_summary_switch(self):
         with self.client.session_transaction() as state:state.update(account_identity=identity_for(state.get('company_code'), 'two', app=(self.client).application), username='two',role='user',password_changed_at='stamp')
         response,ctx=self.render(self.base)
-        self.assertIsNone(ctx['driving_view_navigation']);self.assertNotIn('class="driving-view-switch"',response.get_data(as_text=True))
+        self.assertIsNone(ctx['driving_view_navigation'])
+        html=response.get_data(as_text=True)
+        self.assertIn('href="/safety/driving-reports/office-summary"',html)
+        self.assertIn('class="driving-view-switch"',html)
+        self.assertNotIn('data-office-select',html)
+        self.assertNotIn('scope=company',html)
 
 
 if __name__=='__main__':unittest.main()

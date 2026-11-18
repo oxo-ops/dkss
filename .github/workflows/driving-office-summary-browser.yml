@@ -1,0 +1,60 @@
+name: Restricted office summary PG and browser
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'driving_office_summary.py'
+      - 'driving_report_management.py'
+      - 'templates/driving_office_summary.html'
+      - 'templates/driving_reports.html'
+      - 'tests/driving_office_summary_browser/**'
+      - '.github/workflows/driving-office-summary-browser.yml'
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: office_test
+          POSTGRES_PASSWORD: office_test
+          POSTGRES_DB: office_test
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U office_test -d office_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          CHROME=$(node -e 'console.log(require(process.env.PLAYWRIGHT_MODULE).chromium.executablePath())')
+          bash tests/driving_office_summary_browser/run.sh "$PWD" "$(command -v python)" "$RUNNER_TEMP/office" "$CHROME"
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: restricted-office-summary-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/office/*.png
+            ${{ runner.temp }}/office/report.json
+            ${{ runner.temp }}/office/source-head.txt
+            ${{ runner.temp }}/office/pg.log
+            ${{ runner.temp }}/office/preflight.log
+            ${{ runner.temp }}/office/server.log

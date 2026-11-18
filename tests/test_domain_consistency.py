@@ -109,7 +109,37 @@ class DomainConsistencyTests(unittest.TestCase):
         self.m.db.session.commit()
         self.assertIsNone(row.cost_office)
         self.assertEqual(self.total(self.trend()), 0)
-        self.assertEqual(self.trend()["unassigned_count"], 1)
+        self.assertEqual(self.trend()["unassigned_count"], 0)
+
+    def test_dashboard_office_panel_excludes_foreign_and_unknown_records(self):
+        self.maintenance(100, office="A")
+        self.maintenance(200, office="B")
+        self.maintenance(300, office=None)
+        foreign = self.maintenance(900, office="A")
+        foreign.company_code = "OTHER"
+        self.maintenance(500, office="B",
+                         notes="テスト用資料・支払不要(発行元・取引内容は架空です)")
+        self.m.db.session.commit()
+        result = self.trend("A")
+        self.assertEqual(self.total(result), 100)
+        self.assertEqual(result["unassigned_count"], 0)
+        self.assertEqual(result["source_exclusions"], [])
+        self.assertEqual(self.total(self.trend("B")), 200)
+
+    def test_dashboard_missing_office_never_falls_back_to_company(self):
+        self.maintenance(100, office="A")
+        self.maintenance(200, office=None)
+        result = self.trend("")
+        self.assertFalse(result["available"])
+        self.assertEqual(self.total(result), 0)
+        self.assertEqual(result["unassigned_count"], 0)
+
+    def test_dashboard_template_has_no_company_wide_counter(self):
+        from pathlib import Path
+        template = (Path(__file__).parents[1] / "templates/index.html").read_text()
+        self.assertNotIn("（会社全体）", template)
+        self.assertNotIn("dashboard_office_trend.unassigned_count", template)
+        self.assertIn("所属営業所が未設定です。", template)
 
     def test_scope_future_missing_and_zero_costs(self):
         self.maintenance(0)
