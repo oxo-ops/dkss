@@ -300,7 +300,7 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-period > butto
 .ip-condition-label{display:none}
 body .main-content .inspection-plans[data-inspection-planner] .ip-search-field input[type=search]:focus{outline:none!important;box-shadow:none!important;border:0!important}
 body .main-content .inspection-plans[data-inspection-planner] .ip-search-field:focus-within{border-color:#2563eb}
-body .main-content .inspection-plans[data-inspection-planner] .ip-search-field input[type=search]:focus-visible{outline:2px solid #2563eb!important;outline-offset:2px}
+body .main-content .inspection-plans[data-inspection-planner] .ip-search-field input[type=search]:focus-visible{outline:none!important;box-shadow:none!important}
 .ip-view-popover{box-sizing:border-box;position:fixed;inset:auto;margin:0;padding:6px;width:min(240px,calc(100vw - 16px));border:1px solid #cbd8e7;border-radius:16px;background:#f6faff;color:#173653;box-shadow:0 8px 28px #17365330;max-height:calc(100dvh - 16px);overflow:auto}
 .ip-view-popover::backdrop{background:transparent}
 .ip-view-popover .ip-view-switch{display:flex!important;flex-direction:column;gap:2px;background:transparent!important;border:0!important;padding:0!important}

@@ -22,9 +22,6 @@
     </div>
     <button type="button" class="btn btn-outline" data-plan-clear-mobile>絞り込みを解除</button>
     </details>
-    <p role="status" data-plan-status>読み込み中…</p>
-    <a class="btn btn-outline" data-plan-export-mobile href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a>
-
     <p class="ip-error" data-planner-error role="alert" hidden></p>
     <div class="ip-bulk" data-plan-bulk hidden>
         <strong data-plan-selected>0台選択</strong><button type="button" class="btn btn-outline" data-plan-generate>選択車両の候補を予定に登録</button>
@@ -41,6 +38,9 @@
     <details data-plan-vehicle-table open><summary data-plan-vehicle-summary hidden>車両別の予定</summary>
     <div class="ip-grid-scroll"><table class="ip-grid"><thead data-plan-grid-head></thead><tbody data-plan-grid-body></tbody></table></div></details>
     <div class="ip-empty-action" data-empty-action hidden><span data-empty-message>予定を追加するか、基準未設定の車両を確認してください。</span><button type="button" class="btn btn-outline" data-clear-filters hidden>絞込を解除</button><button type="button" class="btn btn-outline" data-empty-add hidden>＋ 予定を追加</button></div>
+    <p role="status" data-plan-status>読み込み中…</p>
+    <a class="btn btn-outline" data-plan-export-mobile href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a>
+
     <details class="ip-missing"><summary data-plan-missing-count>基準未設定</summary><ul data-plan-missing></ul></details>
     {% if session.get('role') in ['admin', 'itc'] %}<details class="ip-alert-policy"><summary>通知ルール <span data-alert-check-status></span></summary><p>登録済みの予定と、台帳に車検証満了日がある予定未登録の車両を同じ営業所の管理者へアプリ内通知。未予約は前月・当月の1日、予約済みは7日前・前日、経過後は実施確認。車検証満了日の注意は前月・当月、満了7日前・前日・当日と経過後に確認。予定取消でも車検証満了日の注意は継続します。同じ通知は7日以上空けます。</p><p data-alert-recipient-warning role="status" hidden></p></details>{% endif %}
 </section>
