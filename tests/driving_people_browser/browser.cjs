@@ -17,6 +17,11 @@ await cta.focus();assert(await cta.evaluate(e=>document.activeElement===e));
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'horizontal overflow');
 assert.equal(await box.locator('.driving-person-review-entry').count()>0,mode==='content');
 assert(await cta.evaluate(e=>getComputedStyle(e).color==='rgb(37, 99, 235)'),'existing action blue');
+const dataRow=box.locator('tr').filter({has:page.locator('.driving-person-metric')});
+assert.equal(await dataRow.count(),1);assert.equal(await dataRow.locator('.driving-person-metric').count(),2);
+assert.equal(await dataRow.locator('.driving-change-direction[aria-label="減少"]').innerText(),'↓');
+assert.equal(await dataRow.locator('.driving-change-direction[aria-label="増加"]').innerText(),'↑');
+if(width<=650)assert(await dataRow.evaluate(row=>row.children[2].getBoundingClientRect().bottom<=row.children[1].getBoundingClientRect().top+1),'trip summary before metrics');
 const geometry=await box.evaluate(root=>{
  const errors=[],eps=2;
  const textInside=(el,label)=>{const bound=el.getBoundingClientRect(),walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let n;

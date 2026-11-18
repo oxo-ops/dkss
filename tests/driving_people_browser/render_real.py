@@ -8,6 +8,14 @@ from driving_report_data import payload
 class Directory(workspace.WorkspaceTests):
  def test_real_pages(self):
   out=Path(os.environ['HTML_OUT']);out.mkdir(parents=True,exist_ok=True)
+  prior=self.save(4,day='2026-09-10',distance='20',count='3')
+  for row,counts in [(self.a,('1','4')),(prior,('3','2'))]:
+   data=payload(row); prototype=data['report_items'][0]; items=[]
+   for name,count in zip(['急加速','急減速'],counts):
+    item=dict(prototype,item_name=name,value=count,raw_result=count+'回',definition=name+'の回数');items.append(item)
+   data['report_items']=items;row.details_json=json.dumps(data,ensure_ascii=False)
+  self.base='/safety/driving-reports?period=custom&start=2026-10-01&end=2026-10-31&compare=custom&compare_start=2026-09-01&compare_end=2026-09-30'
+  self.m.db.session.commit()
   # Existing fixture's users/reports are synthetic and company-filtered.
   for row in [self.secret,self.b]:
    data=payload(row);data['review']={'note':'範囲外の振り返り本文'};row.details_json=json.dumps(data,ensure_ascii=False)
@@ -17,6 +25,7 @@ class Directory(workspace.WorkspaceTests):
    response,ctx=self.render(self.base+'&scope=office&panel=analysis')
    html=response.get_data(as_text=True);self.assertIn('driving-directory-table',html)
    self.assertNotIn('他社の秘密',html);self.assertNotIn('範囲外の振り返り本文',html);self.assertNotIn('分析を見る →',html)
+   self.assertIn('aria-label="減少"',html);self.assertIn('aria-label="増加"',html)
    if note:self.assertIn('&lt;script&gt;not executable&lt;/script&gt;',html)
    else:self.assertNotIn('driving-person-review-entry',html)
    (out/(mode+'.html')).write_text(html)
