@@ -33,7 +33,15 @@
     }
     return result;
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates};
+  // Explicit help may reveal an existing record; automatic help never changes disclosure state.
+  function revealRecord(page, manual, record) {
+    if (!manual || page !== 'vehicle_checklist_results' || !record ||
+        record.tagName !== 'DETAILS' || record.open ||
+        record.closest('[hidden], [inert]') || !record.querySelector('.inspection-item-detail')) return false;
+    record.open = true;
+    return true;
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord};
   if (typeof document === 'undefined') return;
   const root=document.getElementById('firstUseGuide');
   if (!root) return;
@@ -73,6 +81,7 @@
   function open(manual){
     if(document.querySelector('dialog[open], .modal-bg.is-open')) return;
     if(find('.public-demo-notice')) return; // Never restore/interfere with initial role selection.
+    revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
     steps=candidates(root.dataset.page,find);if(!steps.length)return;
     previous=document.activeElement;index=0;show();remember();
     if(manual) root.querySelector('[data-guide-close]').focus({preventScroll:true});

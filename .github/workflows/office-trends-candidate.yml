@@ -1,0 +1,47 @@
+name: Office trends and help candidate
+on:
+  push:
+    branches: ['validation/office-guide-20261118']
+permissions:
+  contents: read
+jobs:
+  office-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt playwright==1.62.0 && python -m playwright install --with-deps chromium
+      - name: Anonymous Flask, office geometry and source links
+        run: |
+          mkdir -p "$RUNNER_TEMP/office-output" "$RUNNER_TEMP/isolated-home"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/isolated-home" PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD:$PWD/tests" DATABASE_URL='sqlite:///:memory:' SECRET_KEY='synthetic-office-test-only' RATELIMIT_STORAGE_URI='memory://' AWS_EC2_METADATA_DISABLED=true DOCUMENT_IMPORT_WORKER_ENABLED=0 python tests/office_trends_browser/acceptance.py --repo "$PWD" --artifacts "$RUNNER_TEMP/office-output"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: office-trends-${{ github.sha }}
+          path: ${{ runner.temp }}/office-output/
+          retention-days: 7
+  guide-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.62.0 Jinja2==3.1.6 && python -m playwright install --with-deps chromium
+      - run: env -i PATH="$PATH" HOME="$HOME" GUIDE_ARTIFACT_DIR="$RUNNER_TEMP/guide-output" python tests/first_use_guide_browser/acceptance.py
+      - run: node --test tests/guide_images_js.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: office-guide-${{ github.sha }}
+          path: ${{ runner.temp }}/guide-output/
+          retention-days: 7

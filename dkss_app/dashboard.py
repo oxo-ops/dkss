@@ -214,6 +214,7 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
                 continue
             group["items"].append({
                 "vehicle_id": vehicle.id,
+                "office": vehicle.office or "",
                 "vehicle_number": _dkss_vehicle_readers.vehicle_number({
                     field: getattr(vehicle, field) or ""
                     for field in (
@@ -270,6 +271,11 @@ def dashboard():
         dashboard_vehicle_attention=get_dashboard_vehicle_attention(
             company_code, scope.office, [vehicle.id for vehicle in context["my_vehicles"]]),
         dashboard_offices=_dkss_master_readers.offices_for_current_company(),
+    )
+    from .dashboard_office_actions import office_actions
+    context["dashboard_office_actions"] = office_actions(
+        scope.office, context["dashboard_safety_attention"],
+        context["dashboard_vehicle_attention"],
     )
     return _dkss_common.render_template("index.html", **context)
 

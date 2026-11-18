@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/driver_safe_start.css', v='20261029-1') }}">
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-home-succinct-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_office_trends.css', v='20261118-video-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -767,50 +768,7 @@
             </div>
 
             <div id="dashboardTrendSafety" role="tabpanel" aria-labelledby="dashboardTrendSafetyTab" tabindex="0">
-                {% set safety_trend = dashboard_office_check_trend|default({}, true) %}
-                {% if safety_trend.get('answer_count', 0) %}
-                <div class="dashboard-office-safety-grid">
-                    <div class="dashboard-office-categories">
-                        <h4>要確認の多い分野</h4>
-
-                        {% for category in safety_trend.get('categories', []) %}
-                        <div class="dashboard-office-category">
-                            <span>{{ category.name }}</span>
-                            <progress value="{{ category.count }}" max="{{ category.maximum }}" aria-label="{{ category.name }}：{{ category.count }}件"></progress>
-                            <strong>{{ category.count }}<small>件</small></strong>
-                        </div>
-                        {% else %}
-                        <p class="dashboard-office-empty">集計対象の回答に、満点未満の項目はありません。</p>
-                        {% endfor %}
-
-                        <p class="dashboard-office-trend-note">閲覧できる記録の満点未満の回答数。対応済みの記録も含みます。</p>
-                    </div>
-
-                    {% if safety_trend.get('issues') %}
-                    <aside class="dashboard-office-focus dashboard-trend-records">
-                        <h4>多く見られた項目と元記録</h4>
-                        {% for issue in safety_trend.issues %}
-                        <details class="dashboard-trend-issue">
-                            <summary>{{ issue.content }} <small>{{ issue.category }}・{{ issue.count }}件</small></summary>
-                            <ul>
-                                {% for record in issue.records %}
-                                <li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 ›</a></li>
-                                {% endfor %}
-                            </ul>
-                        </details>
-                        {% endfor %}
-                    </aside>
-                    {% endif %}
-                </div>
-                {% else %}
-                <p class="dashboard-office-empty">
-                    {% if dashboard_scope_office %}
-                    この期間に評価可能な点検記録がありません。
-                    {% else %}
-                    所属営業所が未設定です。
-                    {% endif %}
-                </p>
-                {% endif %}
+                {% include 'partials/dashboard_office_trends.html' %}
             </div>
 
             <div id="dashboardTrendCost" role="tabpanel" aria-labelledby="dashboardTrendCostTab" tabindex="0" hidden>

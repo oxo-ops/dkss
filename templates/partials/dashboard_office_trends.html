@@ -1,0 +1,53 @@
+{% set trend = dashboard_office_check_trend|default({}, true) %}
+{% set issues = trend.get('issues', []) %}
+{% set actions = dashboard_office_actions|default([], true) %}
+{% macro trend_rows(rows) %}
+{% for issue in rows %}
+<details class="office-trend-row">
+    <summary>
+        <span class="office-trend-title" title="{{ issue.content }}">{{ issue.content }}</span>
+        <progress value="{{ issue.count }}" max="{{ issues[0].count if issues else 1 }}" aria-label="{{ issue.content }}：{{ issue.count }}件"></progress>
+        <strong>{{ issue.count }}<small>件</small></strong>
+    </summary>
+    <div class="office-trend-records">
+        <p>{{ issue.content }}</p>
+        <small>{{ issue.category }}</small>
+        <ul>{% for record in issue.records %}<li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 ›</a></li>{% endfor %}</ul>
+    </div>
+</details>
+{% endfor %}
+{% endmacro %}
+{% macro action_rows(rows) %}
+<ul class="office-action-list">
+{% for item in rows %}
+<li><a href="{{ item.url }}" class="office-action-link">
+    {% if item.kind == '安全' %}
+    <span class="dashboard-safety-state" data-state="{{ item.state }}">{{ item.state }}</span>
+    {% elif item.priority in ['高', '中', '低'] %}
+    <span class="priority-response-badge" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}">{{ item.priority }}</span>
+    {% else %}<span class="office-priority-unknown">未評価</span>{% endif %}
+    <span class="office-action-title" title="{{ item.title }}">{{ item.title }}</span>
+    <span class="office-action-kind">{{ item.kind }}</span><span aria-hidden="true">›</span>
+</a></li>
+{% endfor %}
+</ul>
+{% endmacro %}
+<div class="dashboard-office-safety-grid office-trends-video">
+    <section class="office-trend-panel">
+        <h4>多く見られた傾向</h4>
+        {% if issues %}
+        {{ trend_rows(issues[:5]) }}
+        {% if issues|length > 5 %}<details class="office-panel-more"><summary>残り{{ issues|length - 5 }}項目</summary>{{ trend_rows(issues[5:]) }}</details>{% endif %}
+        <p class="dashboard-office-trend-note">満点未満の回答を集計（対応済みを含む）。</p>
+        {% elif trend.get('answer_count', 0) %}<p class="dashboard-office-empty">満点未満の項目はありません。</p>
+        {% elif dashboard_scope_office %}<p class="dashboard-office-empty">この期間に評価可能な点検記録がありません。</p>
+        {% else %}<p class="dashboard-office-empty">所属営業所が未設定です。</p>{% endif %}
+    </section>
+    <section class="office-action-panel">
+        <h4>営業所内の対応事項</h4>
+        {% if actions %}
+        {{ action_rows(actions[:5]) }}
+        {% if actions|length > 5 %}<details class="office-panel-more"><summary>残り{{ actions|length - 5 }}件</summary>{{ action_rows(actions[5:]) }}</details>{% endif %}
+        {% else %}<p class="dashboard-office-empty">現在、確認できる対応事項はありません。</p>{% endif %}
+    </section>
+</div>

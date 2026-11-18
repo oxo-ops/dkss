@@ -191,8 +191,8 @@ class DashboardSafetyAttentionTests(unittest.TestCase):
                 return cls(2026, 11, 11, 12, tzinfo=tz)
         with patch.object(dashboard_module._dkss_common, 'datetime', Clock):
             html, root = self.page()
-        trend = root.find(cls='dashboard-trend-records')[0]
-        self.assertEqual(len(trend.find(cls='dashboard-trend-issue')), 1)
+        trend = root.find(cls='office-trend-panel')[0]
+        self.assertEqual(len(trend.find(cls='office-trend-row')), 1)
         self.assertIn('2件', trend.text)
         self.assertNotIn('秘密', trend.text)
         urls = [n.attrs['href'] for n in trend.find(tag='a')]
