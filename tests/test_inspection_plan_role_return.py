@@ -21,6 +21,9 @@ class Plans(RoleReturnTests):
    r=self.client.post('/demo/role',data={'role':'manager','csrf_token':token,'checklist_return':target});self.assertEqual(r.location,'/')
   r=self.client.post('/demo/role',data={'role':'manager','csrf_token':token,'checklist_return':'/vehicle/inspection-plans?scope=bad&month=evil&view=evil&next=https://evil.example&office=%0d%0aX:1&q=abc'})
   self.assertEqual(r.location,'/vehicle/inspection-plans?q=abc')
+def load_tests(loader, tests, pattern):
+ return unittest.TestSuite(Plans(n) for n in list(RoleReturnTests.__dict__) + list(Plans.__dict__) if n.startswith('test_'))
+
 if __name__=='__main__':
  suite=unittest.TestSuite(Plans(n) for n in list(RoleReturnTests.__dict__) + list(Plans.__dict__) if n.startswith('test_'))
  result=unittest.TextTestRunner(verbosity=2).run(suite);sys.exit(not result.wasSuccessful())
