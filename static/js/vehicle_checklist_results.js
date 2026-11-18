@@ -1393,6 +1393,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     focusedInput.blur();
                 }
 
+                await completeFlight;
+                await detailFlight;
+                if (demoPreserved || demoWritesClosed) return;
                 let pendingSave;
 
                 do {
@@ -1400,6 +1403,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     await pendingSave;
                 } while (pendingSave !== inlineSaveQueue);
 
+                while (detailPending) {
+                    await detailFlight;
+                    do { pendingSave = inlineSaveQueue; await pendingSave; } while (pendingSave !== inlineSaveQueue);
+                }
+                if (demoPreserved || demoWritesClosed) return;
                 if (failedInlineForms.size > 0) {
                     showCommonError(
                         "保存に失敗した項目があります。該当項目を再保存してから、点検完了してください。"
@@ -1481,6 +1489,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 clearCommonErrors();
 
+                let releaseComplete = null;
+                if (demoSnapshot) {
+                    completePending = true;
+                    completeFlight = new Promise(resolve => { releaseComplete = resolve; });
+                }
                 try {
                     const response =
                         await fetch(
@@ -1489,7 +1502,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                 method: "POST",
                                 headers: {
                                     "X-DKSS-Final-Submit":
-                                        "1"
+                                        "1",
+                                    "X-DKSS-Demo-Snapshot": demoSnapshot
                                 },
                                 body:
                                     new FormData(
@@ -1497,6 +1511,9 @@ document.addEventListener("DOMContentLoaded", function () {
                                     )
                             }
                         );
+
+                    if (await handleDemoResponse(response)) return;
+                    checkDemoReceipt(response);
 
                     if (!response.ok) {
                         if (
@@ -1529,6 +1546,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (contentType.includes("application/json")) {
                         const data = await response.json();
                         if (data.success && data.redirect_url) {
+                            if (demoSnapshot) {
+                                const target = new URL(data.redirect_url, window.location.href);
+                                if (data.saved !== true || target.origin !== window.location.origin || !target.pathname.startsWith("/vehicle/checklists/")) throw new Error("INVALID_DEMO_COMPLETION");
+                                demoWritesClosed = true;
+                                completePending = false;
+                            }
                             sessionStorage.removeItem("vehicleChecklistReturnPosition");
                             window.location.assign(data.redirect_url);
                             return;
@@ -1549,10 +1572,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         error
                     );
 
-                    showCommonError(
-                        "点検を完了できませんでした。通信状態を確認して、もう一度操作してください。"
-                    );
+                    if (demoSnapshot) stopUncertainDemo();
+                    else showCommonError("点検を完了できませんでした。通信状態を確認して、もう一度操作してください。");
                 } finally {
+                    completePending = false;
+                    if (releaseComplete) releaseComplete();
                     delete completeForm.dataset.submitting;
                 }
             }
@@ -1759,7 +1783,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                 method: "POST",
                                 headers: {
                                     "X-DKSS-Validation-Only":
-                                        "1"
+                                        "1",
+                                    "X-DKSS-Demo-Snapshot": demoSnapshot
                                 },
                                 body:
                                     new FormData(
@@ -2578,6 +2603,59 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     );
 
+    let demoSnapshot = document.querySelector('[name="demo_snapshot"]')?.value || "";
+    let demoPreserved = false;
+    let detailFlight = Promise.resolve();
+    let detailPending = false;
+    let completeFlight = Promise.resolve();
+    let completePending = false;
+    let demoWritesClosed = false;
+    function demoNotice(message, destination) {
+        let notice = document.getElementById("demoInspectionPreserved");
+        if (!notice) {
+            notice = document.createElement("div"); notice.id = "demoInspectionPreserved";
+            notice.className = "alert"; notice.setAttribute("role", "status");
+            const modal = document.getElementById("detailModal");
+            const host = modal && !modal.classList.contains("is-hidden") ? modal.querySelector(".modal-box") : document.querySelector("main") || document.body;
+            host.prepend(notice);
+        }
+        notice.replaceChildren(document.createTextNode(message + " "));
+        const link = document.createElement("a"); link.href = destination;
+        link.target = "_blank"; link.rel = "noopener";
+        link.textContent = "保存済み結果を別タブで確認";
+        notice.appendChild(link);
+    }
+    window.addEventListener("beforeunload", function (event) {
+        if (demoSnapshot && (detailPending || completePending || demoPreserved)) {
+            event.preventDefault(); event.returnValue = "";
+        }
+    });
+    function stopUncertainDemo() {
+        demoPreserved = true;
+        demoNotice("保存結果を確認できません。入力はこの画面に残し、再送を止めています。", window.location.href);
+    }
+    function checkDemoReceipt(response) {
+        if (demoSnapshot && (response.status >= 500 || (response.ok && (response.redirected || !response.headers.get("X-DKSS-Demo-Snapshot"))))) {
+            throw new Error("DEMO_SAVE_UNCONFIRMED");
+        }
+    }
+    async function handleDemoResponse(response) {
+        if (response.headers.get("X-DKSS-Demo-Preserved") === "1") {
+            demoPreserved = true;
+            const data = await response.json();
+            const destination = new URL(data.redirect_url, window.location.href);
+            if (data.saved !== false || data.preserved !== true || destination.origin !== window.location.origin || !destination.pathname.startsWith("/vehicle/checklists/")) throw new Error("Invalid demo recovery");
+            demoNotice("先に保存された結果を保持しました。今回の未保存入力はこの画面に残っています。", destination.href);
+            return true;
+        }
+        const snapshot = response.headers.get("X-DKSS-Demo-Snapshot");
+        if (snapshot) {
+            demoSnapshot = snapshot;
+            document.querySelectorAll('[name="demo_snapshot"]').forEach(field => { field.value = snapshot; });
+        }
+        return false;
+    }
+
     const detailFileForm =
         document.querySelector(
             "#detailModal form"
@@ -2597,6 +2675,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     !saveButton
                     || saveButton.disabled
                     || saveButton.hidden
+                    || detailFileForm.dataset.queueSaving === "1"
                 ) {
                     return;
                 }
@@ -2644,7 +2723,31 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
+                detailFileForm.dataset.queueSaving = "1";
+                saveButton.disabled = true;
+                async function waitForInlineSaves() {
+                    let pendingSave;
+                    do {
+                        pendingSave = inlineSaveQueue;
+                        await pendingSave;
+                    } while (pendingSave !== inlineSaveQueue);
+                    if (demoPreserved || demoWritesClosed) return false;
+                    if (failedInlineForms.size > 0) {
+                        showCommonError("保存に失敗した点検項目があります。該当項目を再保存してから操作してください。");
+                        return false;
+                    }
+                    return true;
+                }
+                let releaseDetail = null;
                 try {
+                    await completeFlight;
+                    if (!await waitForInlineSaves()) return;
+                    while (completePending) {
+                        await completeFlight;
+                        if (!await waitForInlineSaves()) return;
+                    }
+                    detailPending = true;
+                    detailFlight = new Promise(resolve => { releaseDetail = resolve; });
                     const response =
                         await fetch(
                             detailFileForm.action,
@@ -2652,7 +2755,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                 method: "POST",
                                 headers: {
                                     "X-DKSS-Validation-Only":
-                                        "1"
+                                        "1",
+                                    "X-DKSS-Demo-Snapshot": demoSnapshot
                                 },
                                 body:
                                     new FormData(
@@ -2661,6 +2765,9 @@ document.addEventListener("DOMContentLoaded", function () {
                             }
                         );
 
+                    if (await handleDemoResponse(response)) return;
+
+                    if (demoSnapshot && response.status >= 500) throw new Error("DEMO_DETAIL_SAVE_UNCONFIRMED");
                     if (!response.ok) {
                         if (
                             response.headers.get(
@@ -2688,6 +2795,13 @@ document.addEventListener("DOMContentLoaded", function () {
                         );
                     }
 
+                    if (demoSnapshot && (response.redirected || !response.headers.get("X-DKSS-Demo-Snapshot"))) {
+                        throw new Error("DEMO_DETAIL_SAVE_UNCONFIRMED");
+                    }
+                    detailPending = false;
+                    if (releaseDetail) { releaseDetail(); releaseDetail = null; }
+                    if (!await waitForInlineSaves()) return;
+
                     if (response.redirected) {
                         window.location.assign(
                             response.url
@@ -2703,9 +2817,17 @@ document.addEventListener("DOMContentLoaded", function () {
                         error
                     );
 
-                    showCommonError(
-                        "保存できませんでした。通信状態を確認して、もう一度操作してください。"
-                    );
+                    if (demoSnapshot) {
+                        demoPreserved = true;
+                        demoNotice("保存結果を確認できません。入力はこの画面に残し、再送を止めています。", window.location.href);
+                    } else {
+                        showCommonError("保存できませんでした。通信状態を確認して、もう一度操作してください。");
+                    }
+                } finally {
+                    detailPending = false;
+                    if (releaseDetail) releaseDetail();
+                    delete detailFileForm.dataset.queueSaving;
+                    saveButton.disabled = false;
                 }
             }
         );
@@ -2780,17 +2902,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
         inlineSaveQueue = inlineSaveQueue.then(
             async function () {
+                await completeFlight;
+                await detailFlight;
+                if (demoPreserved || demoWritesClosed) return;
                 try {
                     const response = await fetch(
                         form.action,
                         {
                             method: "POST",
                             headers: {
-                                "X-DKSS-Validation-Only": "1"
+                                "X-DKSS-Validation-Only": "1",
+                                "X-DKSS-Demo-Snapshot": demoSnapshot
                             },
                             body: formData
                         }
                     );
+
+                    if (await handleDemoResponse(response)) return;
+                    checkDemoReceipt(response);
 
                     if (!response.ok) {
                         failedInlineForms.add(form);
@@ -2825,9 +2954,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 } catch (error) {
                     failedInlineForms.add(form);
 
-                    showCommonError(
-                        "点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。"
-                    );
+                    if (demoSnapshot) stopUncertainDemo();
+                    else showCommonError("点検結果を保存できませんでした。通信状態を確認して、もう一度入力してください。");
                 }
             }
         );

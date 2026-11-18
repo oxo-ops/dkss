@@ -1,0 +1,73 @@
+name: Shared demo first-save candidate
+on:
+  pull_request:
+    paths:
+      - 'dkss_app/demo_inspection_cas.py'
+      - 'dkss_app/checklists.py'
+      - 'templates/vehicle_checklist_results.html'
+      - 'static/js/vehicle_checklist_results.js'
+      - 'tests/demo_first_save/**'
+      - '.github/workflows/demo-first-save.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-http-browser:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/dkss-synthetic-browser
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/venv/bin/python" -m playwright install --with-deps chromium
+      - run: bash tests/demo_first_save/run.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/venv/bin/python" http
+      - run: bash tests/demo_first_save/run.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/venv/bin/python" browser
+        env:
+          ARTIFACTS: ${{ runner.temp }}/demo-first-save-artifacts
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: demo-first-save-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/demo-first-save-artifacts
+  synthetic-postgres:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: demo_cas_ci
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: dkss_demo_cas_ci
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U demo_cas_ci -d dkss_demo_cas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -r requirements.txt
+          bash tests/demo_first_save/run-pg.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/venv/bin/python"

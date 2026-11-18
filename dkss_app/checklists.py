@@ -1,3 +1,4 @@
+from . import demo_inspection_cas as _demo_cas
 """Checklists responsibilities; routes are registered by the application factory."""
 from . import person_selection as _person_forms
 from .report_layout import spreadsheet_text_width
@@ -3521,6 +3522,7 @@ def vehicle_checklist_results(index):
 
     return _dkss_common.render_template(
         "vehicle_checklist_results.html",
+        demo_snapshot=_demo_cas.page_token(checklist, checklist_record.company_code, checklist_record.id, vehicle_record_id, year, month, active_day),
         person_selection_token=_person_forms.issue(),
         checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
@@ -7293,6 +7295,11 @@ def save_vehicle_checklist_one(index):
         .with_for_update()
         .first()
     )
+    demo_conflict = _demo_cas.conflict(checklist, company_code, checklist_record.id,
+        vehicle_record_id, year, month, day, result_record)
+    if demo_conflict is not None:
+        return demo_conflict
+
 
     if (
         result_record
@@ -7567,6 +7574,7 @@ def save_vehicle_checklist_one(index):
         _dkss_common.db.session.add(checklist_event)
 
     try:
+        _demo_cas.prepare_ack(checklist, result_record)
         _dkss_common.db.session.commit()
     except _dkss_common.IntegrityError:
         _dkss_common.db.session.rollback()
@@ -7589,6 +7597,10 @@ def save_vehicle_checklist_one(index):
         f"&month={month}"
         f"&active_day={active_day}"
     )
+
+    demo_ack = _demo_cas.acknowledged(checklist, result_record)
+    if demo_ack is not None:
+        return demo_ack
 
     return _dkss_common.redirect(
         _dkss_common.url_for(
@@ -7783,6 +7795,11 @@ def save_vehicle_checklist_detail(index):
         .with_for_update()
         .first()
     )
+    demo_conflict = _demo_cas.conflict(checklist, company_code, checklist_record.id,
+        vehicle_record_id, year, month, day, result_record)
+    if demo_conflict is not None:
+        return demo_conflict
+
 
     if (
         result_record
@@ -8123,6 +8140,7 @@ def save_vehicle_checklist_detail(index):
         _dkss_common.db.session.add(checklist_event)
 
     try:
+        _demo_cas.prepare_ack(checklist, result_record)
         _dkss_common.db.session.commit()
     except _dkss_common.IntegrityError:
         _dkss_common.db.session.rollback()
@@ -8158,6 +8176,10 @@ def save_vehicle_checklist_detail(index):
         comment,
         f"/vehicle/checklists/{checklist_record.id}?vehicle_record_id={vehicle_record_id}&year={year}&month={month}&active_day={active_day}"
     )
+
+    demo_ack = _demo_cas.acknowledged(checklist, result_record)
+    if demo_ack is not None:
+        return demo_ack
 
     return _dkss_common.redirect(
         _dkss_common.url_for(
@@ -8334,6 +8356,11 @@ def complete_vehicle_checklist(index):
         .with_for_update()
         .first()
     )
+    demo_conflict = _demo_cas.conflict(checklist, company_code, checklist_record.id,
+        vehicle_record_id, year, month, day, result_record)
+    if demo_conflict is not None:
+        return demo_conflict
+
 
     if not result_record:
         result_record = _dkss_models.VehicleChecklistResult(
@@ -8744,6 +8771,7 @@ def complete_vehicle_checklist(index):
         )
         _dkss_common.db.session.add(checklist_event)
 
+    _demo_cas.prepare_ack(checklist, result_record)
     _dkss_common.db.session.commit()
     dispatch_vehicle_defect_notifications(result_record)
 
@@ -8871,6 +8899,10 @@ def complete_vehicle_checklist(index):
             active_day=active_day,
             vehicle_saved="complete"
         ) + "#vehicle-flow-completed"
+
+    demo_ack = _demo_cas.acknowledged(checklist, result_record, completion_link)
+    if demo_ack is not None:
+        return demo_ack
 
     if _dkss_common.request.headers.get("X-DKSS-Final-Submit") == "1":
         return _dkss_common.jsonify({"success": True, "redirect_url": completion_link})
