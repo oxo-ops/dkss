@@ -40,7 +40,7 @@ class Bridge(BaseHTTPRequestHandler):
     with c.app.test_request_context(self.path,method='POST',data=data,content_type=self.headers.get('Content-Type')):
      from flask import request
      if u.path=='/demo/role':
-      assert set(request.form)=={'role','csrf_token','checklist_return'}
+      assert set(request.form)=={'role','csrf_token','checklist_return','demo_entry'} and request.form['demo_entry']=='purpose'
       assert request.form['role'] in ('manager','driver') and request.form['checklist_return'].startswith(path+'?')
      else:
       assert request.form['vehicle_record_id']==str(c.vehicle_id)
@@ -76,12 +76,15 @@ try:
      page=ctx.new_page();res=page.goto(origin+target,wait_until='networkidle');assert res.status==200
      assert res.headers['referrer-policy']=='same-origin'
      count=c.models.VehicleChecklistResult.query.count()
-     page.locator(f'button[name="role"][value="{role}"]').click();page.wait_for_load_state('networkidle')
+     page.locator(f'button[name="role"][value="{role}"]').click();page.locator('.public-demo-notice').wait_for(state='detached');page.wait_for_load_state('networkidle')
+     assert urlsplit(page.url).path==('/' if role=='manager' else path)
+     # Purpose entry opens the current day; select the dated synthetic record for save coverage.
+     page.goto(origin+target,wait_until='networkidle')
      assert urlsplit(page.url).path==path and f'vehicle_record_id={c.vehicle_id}' in page.url
      assert page.locator('#vehicle_workspace_date').is_visible()
      assert c.models.VehicleChecklistResult.query.count()==count
      page.screenshot(path=str(out/f'https-{role}-return.png'),full_page=True)
-     report['checks'].append(role+' role retained checklist and vehicle without record writes')
+     report['checks'].append(role+' purpose destination and checklist access verified without record writes')
      if role=='driver':
       detail=next(x for x in page.locator('.inspection-item-detail').all() if x.is_visible())
       detail.click();assert page.locator('#detailModal').is_visible()

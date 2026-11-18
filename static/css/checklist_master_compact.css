@@ -1,0 +1,10 @@
+@media(max-width:768px){
+.checklist-master-mobile-list{gap:0;border-top:1px solid #d9e2ed}
+.checklist-master-mobile-list .checklist-master-mobile-card{padding:0 12px;margin:0;border:0;border-bottom:1px solid #d9e2ed;border-radius:0;box-shadow:none;background:#fff}
+.checklist-compact-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:8px 0;box-sizing:border-box;cursor:pointer;list-style:none}
+.checklist-compact-disclosure>summary::-webkit-details-marker{display:none}
+.checklist-compact-disclosure>summary>strong,.checklist-compact-disclosure>summary>span{min-width:0;overflow-wrap:anywhere}
+.checklist-compact-disclosure>summary>span{flex:0 0 auto;color:#59697c}
+.checklist-compact-disclosure>summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+.checklist-compact-detail{padding:8px 0 12px;border-top:1px solid #e4eaf2}
+}

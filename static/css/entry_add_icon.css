@@ -1,0 +1,16 @@
+/* New-record entry only. Never applied to save, generate or destructive actions. */
+body .main-content :is(a,button).entry-add-icon.entry-add-icon.entry-add-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;gap:0;border:1px solid #bfd1e6;border-radius:50%;background:#fff!important;color:var(--dkss-action-blue,#2563eb)!important;box-shadow:0 2px 5px #183b6914;font-size:24px;font-weight:500;line-height:1;text-decoration:none;white-space:nowrap;cursor:pointer}
+body .main-content :is(a,button).entry-add-icon.entry-add-icon.entry-add-icon:hover{background:#eff6ff!important;border-color:#93b9ee;color:var(--dkss-action-blue,#2563eb)!important;text-decoration:none}
+body .main-content :is(a,button).entry-add-icon.entry-add-icon.entry-add-icon:focus-visible{outline:3px solid var(--dkss-action-blue,#2563eb);outline-offset:3px}
+body .main-content :is(a,button).entry-add-icon.entry-add-icon.entry-add-icon:disabled,body .main-content :is(a,button).entry-add-icon.entry-add-icon.entry-add-icon[aria-disabled="true"]{cursor:default;opacity:.55}
+
+/* The safety list previously reserved a separate row for the long label. */
+body:has(.safety-list-breadcrumb) .safety-results-title-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px}
+body:has(.safety-list-breadcrumb) .safety-results-title-row > div{min-width:0;flex:1 1 auto}
+body:has(.safety-list-breadcrumb) .safety-results-title-row h2{display:block;overflow:visible;line-clamp:unset;-webkit-line-clamp:unset;overflow-wrap:anywhere}
+body:has(.safety-list-breadcrumb) .safety-results-new-button.entry-add-icon{margin-top:0;align-self:center}
+/* Keep entry controls in existing heading/toolbar rows, not a new button row. */
+body .main-content :is(.page-header,.safety-results-title-row,.card-title-row):has(.entry-add-icon){display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px}
+body .main-content :is(.page-header,.safety-results-title-row,.card-title-row):has(.entry-add-icon) > :is(h2,h3,div:first-child){min-width:0}
+body .main-content .header-actions:has(.entry-add-icon){display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-left:auto}
+body .main-content .safety-results-new-button.entry-add-icon{margin-top:0;align-self:center}

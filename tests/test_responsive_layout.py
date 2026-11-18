@@ -51,7 +51,17 @@ class ResponsiveLayoutTests(unittest.TestCase):
     def test_shared_demo_desktop_header_reserves_its_own_row(self):
         from pathlib import Path
         css = (Path(__file__).resolve().parents[1] / 'static/css/responsive_layout.css').read_text()
-        rule = css.split('/* Shared demo controls follow the header on desktop too.', 1)[1]
+        section = css.split('/* Shared demo controls follow the header on desktop too.', 1)[1]
+        # Scope this contract to its media block, not unrelated rules appended later.
+        start = section.index('@media')
+        opening = section.index('{', start)
+        depth = 1
+        end = opening + 1
+        while end < len(section) and depth:
+            depth += (section[end] == '{') - (section[end] == '}')
+            end += 1
+        self.assertEqual(depth, 0, 'Desktop header media block must be balanced')
+        rule = section[start:end]
         self.assertIn('@media screen and (min-width:901px)', rule)
         self.assertIn('body[data-responsive-shell][data-public-demo="true"] .main-content > .top-bar', rule)
         self.assertIn('position:relative !important; top:auto !important; right:auto !important;', rule)

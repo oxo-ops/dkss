@@ -45,13 +45,13 @@ try:
        def handle_request(self):
         try:
          u=urlsplit(self.path);path=u.path;assert not u.scheme and not u.netloc and '..' not in path.split('/')
-         allowed=path in ('/demo','/demo/role','/','/login','/safety','/pointouts','/static/manifest.webmanifest','/favicon.ico','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
+         allowed=path==f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}' or path in ('/demo','/demo/role','/','/login','/safety','/pointouts','/static/manifest.webmanifest','/favicon.ico','/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
          assert allowed,'unapproved path:'+path
          headers={'Cookie':self.headers.get('Cookie','')}
          if self.command=='POST':
           length=int(self.headers.get('Content-Length','0'));assert 0<length<8192 and path=='/demo/role'
           data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
-          assert set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1
+          assert set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1
           response=client.post(self.path,data={k:v[0] for k,v in data.items()},headers=headers)
          else:response=client.get(self.path,headers=headers)
          requests.append({'method':self.command,'path':path,'status':response.status_code,'location':response.location})
@@ -74,7 +74,7 @@ try:
       try:
        page.goto(origin+'/demo',wait_until='networkidle')
        assert page.locator('.public-demo-notice').is_visible()
-       page.locator(f'form[action="/demo/role"] button[value="{role}"]').click();page.wait_for_load_state('networkidle')
+       page.locator(f'form[action="/demo/role"] button[value="{role}"]').click();page.locator('.public-demo-notice').wait_for(state='detached');page.wait_for_load_state('networkidle')
        page.goto(origin+target,wait_until='networkidle');assert '/login' not in page.url
        cookies={c['name']:c for c in ctx.cookies()};name=case.app.config['SESSION_COOKIE_NAME'];assert 'dkss_demo_return' in cookies
        hint=cookies['dkss_demo_return'];assert hint['httpOnly'] and hint['secure'] and hint['sameSite']=='Lax'
