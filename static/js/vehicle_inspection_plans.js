@@ -693,7 +693,7 @@
     }
     function extraHeight() {
         const empty=view==='calendar'?planner.querySelector('.ip-cal-empty'):null,action=planner.querySelector('[data-empty-action]');
-        return (empty?empty.offsetHeight+8:0)+(action&&!action.hidden?action.offsetHeight+8:0);
+        return (empty?empty.offsetHeight+8:0)+(action&&!action.hidden?action.offsetHeight+8:0)+(document.body.classList.contains('ip-mobile-workspace')?72:0);
     }
     function fitTable() {
         const scroll=planner.querySelector('.ip-grid-scroll');
@@ -892,7 +892,7 @@
             newData = await api('?' + new URLSearchParams({scope:'company',month:mon}));
             newScope = 'vehicle'; newForm.dataset.reservation = day;
             const select = newForm.elements.vehicle; select.replaceChildren();
-            newData.vehicles.forEach(v => {const o=node('option',v.number+' ／ '+v.office);o.value=v.id;select.append(o);});
+            newData.vehicles.forEach(v => {const o=node('option',v.number);o.value=v.id;select.append(o);});
             if (v || focus) select.value = String(v?.id || focus);
             const offices = newForm.elements.office; offices.replaceChildren();
             [...new Set(newData.vehicles.map(v=>v.office))].sort().forEach(office => {const o=node('option',office);o.value=office;offices.append(o);});
