@@ -114,18 +114,18 @@ class DashboardSavedProposalTests(unittest.TestCase):
                 panel = root.find(cls='dashboard-attention-panel')[0]
                 previews = panel.find(cls='dashboard-attention-preview')
                 self.assertEqual(len(previews), int(count > 0))
-                preview_rows = previews[0].find(tag='tbody')[0].find(tag='tr') if previews else []
+                preview_rows = previews[0].find(tag='li') if previews else []
                 self.assertEqual(len(preview_rows), min(count, 5))
                 more = panel.find(cls='dashboard-attention-more')
                 self.assertEqual(len(more), int(count > 5))
                 if more:
                     self.assertNotIn('open', more[0].attrs)
                     self.assertIn(f'残り{count - 5}件', more[0].find(tag='summary')[0].text)
-                    self.assertEqual(len(more[0].find(tag='tbody')[0].find(tag='tr')), count - 5)
+                    self.assertEqual(len(more[0].find(tag='li')), count - 5)
                 self.assertEqual(len(panel.find(cls='dashboard-attention-view-all')), int(count > 5))
                 # Shared response-priority order uses the stable proposal ID, not title.
                 expected = sorted(items, key=lambda i: ({'高': 0, '中': 1, '低': 2}[i['priority']], vehicle_analysis_proposal_ids(i)[0]))
-                all_rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
+                all_rows = panel.find(tag='li')
                 self.assertEqual(len(all_rows), count)
                 for row, item in zip(all_rows, expected):
                     self.assertIn(item['target'], row.text)
@@ -151,19 +151,15 @@ class DashboardSavedProposalTests(unittest.TestCase):
         self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
         self.assertNotIn('<script>bad</script>', html)
         panel = root.find(cls='dashboard-attention-panel')[0]
-        rows = [row for tbody in panel.find(tag='tbody') for row in tbody.find(tag='tr')]
+        rows = panel.find(tag='li')
         self.assertEqual(len(rows), 6)
-        self.assertEqual([len(row.find(cls='dashboard-priority-note')) for row in rows], [1] * 6)
-        notes = [note for row in rows for note in row.find(cls='dashboard-priority-note')]
-        self.assertEqual(sum('前回評価' in note.text for note in notes), 3)
-        self.assertEqual(sum('優先度未確認' in note.text for note in notes), 3)
-        self.assertTrue(all('dashboard-reference-reason' not in note.attrs.get('class', '') for note in notes))
-        # The count explanation is separate from each proposal's evidence note.
-        heading = panel.find(tag='h3')[0]
-        count_notes = heading.find(cls='dashboard-priority-note')
-        self.assertEqual(count_notes, [])  # No duplicate group-wide provenance prose.
-        self.assertIn('6件', heading.text)
-        self.assertEqual(root.find(cls='dashboard-priority-note'), count_notes + notes)
+        # Compact video list shows known priority or unknown, with every record's
+        # original detail link retained; full provenance is checked in detail tests.
+        self.assertEqual(len(panel.find(cls='dashboard-video-unknown')), 3)
+        self.assertTrue(all(node.text == '未評価' for node in panel.find(cls='dashboard-video-unknown')))
+        self.assertTrue(all(any('#proposal=' in a.attrs.get('href','') for a in row.find(tag='a')) for row in rows))
+        self.assertEqual(root.find(cls='dashboard-priority-note'), [])
+        self.assertIn('6件', panel.find(tag='h3')[0].text)
 
     def test_both_groups_have_independent_preview_limits_and_company_boundaries(self):
         self.configure()
@@ -184,7 +180,7 @@ class DashboardSavedProposalTests(unittest.TestCase):
         panels = root.find(cls='dashboard-attention-panel')
         self.assertEqual(len(panels), 2)
         for panel, remaining in zip(panels, (2, 3)):
-            self.assertEqual(len(panel.find(cls='dashboard-attention-preview')[0].find(tag='tbody')[0].find(tag='tr')), 5)
+            self.assertEqual(len(panel.find(cls='dashboard-attention-preview')[0].find(tag='li')), 5)
             self.assertIn(f'残り{remaining}件', panel.find(cls='dashboard-attention-more')[0].text)
         for marker in ('他社秘密', '別営業所候補', '削除車両候補'):
             self.assertNotIn(marker, html)
@@ -202,7 +198,7 @@ class DashboardSavedProposalTests(unittest.TestCase):
         self.m.db.session.commit()
         _, root = self.page()
         panel = root.find(cls='dashboard-attention-panel')[0]
-        self.assertEqual(len(panel.find(tag='tbody')[0].find(tag='tr')), 4)
+        self.assertEqual(len(panel.find(tag='li')), 4)
         self.assertEqual(panel.find(cls='dashboard-attention-more'), [])
         self.assertEqual(self.m.VehicleAnalysisFeedback.query.count(), 3)
 
@@ -218,7 +214,7 @@ class DashboardSavedProposalTests(unittest.TestCase):
             html, root = self.page()
             panel = root.find(cls='dashboard-attention-panel')[0]
             self.assertIn(message, panel.text)
-            self.assertEqual(len(panel.find(cls='dashboard-attention-preview')[0].find(tag='tbody')[0].find(tag='tr')), 5)
+            self.assertEqual(len(panel.find(cls='dashboard-attention-preview')[0].find(tag='li')), 5)
             self.assertIn('読取内容の確認', panel.find(cls='dashboard-attention-records')[0].text)
             self.assertFalse(panel.find(cls='dashboard-attention-more'))
 

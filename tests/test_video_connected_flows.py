@@ -98,12 +98,12 @@ class ConnectedInspectionFlowTests(unittest.TestCase):
         self.assertEqual(dashboard.status_code, 200)
         root = Document(dashboard.get_data(as_text=True)).root
         panel = root.find(cls='dashboard-attention-panel')[0]
-        rows = [r for body in panel.find(tag='tbody') for r in body.find(tag='tr')]
+        rows = panel.find(tag='li')
         self.assertEqual(len(rows), len(group['items']))
         for row, x in zip(rows, group['items']):
             self.assertTrue(any(a.attrs.get('href', '').endswith('#proposal=' + x['proposal_id']) for a in row.find(tag='a')))
             if x['priority_assessment']['effective_score'] is not None:
-                self.assertIn(str(x['priority_assessment']['effective_score']) + '点', row.text)
+                self.assertIn(x['priority_assessment']['label'], row.text)
         self.assertIn('dashboard_safety_attention.css', dashboard.get_data(as_text=True))
         self.assertIn('動画連続受入の安全確認', root.find(cls='dashboard-safety-attention')[0].text)
         for suffix in ('', '/analysis'):

@@ -23,6 +23,18 @@ def snapshot():
  return {'items':[(r.id,r.items_json) for r in case.models.Checklist.query.order_by(case.models.Checklist.id).all()], 'results':[(r.id,r.answers_json,r.status,r.operation_judgment_json) for r in case.models.VehicleChecklistResult.query.order_by(case.models.VehicleChecklistResult.id).all()]}
 def setup():
  case.setUp();case.begin(defect=True)
+ # Synthetic principals have the same explicit usage-vehicle affordance tested here.
+ for username in ('checker','admin'):
+  driver=case.models.Driver.query.filter_by(company_code='A',employee_id=username).first()
+  if driver is None:
+   driver=case.models.Driver(company_code='A',employee_id=username,name='Synthetic '+username);case.db.session.add(driver)
+  driver.vehicles_json=json.dumps([str(case.vehicle_id)])
+ # Deterministic display date matches the synthetic saved record; no Live clock/data changes.
+ from unittest.mock import patch
+ from datetime import datetime
+ from zoneinfo import ZoneInfo
+ clock=patch('dkss_app.checklist_common.get_user_local_now',return_value=datetime(2026,10,23,12,tzinfo=ZoneInfo('Asia/Tokyo')))
+ clock.start();case.addCleanup(clock.stop)
  state=json.loads(case.row.operation_judgment_json);state['requested_usernames']=[] if scenario=='未判定' else ['admin']
  state['status']=scenario
  if scenario!='未判定':
@@ -39,6 +51,8 @@ try:
     token,html=case.enter();before=snapshot()
     response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
     assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    unselected=case.client.get(urlsplit(target).path).get_data(as_text=True)
+    assert 'usage-vehicle-shortcut' in unselected and ('data-vehicle-id="'+str(case.vehicle_id)+'"') in unselected
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
     assert 'vehicle-operation-panel' in text and '現在の未解消不具合の対応状況' in text
@@ -85,11 +99,13 @@ try:
           assert path=='/demo/role' and set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
           post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
           assert res.status_code==302 and res.location=='/'
-         elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
-          if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
+         elif path in ('/demo','/','/vehicle/checklists',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
+          if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id') in (None,[str(case.vehicle_id)])
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')
-         if 300<=res.status_code<400:assert res.status_code==302 and res.location=='/'
+         if 300<=res.status_code<400:
+          assert res.status_code==302
+          assert res.location=='/' or (path=='/vehicle/checklists' and urlsplit(res.location).path==urlsplit(target).path)
          requests.append({'method':method,'path':path,'status':res.status_code})
          self.send_response(res.status_code)
          for k,v in res.headers.items():
@@ -118,7 +134,24 @@ try:
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-home.png'),full_page=True)
-       page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
+       # Actual sidebar -> daily checklist -> vehicle choice, without a direct target goto.
+       sidebar=page.locator('a[href="/vehicle/checklists"]')
+       parent=page.locator('[data-menu-key="vehicle"] > .sidebar-parent')
+       if page.locator('#sidebarToggle').get_attribute('aria-expanded')!='true':page.locator('#sidebarToggle').click()
+       if not sidebar.is_visible():parent.click()
+       sidebar.click();page.wait_for_url(lambda u:urlsplit(u).path==urlsplit(target).path);page.wait_for_load_state('networkidle')
+       assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value() in ('','None')
+       # Display clock is fixed to the saved fixture date, so no date/filter mutation is needed.
+       page.locator(f'.usage-vehicle-shortcut[data-vehicle-id="{case.vehicle_id}"]').click()
+       page.wait_for_url(lambda u:parse_qs(urlsplit(u).query).get('vehicle_record_id')==[str(case.vehicle_id)]);page.wait_for_load_state('networkidle')
+       assert not urlsplit(page.url).fragment
+       assert page.locator('#vehicle-inspection-record').evaluate('(e)=>e.open')
+       assert page.locator('.vehicle-check-table-scroll').is_visible()
+       assert page.locator('.inspection-item-detail').first.is_visible()
+       assert post_count[0]==1 and snapshot()==before
+       record['menu_vehicle_record_visible']=True
+       page.screenshot(path=str(out/f'{width}-{role}-{scenario}-menu-record.png'),full_page=True)
+       assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        header=page.locator('.vehicle-workspace-header')
@@ -130,6 +163,11 @@ try:
        assert ('判断保留' if scenario=='判定保留' else scenario) in operation.inner_text()
        assert page.locator('.vehicle-process-number svg').count()==3
        assert page.locator('.vehicle-process-step').first.evaluate('(e)=>getComputedStyle(e).clipPath')=='none'
+       guide=page.locator('#firstGuidePanel')
+       if guide.is_visible():
+        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-guide.png'),full_page=True)
+        page.get_by_role('button',name='操作ガイドを閉じる',exact=True).click()
+        assert not guide.is_visible()
        operation.click()
        panel=page.locator('#vehicle-operation-panel');assert panel.is_visible()
        if scenario=='未判定':assert '整備管理者が未設定です。' in panel.inner_text()

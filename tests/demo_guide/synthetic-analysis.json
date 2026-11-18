@@ -6,7 +6,7 @@
   "generated_at": "2026-11-18 12:00",
   "sources": {
     "inspection-1": {
-      "label": "合成点検記録",
+      "label": "日常点検記録",
       "url": "/vehicle/checklists/1?vehicle_record_id=1&year=2026&month=10&day=23&active_day=23"
     }
   },

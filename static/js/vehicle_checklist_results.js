@@ -77,6 +77,11 @@ document.addEventListener("DOMContentLoaded", function () {
             "vehicle-inspection-record"
         );
         if (recordDetails) {
+            // Ordinary vehicle/date entry shows the original inspection table.
+            // Explicit completion/repair/judgment links keep their focused view.
+            if (window.location.hash.startsWith("#vehicle-flow-")) {
+                recordDetails.open = false;
+            }
             recordDetails.classList.add("vehicle-controlled-details");
         }
 
