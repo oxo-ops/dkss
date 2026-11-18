@@ -1,0 +1,40 @@
+name: Home vehicle icon isolated browser
+on:
+  push:
+    branches: ['validation/performance-followup-20261119']
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          python -m pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Synthetic icons and real home
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/home-icons"
+          mkdir -p "$output/icons" "$output/home" "$output/browser" "$output/full-browser"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" PRODUCT_REPO="$PWD" HTML_OUT="$output/icons" python tests/home_vehicle_icons/render.py
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$output/home" python tests/dashboard_mobile_priority/render_full.py
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$output/icons" ARTIFACTS="$output/browser" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/home_vehicle_icons/browser.cjs
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$output/home" ARTIFACTS="$output/full-browser" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/dashboard_mobile_priority/full_browser.cjs
+          git rev-parse HEAD > "$output/head.txt"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: home-icons-${{ github.sha }}
+          path: ${{ runner.temp }}/home-icons/
+          retention-days: 14

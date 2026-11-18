@@ -116,10 +116,10 @@
 
                 {% if ext in ['png','jpg','jpeg','gif','webp'] %}
 
-                    <img
+                    <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
                         src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                        class="detail-image"
-                    >
+                        class="detail-image" loading="lazy" decoding="async" alt="添付画像"
+                    ></a>
 
                 {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
 
@@ -217,10 +217,10 @@
 
                     <div class="attachment-box">
                         {% if ext in ['png','jpg','jpeg','gif','webp'] %}
-                            <img
-                                src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                class="detail-image"
-                            >
+                            <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                        class="detail-image" loading="lazy" decoding="async" alt="添付画像"
+                    ></a>
 
                         {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
                             <video
@@ -348,10 +348,10 @@
 
                                             <div class="attachment-box">
                                                 {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
-                                                    <img
-                                                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                                        class="detail-image"
-                                                    >
+                                                    <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                        class="detail-image" loading="lazy" decoding="async" alt="添付画像"
+                    ></a>
                                                 {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
                                                     <video
                                                         class="detail-video"
