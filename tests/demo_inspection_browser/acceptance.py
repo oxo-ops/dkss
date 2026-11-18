@@ -142,6 +142,34 @@ try:
        page.goto(origin+target,wait_until='networkidle');assert page.locator('#vehicle_workspace_date').is_visible()
        assert page.locator('.public-demo-notice').count()==0
        record['brand']=brand_roundtrip(page,width,out,role,'inspection')
+       top=page.locator('.vehicle-workspace-top');assert top.count()==1
+       date=page.locator('#vehicle_workspace_date');saved_date=date.input_value()
+       datebox=date.bounding_box();assert datebox['height']>=44
+       details=page.locator('#vehicle-target-settings');summary=details.locator('summary')
+       if summary.is_visible():
+        sb=summary.bounding_box();assert sb['height']>=44
+        summary.click();assert details.get_attribute('open') is not None
+        assert page.locator('#vehicle_check_filter').is_visible()
+        summary.click();assert details.get_attribute('open') is None
+        assert date.input_value()==saved_date
+       if width<=600:
+        metrics=top.evaluate("""el=>({width:el.clientWidth,scroll:el.scrollWidth,controls:[...el.querySelectorAll('.header-actions > .btn,.vehicle-workspace-date,details > summary')].filter(x=>x.getBoundingClientRect().height).map(x=>{const r=x.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}})})""")
+        assert metrics['scroll']<=metrics['width']+1,metrics
+        assert all(x['x']>=0 and x['x']+x['w']<=width+1 for x in metrics['controls']),metrics
+        assert len(set(round(x['y']) for x in metrics['controls']))<=2,metrics
+        record['compact_toolbar']=metrics
+       page.screenshot(path=str(out/f'{width}-{role}-compact-toolbar.png'),full_page=True)
+       # Layout-only stress: long vehicle name and the conditional export control;
+       # no request or permission behavior is mocked or exercised here.
+       original_heading=top.locator('.vehicle-workspace-subtitle > strong').inner_text()
+       top.locator('.vehicle-workspace-subtitle > strong').evaluate("el=>el.textContent='品川 100 か 101／長い車両表示名・大型トラクター（業務用）'")
+       page.evaluate("""()=>{const host=document.querySelector('.vehicle-workspace-top .header-actions');if(!host.querySelector('a[href$="/excel"]')){const a=document.createElement('a');a.className='btn';a.textContent='Excel出力';a.dataset.layoutOnly='1';host.append(a)}}""")
+       if width<=600:
+        stress=top.evaluate("""el=>({width:el.clientWidth,scroll:el.scrollWidth,rows:[...el.querySelectorAll('.header-actions>.btn,.vehicle-workspace-date,details>summary')].filter(x=>x.getBoundingClientRect().height).map(x=>Math.round(x.getBoundingClientRect().y))})""")
+        assert stress['scroll']<=stress['width']+1 and len(set(stress['rows']))<=2,stress
+       page.screenshot(path=str(out/f'{width}-{role}-toolbar-long-label.png'),full_page=True)
+       top.locator('.vehicle-workspace-subtitle > strong').evaluate('(el,value)=>el.textContent=value',original_heading)
+       page.locator('[data-layout-only]').evaluate_all('(els)=>els.forEach(e=>e.remove())')
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
        assert table.is_visible();assert 'エンジンのかかり具合、異音' in table.inner_text()
