@@ -565,6 +565,15 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
         ids = [v.id for v in vehicles]
         saved = Plan.query.filter(Plan.company_code == code, Plan.vehicle_record_id.in_(ids)).all() if ids else []
         records = facts_for(code, ids)
+        # Request-local indexes keep the original fact order and evidence rules,
+        # avoiding a scan of every vehicle's history for every vehicle/kind.
+        records_by_id = {record.id: record for record in records}
+        previous_by_vehicle_kind = {}
+        current_day = today().isoformat()
+        for record in records:
+            if iso_date(record.inspection_date) and record.inspection_date <= current_day:
+                previous_by_vehicle_kind.setdefault(
+                    (record.vehicle_record_id, record.inspection_type), []).append(record)
         manual_by_plan = {e.plan_id: e for e in Execution.query.filter(Execution.company_code == code, Execution.vehicle_record_id.in_(ids)).all()} if ids else {}
         # Resolve once within this read operation; never retain evidence across
         # requests, transactions, or later modifications of originals/audits.
@@ -578,21 +587,20 @@ def register_inspection_plans(app, db, Vehicle, Record, Company, User, Office, D
                 visible = []
                 for p in own:
                     item = serialize(p, resolved_kind=kind)
-                    actual = next((r for r in records if p.completed_record_id and r.id == p.completed_record_id), None)
+                    actual = records_by_id.get(p.completed_record_id) if p.completed_record_id else None
                     execution = manual_by_plan.get(p.id)
                     if p.status == 'completed' and (actual or execution):
                         item['performed_date'] = actual.inspection_date if actual else execution.performed_date
                         item['display_month'] = item['performed_date'][:7]
                         item['document_status'] = '登録済み' if actual or execution.source_record_id else '未受領'
                         if execution and not actual:
-                            fact = next((r for r in records if r.id == -execution.id), None)
+                            fact = records_by_id.get(-execution.id)
                             if fact:
                                 item.update(fact_data(fact))
                     if start <= p.planned_month <= end or start <= item.get('display_month', p.planned_month) <= end:
                         visible.append(item)
                 rows.extend(visible)
-                previous = [r for r in records if r.vehicle_record_id == v.id and r.inspection_type == kind and
-                            iso_date(r.inspection_date) and r.inspection_date <= today().isoformat()]
+                previous = previous_by_vehicle_kind.get((v.id, kind), [])
                 for r in previous:
                     if not start <= r.inspection_date[:7] <= end:
                         continue
