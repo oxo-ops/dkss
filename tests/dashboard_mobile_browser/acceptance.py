@@ -133,15 +133,16 @@ try:
       assert vehicle_label.is_visible(), 'individual vehicle label lost'
      assert row.locator('a.dashboard-video-proposal').get_attribute('href')
 
-    # Latest home request: readable inset, one status/arrow line, unchanged anchor.
+    # Latest home request: decorative arrows removed; status and anchor remain.
     for proposal in page.locator('.dashboard-attention-preview .dashboard-video-proposal').all():
      assert proposal.get_attribute('aria-label')
-     assert proposal.locator('.dashboard-video-detail').inner_text().strip()=='›'
+     assert not proposal.locator('.dashboard-video-detail').is_visible()
+     assert proposal.get_attribute('href')
      geom=proposal.evaluate("e=>{const r=e.getBoundingClientRect(),s=e.querySelector('.dashboard-video-state').getBoundingClientRect(),d=e.querySelector('.dashboard-video-detail').getBoundingClientRect();return {left:parseFloat(getComputedStyle(e).paddingLeft),right:parseFloat(getComputedStyle(e).paddingRight),height:r.height,s:s.y+s.height/2,d:d.y+d.height/2,overflow:e.scrollWidth>e.clientWidth+1}}")
      assert not geom['overflow'],geom
      assert geom['height']>=44,geom
      if width<=600:
-      assert geom['left']>=12 and geom['right']>=12 and abs(geom['s']-geom['d'])<=1,geom
+      assert geom['left']>=12 and geom['right']>=12,geom
     if width<=600:
      main_title=page.locator('.dashboard-attention-list>.dashboard-reference-title').bounding_box()
      ai_title=page.locator('.dashboard-vehicle-attention-heading').bounding_box()

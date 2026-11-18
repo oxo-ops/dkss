@@ -12,7 +12,7 @@
     <div class="office-trend-records">
         <p>{{ issue.content }}</p>
         <small>{{ issue.category }}</small>
-        <ul>{% for record in issue.records %}<li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 ›</a></li>{% endfor %}</ul>
+        <ul>{% for record in issue.records %}<li><a href="{{ record.url }}">{{ record.date }} · {{ record.checklist }}の記録を確認 </a></li>{% endfor %}</ul>
     </div>
 </details>
 {% endfor %}
@@ -27,7 +27,7 @@
     <span class="priority-response-badge" data-priority="{{ item.priority }}" aria-label="対応優先度：{{ item.priority }}">{{ item.priority }}</span>
     {% else %}<span class="office-priority-unknown">未評価</span>{% endif %}
     <span class="office-action-title" title="{{ item.title }}">{{ item.title }}</span>
-    <span class="office-action-kind">{{ item.kind }}</span><span aria-hidden="true">›</span>
+    <span class="office-action-kind">{{ item.kind }}</span><span aria-hidden="true"></span>
 </a></li>
 {% endfor %}
 </ul>
