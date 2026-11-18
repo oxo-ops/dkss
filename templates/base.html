@@ -187,6 +187,7 @@
                 <span class="menu-text">設定</span>
             </a>
 
+            {% if not (session.get('aonagi_readonly_demo') and public_demo_shared|default(false)) %}
             <form method="post" action="/logout">
                 <input
                     type="hidden"
@@ -207,6 +208,7 @@
                     <span class="menu-text">ログアウト</span>
                 </button>
             </form>
+            {% endif %}
         </div>
         {% endif %}
 

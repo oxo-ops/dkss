@@ -217,3 +217,17 @@
         padding-top:0;
     }
 }
+
+/* Keep the menu toggle anchored to the drawer edge throughout its transition. */
+@media screen and (max-width:900px) {
+ body[data-responsive-shell] .sidebar { transition:transform .25s ease; }
+ body[data-responsive-shell] .sidebar-toggle {
+  left:calc(var(--app-drawer-width) - 56px);
+  transition:transform .25s ease;
+ }
+ body[data-responsive-shell]:not(.sidebar-open) .sidebar-toggle { transform:translateX(68px); }
+ body[data-responsive-shell].sidebar-open .sidebar-toggle { left:calc(var(--app-drawer-width) - 56px); transform:translateX(0); }
+}
+@media screen and (max-width:900px) and (prefers-reduced-motion:reduce) {
+ body[data-responsive-shell] .sidebar, body[data-responsive-shell] .sidebar-toggle { transition:none; }
+}

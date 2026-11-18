@@ -100,6 +100,7 @@
     </div>
 </div>
 
+{% if not (session.get('aonagi_readonly_demo') and public_demo_shared|default(false)) %}
 <form method="post" class="card settings-notification-card" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -288,5 +289,7 @@
         変更
     </button>
 </form>
+
+{% endif %}
 
 {% endblock %}

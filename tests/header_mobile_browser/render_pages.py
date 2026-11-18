@@ -32,6 +32,20 @@ class ActionPages(base.Pages):
    response=self.client.get(path);self.assertEqual(response.status_code,200,(name,response.status_code,response.headers.get('Location')))
    key='normal_'+name;(out/(key+'.html')).write_text(response.text)
    rows.append(dict(endpoint=key,path=path,status=200,synthetic_company='B',role='admin'))
+  # Real settings page via existing verified demo/ordinary session fixtures, read-only.
+  for demo in [True,False]:
+   for role,username in [('manager','admin'),('driver','checker')]:
+    self.demo_active=demo;self.login(username)
+    with self.client.session_transaction() as sess:sess['demo_role_selected']=True
+    response=self.client.get('/settings');self.assertEqual(response.status_code,200)
+    key=('demo_' if demo else 'normal_')+'settings_'+role
+    text=response.text
+    self.assertIn('settings-user-card',text)
+    for marker in ['settings-notification-card','settings-password-card','action="/logout"']:
+     self.assertEqual(marker in text,not demo,(key,marker))
+    (out/(key+'.html')).write_text(text)
+    rows.append(dict(endpoint=key,path='/settings',status=200,role=role,demo=demo))
+  self.demo_active=False;self.login('admin','B')
   # Existing real role/state fixtures: separate from initial unselected inspection page.
   for state in json.loads((out/'inspection-states/states.json').read_text()):
    key='inspection_'+state['role']+'_'+state['code']
