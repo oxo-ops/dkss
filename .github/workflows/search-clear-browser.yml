@@ -1,7 +1,7 @@
 name: Search Clear Browser
 on:
   push:
-    branches: [validation/search-clear-20261119, validation/release-integrated-20261119]
+    branches: [validation/search-clear-20261119, validation/release-integrated-20261119, validation/search-master-batch-20261119]
 permissions:
   contents: read
 jobs:
