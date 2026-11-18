@@ -1,0 +1,25 @@
+/* Safety video alignment: keep filter actions horizontal at narrow desktop widths.
+   Preserve every GET control, status shortcut and submission behavior. */
+body:has(.safety-list-breadcrumb) .pointouts-filter-actions {
+    flex-wrap: wrap;
+}
+body:has(.safety-list-breadcrumb) .pointouts-filter-actions > button,
+body:has(.safety-list-breadcrumb) .pointouts-filter-actions > .btn-back {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 44px;
+}
+@media (min-width: 1101px) and (max-width: 1400px) {
+    body:has(.safety-list-breadcrumb) .pointouts-filter-form {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(240px, 1fr);
+    }
+}
+@media (max-width: 700px) {
+    .safety-pointout-form-card.form-page-card > .responsive-form {
+        gap: 14px;
+    }
+    .safety-pointout-form-card.form-page-card .form-group,
+    .safety-pointout-form-card.form-page-card .manual-card {
+        margin-bottom: 12px;
+    }
+}
