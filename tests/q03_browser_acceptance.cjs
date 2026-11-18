@@ -9,6 +9,16 @@ const results={marker:fixture.marker,csrf:true,source:process.env.Q03_SOURCE_SHA
 const save=()=>fs.writeFileSync(path.join(out,'browser-results.json'),JSON.stringify(results,null,2));
 const state=async page=>{const r=await page.request.get(fixture.url+'/__q03__/state');assert.equal(r.status(),200);const s=await r.json();assert.equal(s.marker,fixture.marker);assert.equal(s.csrf_enabled,true);return s;};
 async function login(page,user){await page.goto(fixture.url+'/login');for(const[k,v]of Object.entries({company_code:fixture.company,username:user,password:fixture.password}))await page.locator(`[name=${k}]`).fill(v);await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL(u=>u.pathname!='/login');}
+// Exercise normal first-use dismissal rather than clicking through the guide.
+// The dedicated guide browser suite separately covers open/next/replay behavior.
+async function openRecord(page,url){
+ await page.goto(url);
+ const guide=page.locator('#firstGuidePanel');
+ if(await guide.isVisible()){
+  await guide.getByRole('button',{name:'操作ガイドを閉じる',exact:true}).click();
+  assert.equal(await guide.isVisible(),false,'First-use guide must close before record operations');
+ }
+}
 async function screenshot(page,name){await page.screenshot({path:path.join(out,name+'.png'),fullPage:false});fs.writeFileSync(path.join(out,name+'.html'),await page.content());}
 async function submit(page,form,button){const action=await form.getAttribute('action');const wait=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===action);await button.click();return await wait;}
 async function viewAnswer(page,info,prefix){if(info.kind==='vehicle'){await page.locator('.js-open-text').filter({visible:true}).filter({hasText:prefix.slice(0,2)}).first().click();await page.locator('#textModal').waitFor({state:'visible'});assert.ok((await page.locator('#textModal').innerText()).includes(prefix));await page.locator('#textModal button').click();}else assert.ok((await page.locator('body').innerText()).includes(prefix));}
@@ -31,7 +41,7 @@ async function finishConfirmation(page){const button=page.getByRole('button',{na
 })().catch(e=>{console.error(e);process.exitCode=1;});
 async function approval(page,info,item,device,context){
  const checker=await context('checker'),admin=info.kind==='vehicle'?await context('admin'):null;
- await page.goto(fixture.url+info.page);const approvalPath=`/${info.kind==='safety'?'safety':'vehicle'}/checklist-results/${info.id}/approve/0`;
+ await openRecord(page,fixture.url+info.page);const approvalPath=`/${info.kind==='safety'?'safety':'vehicle'}/checklist-results/${info.id}/approve/0`;
  const oldForm=page.locator(`form[action="${approvalPath}"]`);await oldForm.waitFor();assert.ok(await oldForm.locator('[name=csrf_token]').inputValue());
  await viewAnswer(page,info,'OLD_ANSWER_'+item.name);const oldVersion=await oldForm.locator('[name=approval_version]').inputValue();
  // A real authenticated browser request without CSRF must be rejected before save.
@@ -40,9 +50,9 @@ async function approval(page,info,item,device,context){
   await checker.goto(fixture.url+info.page+'/edit');await checker.locator('.free-answer-input[contenteditable=true]').first().fill('NEW_ANSWER_'+item.name);
   await checker.getByRole('button',{name:'チェック結果を更新',exact:true}).click();await finishConfirmation(checker);
  }else{
-  await admin.goto(fixture.url+info.page);await admin.locator('.js-vehicle-checklist-reject').filter({visible:true}).first().click();await admin.locator('#vehicleRejectReason').fill('Synthetic answer correction');await admin.getByRole('button',{name:'差し戻す',exact:true}).click();
+  await openRecord(admin,fixture.url+info.page);await admin.locator('.js-vehicle-checklist-reject').filter({visible:true}).first().click();await admin.locator('#vehicleRejectReason').fill('Synthetic answer correction');await admin.getByRole('button',{name:'差し戻す',exact:true}).click();
   await admin.waitForFunction(()=>!document.querySelector('#vehicleRejectReason')||document.querySelector('#vehicleRejectModal')?.classList.contains('is-hidden')).catch(()=>{});
-  await checker.goto(fixture.url+info.page);const input=checker.locator('form.inline-check-form input[name=value]').filter({visible:true}).first();await input.fill('NEW_ANSWER_'+item.name);await Promise.all([checker.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/save-one')),input.press('Tab')]);
+  await openRecord(checker,fixture.url+info.page);const input=checker.locator('form.inline-check-form input[name=value]').filter({visible:true}).first();await input.fill('NEW_ANSWER_'+item.name);await Promise.all([checker.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/save-one')),input.press('Tab')]);
   await Promise.all([checker.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/complete')),checker.getByRole('button',{name:'修正して再申請',exact:true}).click()]);
  }
  await page.waitForTimeout(300);const changed=await state(page);assert.equal(changed.cases[item.name].status,'承認待ち');assert.ok(JSON.stringify(changed.cases[item.name].answers).includes('NEW_ANSWER_'+item.name),'Other real UI operation must save new answers');
@@ -57,7 +67,7 @@ async function approval(page,info,item,device,context){
  const after=await state(page);const current=after.cases[item.name];assert.equal(current.status,'承認済み');assert.equal(current.events.filter(e=>e.kind==='承認').length,1);assert.equal(current.notifications.length-before.cases[item.name].notifications.length,1);item.approvalEvents=1;item.approvalNotificationsAdded=1;item.recovered=true;
 }
 async function reminders(page,info,item,device){
- await page.goto(fixture.url+info.page);const second=await page.context().newPage();second.on('response',r=>{if(r.request().method()==='POST')item.posts.push({path:new URL(r.url()).pathname,status:r.status(),csrfPresent:/csrf_token/.test(r.request().postData()||'')});});await second.goto(fixture.url+info.page);
+ await openRecord(page,fixture.url+info.page);const second=await page.context().newPage();second.on('response',r=>{if(r.request().method()==='POST')item.posts.push({path:new URL(r.url()).pathname,status:r.status(),csrfPresent:/csrf_token/.test(r.request().postData()||'')});});await openRecord(second,fixture.url+info.page);
  fs.writeFileSync(path.join(out,item.name+'-initial.html'),await page.content());
  assert.equal((await state(page)).cases[item.name].settings.length,0);item.initialParentCount=0;
  const waiting=[];await page.context().route('**/reminder-notify-users',async route=>{waiting.push(route);if(waiting.length===2)await Promise.all(waiting.map(r=>r.continue()));});
