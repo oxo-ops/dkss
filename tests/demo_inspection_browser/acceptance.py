@@ -168,7 +168,7 @@ try:
         stress=top.evaluate("""el=>({width:el.clientWidth,scroll:el.scrollWidth,rows:[...el.querySelectorAll('.header-actions>.btn,.vehicle-workspace-date,details>summary')].filter(x=>x.getBoundingClientRect().height).map(x=>Math.round(x.getBoundingClientRect().y))})""")
         assert stress['scroll']<=stress['width']+1 and len(set(stress['rows']))<=2,stress
         for control in top.locator('.header-actions > .btn').all():
-         if control.is_visible():assert control.bounding_box()['height']>=44
+         if control.is_visible():assert control.bounding_box()['height']>=44,control.evaluate('(e)=>({rect:e.getBoundingClientRect().toJSON(),min:getComputedStyle(e).minHeight,display:getComputedStyle(e).display,classes:e.parentElement.parentElement.className})')
        page.screenshot(path=str(out/f'{width}-{role}-toolbar-long-label.png'),full_page=True)
        top.locator('.vehicle-workspace-subtitle > strong').evaluate('(el,value)=>el.textContent=value',original_heading)
        page.locator('[data-layout-only]').evaluate_all('(els)=>els.forEach(e=>e.remove())')
