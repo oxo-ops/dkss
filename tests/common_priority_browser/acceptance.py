@@ -152,7 +152,7 @@ def main():
                         require(page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Analysis page overflow')
                         page.goto(ORIGIN+'/',wait_until='networkidle')
                         panel=page.locator('.dashboard-attention-panel').first
-                        expect(panel.locator('.dashboard-attention-preview tbody tr')).to_have_count(5)
+                        expect(panel.locator('.dashboard-attention-preview > li')).to_have_count(5)
                         expect(panel.locator('.dashboard-attention-priority').filter(has_text='中 · 50点')).to_have_count(1)
                         preview=panel.locator('.dashboard-attention-preview')
                         expect(preview.locator('.dashboard-priority-note').filter(has_text='要確認')).to_be_visible()

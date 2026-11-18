@@ -89,9 +89,9 @@ try:
     page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-top.png'))
     page.locator('.dashboard-safety-attention').evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-safety.png'))
     page.locator('.dashboard-attention-panel').first.evaluate('(e)=>window.scrollTo(0,scrollY+e.getBoundingClientRect().top-70)');page.screenshot(path=str(out/f'{role}-{width}-scale{scale}-proposals.png'))
-    assert page.locator('.dashboard-attention-preview tbody tr').count()==5
+    assert page.locator('.dashboard-attention-preview > li').count()==5
     assert page.locator('.dashboard-attention-empty').count()>=1
-    for row in page.locator('.dashboard-attention-preview tbody tr').all():
+    for row in page.locator('.dashboard-attention-preview > li').all():
      for selector in ['.dashboard-reference-action','td:nth-child(3)','td:nth-child(4)']:
       assert row.locator(selector).is_visible(),f'hidden proposal evidence/timing/state: {selector}'
      assert row.locator('.dashboard-reference-action').inner_text().strip()

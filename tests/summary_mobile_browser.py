@@ -31,6 +31,16 @@ with sync_playwright() as p:
   assert title['x']<actions['x']
   assert abs(title['y']+title['height']/2-actions['y']-actions['height']/2)<3
   page.screenshot(path=str(out/f'summary-{width}.png'),full_page=True)
+  # Actual template filter strip: compact at phone sizes, same three controls on PC.
+  source=(r/'templates/pointouts.html').read_text();chunk=source[source.index('<section class="safety-summary-grid'):];chunk=chunk[:chunk.index('</section>')+10]
+  from urllib.parse import urlencode
+  filter_html=Environment(autoescape=True).from_string(chunk).render(status_filter='waiting',patrol_stats=dict(waiting=1,not_started=2,rejected=3),view_type='user',office_filter='test',category_filter='安全',date_from='2026-11-01',date_to='2026-11-18',page_size=30,url_for=lambda endpoint,**kw:'/pointouts?'+urlencode(kw))
+  filter_css=(r/'static/css/safety_filter_compact.css').read_text()
+  page.set_content('<html><meta charset="utf-8"><style>'+css+filter_css+'</style><body><main style="padding:12px">'+filter_html+'</main></body></html>')
+  assert page.locator('.safety-summary-card').count()==3
+  assert page.locator('.safety-summary-grid').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+  assert 'status=&' in page.locator('.safety-summary-waiting').get_attribute('href')
+  page.screenshot(path=str(out/f'filter-{width}.png'),full_page=True)
   results.append({'width':width,'pass':True});page.close()
  browser.close()
 (out/'result.json').write_text(json.dumps(results,indent=2))

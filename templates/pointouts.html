@@ -2,6 +2,8 @@
 
 {% block title %}安全パトロール結果一覧{% endblock %}
 
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261118-1') }}">{% endblock %}
+
 {% block content %}
 
 {% set has_target_column = view_type == "delivery_place" or show_target_user %}
@@ -28,77 +30,16 @@
     </div>
 </div>
 
-<section class="safety-summary-grid" aria-label="安全パトロール集計">
-    <a
-        class="safety-summary-card safety-summary-all"
-        href="{{ url_for('pointouts', type=view_type, page_size=page_size) }}#pointouts-list"
-        aria-label="安全パトロールの全件一覧を表示"
-    >
-        <span class="safety-summary-icon">▤</span>
-        <div>
-            <span class="safety-summary-label">全件数</span>
-            <strong>{{ patrol_stats.total }}<small> 件</small></strong>
-        </div>
+<section class="safety-summary-grid safety-summary-compact" aria-label="安全パトロールの絞り込み">
+    {% for key, tone, label, count in [('waiting', 'waiting', '未承認', patrol_stats.waiting), ('not_started', 'pending', '対策未登録', patrol_stats.not_started), ('rejected', 'rejected', '差し戻し中', patrol_stats.rejected)] %}
+    <a class="safety-summary-card safety-summary-{{ tone }}{% if status_filter == key %} is-selected{% endif %}"
+       href="{{ url_for('pointouts', type=view_type, status='' if status_filter == key else key, office=office_filter, category=category_filter, date_from=date_from, date_to=date_to, page_size=page_size) }}#pointouts-list"
+       aria-label="{{ label }}{{ 'の絞り込みを解除' if status_filter == key else 'の記録を表示' }}"{% if status_filter == key %} aria-current="true"{% endif %}>
+        <span class="safety-summary-label">{{ label }}</span>
+        <strong>{{ count }}<small> 件</small></strong>
+        {% if status_filter == key %}<span aria-hidden="true">×</span>{% endif %}
     </a>
-
-    <a
-        class="safety-summary-card safety-summary-waiting"
-        href="{{ url_for('pointouts', type=view_type, status='waiting', page_size=page_size) }}#pointouts-list"
-        aria-label="未承認の記録を表示"
-    >
-        <span class="safety-summary-icon">!</span>
-        <div>
-            <span class="safety-summary-label">未承認</span>
-            <strong>{{ patrol_stats.waiting }}<small> 件</small></strong>
-        </div>
-    </a>
-
-    <a
-        class="safety-summary-card safety-summary-approved"
-        href="{{ url_for('pointouts', type=view_type, status='approved', page_size=page_size) }}#pointouts-list"
-        aria-label="承認済みの記録を表示"
-    >
-        <span class="safety-summary-icon">✓</span>
-        <div>
-            <span class="safety-summary-label">承認済み</span>
-            <strong>{{ patrol_stats.approved }}<small> 件</small></strong>
-        </div>
-    </a>
-
-    <a
-        class="safety-summary-card safety-summary-pending"
-        href="{{ url_for('pointouts', type=view_type, status='not_started', page_size=page_size) }}#pointouts-list"
-        aria-label="対策未登録の記録を表示"
-    >
-        <span class="safety-summary-icon">!</span>
-        <div>
-            <span class="safety-summary-label">対策未登録</span>
-            <strong>{{ patrol_stats.not_started }}<small> 件</small></strong>
-        </div>
-    </a>
-    <a
-        class="safety-summary-card safety-summary-rejected"
-        href="{{ url_for('pointouts', type=view_type, status='rejected', page_size=page_size) }}#pointouts-list"
-        aria-label="差し戻し中の記録を表示"
-    >
-        <span class="safety-summary-icon">↶</span>
-        <div>
-            <span class="safety-summary-label">差し戻し中</span>
-            <strong>{{ patrol_stats.rejected }}<small> 件</small></strong>
-        </div>
-    </a>
-
-    <a
-        class="safety-summary-card safety-summary-none"
-        href="{{ url_for('pointouts', type=view_type, status='none', page_size=page_size) }}#pointouts-list"
-        aria-label="対象外の記録を表示"
-    >
-        <span class="safety-summary-icon">−</span>
-        <div>
-            <span class="safety-summary-label">対象外</span>
-            <strong>{{ patrol_stats.none }}<small> 件</small></strong>
-        </div>
-    </a>
+    {% endfor %}
 </section>
 
 <div class="tabs">
