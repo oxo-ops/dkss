@@ -87,6 +87,13 @@ class DocumentDisplayTests(unittest.TestCase):
         self.assertEqual(trucks[0]['srcset'], trucks[1]['srcset'])
         self.assertIn('4x', trucks[0]['srcset'])
         self.assertNotIn('/static/icons/truck.png', html)
-        cars = [i for i in parsed.images if '/static/icons/car.png' in i.get('src', '')]
+        cars = [i for i in parsed.images if '/static/icons/car-display-96.png' in i.get('src', '')]
         self.assertEqual(len(cars), 1)
-        self.assertNotIn('srcset', cars[0])
+        self.assertEqual(cars[0]['src'], '/static/icons/car-display-96.png')
+        self.assertEqual(cars[0]['srcset'], '/static/icons/car-display-96.png 1x, /static/icons/car-display-192.png 2x, /static/icons/car-display-384.png 4x')
+        self.assertNotIn('/static/icons/car.png', html)
+        with self.m.app.test_request_context('/'):
+            module = self.m.app.jinja_env.get_template('macros/vehicle_icon_sources.html').module
+            unknown = module.vehicle_icon_sources('custom-vehicle.png')
+        self.assertIn('src="/static/icons/custom-vehicle.png"', unknown)
+        self.assertNotIn('srcset', unknown)
