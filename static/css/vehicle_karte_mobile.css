@@ -1,0 +1,80 @@
+/* Approved visual reference, not a replacement data model or workflow.
+   Loaded on the eight main karte endpoints only; desktop rules are unchanged. */
+@media (max-width: 640px) {
+  body.vehicle-list-ppt {
+    --karte-mobile-edge: #c9daf4;
+    --karte-mobile-ink: #173e75;
+    --karte-mobile-shadow: inset 0 1px 0 #fff, 0 2px 6px #244c9110;
+  }
+  body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact {
+    border: 1px solid var(--karte-mobile-edge);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fff, #f0f6ff);
+    box-shadow: var(--karte-mobile-shadow);
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .karte-vehicle-top-controls { gap: 8px; margin-bottom: 8px; }
+  .vehicle-karte-actions { gap: 6px; flex-wrap: wrap; }
+  .vehicle-karte-actions > a { min-height: 44px; box-sizing: border-box; }
+  .vehicle-karte-tabs {
+    gap: 4px;
+    padding: 4px 0 8px;
+    margin-bottom: 12px;
+    border-bottom-color: #9dbbe5;
+  }
+  .vehicle-karte-tabs .vehicle-karte-tab {
+    min-height: 44px;
+    box-sizing: border-box;
+    border-radius: 10px;
+    border: 1px solid var(--karte-mobile-edge);
+    background: linear-gradient(#fff, #f0f5fd);
+    color: var(--karte-mobile-ink);
+    box-shadow: inset 0 1px 0 #fff;
+  }
+  .vehicle-karte-tabs .vehicle-karte-tab[aria-current="page"] {
+    background: linear-gradient(#245ca8, #154482);
+    border-color: #154482;
+    color: #fff;
+    box-shadow: inset 0 1px 0 #ffffff55, 0 2px 4px #173e7520;
+  }
+  .vehicle-karte-tabs .vehicle-karte-tab.is-disabled {
+    background: #f1f4f8;
+    border-color: #d9e0ea;
+    color: #67758b;
+    box-shadow: none;
+  }
+  .vehicle-karte-tabs a:focus-visible,
+  .vehicle-karte-actions a:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+  /* Surface-only changes: no semantic status/badge/chart palette override. */
+  :is(#vehicle-karte-overview .card, .vehicle-karte-history-panel,
+      .vehicle-karte-inspections-panel, .karte-maintenance .km-panel,
+      .karte-analysis .ka7-panel) {
+    border: 1px solid var(--karte-mobile-edge);
+    border-radius: 14px;
+    background: linear-gradient(145deg, #fff, #f8fbff);
+    box-shadow: var(--karte-mobile-shadow);
+    margin-bottom: 12px;
+  }
+  :is(#vehicle-karte-overview .ko-heading, .km-panel-heading, .kp-heading,
+      .vehicle-karte-history-heading, .vi-section .card-title-row) {
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom-color: var(--karte-mobile-edge);
+  }
+  :is(.ko-workspace, .km-workspace, .kp-workspace, .kc-detail-grid,
+      .vi-workspace, .ka7-evidence-grid) { gap: 12px; }
+  #vehicle-karte-overview :is(.ko-plan-row, .ko-confirmed-row) { padding: 10px 0; }
+  /* Existing four-column history and shortened dates remain untouched. */
+  .vehicle-karte-history-table :is(th, td) { border-bottom-color: #dce7f6; }
+  /* Keep all document columns and text; use the existing horizontal scroller. */
+  .vehicle-karte-documents .kd-document-table { table-layout: auto; width: max-content; min-width: 720px; }
+  .vehicle-karte-documents .kd-document-table thead th:nth-child(n) { width: auto; }
+  .vehicle-karte-documents .kd-document-table :is(th, td) { padding: 4px 6px; height: auto; }
+  .vehicle-karte-documents .kd-document-table td:nth-child(6) { white-space: nowrap; }
+  .vehicle-karte-documents .kd-filename { box-sizing: border-box; width: 220px; min-height: 44px; align-items: center; }
+  .vehicle-karte-documents .kd-download { min-width: 44px; min-height: 44px; }
+}
