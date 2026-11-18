@@ -4,11 +4,17 @@
     dashboard: [
       { selector: '.dashboard-vehicle-action-primary', title: '日常点検を開く', text: 'ここから、この車両の日常点検表を開けます。' },
       { selector: '.dashboard-vehicle-action', title: '車両の点検表', text: '車両ごとの点検表を開けます。' },
-      { selector: '#sidebarToggle', title: 'ほかの画面へ', text: 'メニューを開くと、点検や車両の一覧へ移動できます。' }
+      { selector: '#sidebarToggle', title: 'メニューから画面を選ぶ', text: 'メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。' }
     ],
     vehicle_checklist_results: [
       { selector: '#vehicle_check_filter select[name="vehicle_record_id"]', title: '車両を選ぶ', text: 'ここで、点検表を表示する車両を選べます。' },
-      { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。' }
+      { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。' },
+      { selector: '.check-choice-buttons', title: '評価を入れる', text: '各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。' },
+      { selector: '.vehicle-check-complete-form .approval-user-search', title: '依頼先を選ぶ', text: '名前で検索し、候補から依頼先を選びます。' },
+      { selector: '#notify_user_search', title: '点検完了通知先を選ぶ', text: '点検が完了したことを知らせる相手を、名前で検索して選びます。' },
+      { selector: '#reminder_notify_user_search', title: '点検未実施通知先を選ぶ', text: '未実施のときに通知する相手を、名前で検索して選びます。' },
+      { selector: '.reminder-readonly', title: '点検未実施通知先を確認する', text: '設定されている通知先を確認します。変更は管理者が行います。' },
+      { selector: '.vehicle-check-complete-primary', title: '点検を完了する', text: '評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。' }
     ]
   };
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
@@ -20,7 +26,10 @@
     const result=[];
     for (const step of plans[page] || []) {
       const target=find(step.selector);
-      if (target && !result.some(s=>s.target===target)) result.push({...step,target});
+      if (target && !result.some(s=>s.target===target)) {
+        const content=target.dataset || {};
+        result.push({...step,target,title:content.guideTitle || step.title,text:content.guideText || step.text});
+      }
     }
     return result;
   }
@@ -31,6 +40,7 @@
   const panel=root.querySelector('.first-guide-panel'), launch=root.querySelector('[data-guide-open]');
   const title=root.querySelector('[data-guide-title]'), text=root.querySelector('[data-guide-text]'), count=root.querySelector('[data-guide-count]');
   const next=root.querySelector('[data-guide-next]');
+  const picture=root.querySelector('[data-guide-picture]');
   const name=key(root.dataset.mode,root.dataset.page);
   let storage; try { storage=window.localStorage; } catch (_) { storage=null; }
   const initial=state(storage,name);
@@ -56,6 +66,7 @@
     if(index>=steps.length){close();return;}
     const s=steps[index];active=s.target;active.classList.add('first-guide-target');
     title.textContent=s.title;text.textContent=s.text;count.textContent=(index+1)+' / '+steps.length;
+    if(picture) picture.hidden=s.selector!=='.inspection-item-detail';
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
     active.scrollIntoView({block:'center',behavior:'instant'});position();
   }

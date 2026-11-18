@@ -15,3 +15,15 @@
    Use normal flow on guided pages so added controls cannot overlap the title. */
 .main-content:has(> .dashboard-page) > .top-bar:has(#firstUseGuide){position:static;margin-bottom:12px}
 .main-content:has(> .top-bar #firstUseGuide) > .dashboard-page .dashboard-header{padding-right:0}
+
+/* Keep contextual help readable on narrow screens. */
+@media(max-width:480px){.first-guide-panel{width:calc(100vw - 24px);padding:12px}.first-guide-panel p{font-size:14px;line-height:1.55}}
+
+.first-guide-picture{margin:10px 0;padding:10px;border:1px solid #d8dfed;border-radius:10px;background:#fff}
+.first-guide-picture[hidden]{display:none}
+.first-guide-picture img{display:block;width:210px;max-width:100%;height:auto}
+
+/* Faithful screenshot of the existing detail template, not a generated interface.
+   Crop empty fixture margins through presentation only; preserve source pixels. */
+.first-guide-after-picture{position:relative;width:180px;max-width:100%;aspect-ratio:366/466;margin:10px auto;padding:0;overflow:hidden;border:0;background:#fff;border-radius:8px}
+.first-guide-after-picture img{position:absolute;max-width:none;width:106.557377%;height:auto;left:-3.278689%;top:-40.55794%}

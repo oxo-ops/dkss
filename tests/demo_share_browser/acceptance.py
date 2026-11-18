@@ -44,7 +44,7 @@ try:
    def handle_request(self,method):
     try:
      u=urlsplit(self.path);assert not u.netloc and not u.scheme and '..' not in u.path.split('/')
-     allow={'/','/demo','/demo/role',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico'}
+     allow={'/','/demo','/demo/role',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png'}
      assert u.path in allow or u.path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/'))
      data=None
      if method=='POST':

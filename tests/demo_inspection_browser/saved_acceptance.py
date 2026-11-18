@@ -85,7 +85,7 @@ try:
           assert path=='/demo/role' and set(data)=={'role','csrf_token'} and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
           post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
           assert res.status_code==302 and res.location=='/'
-         elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
+         elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
           if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')

@@ -54,8 +54,8 @@
 #detailModal .action-row > .btn,
 #detailModal .vehicle-detail-file-upload > .file-upload-button {
   box-sizing: border-box;
-  min-height: 44px;
-  height: 44px;
+  min-height: 48px;
+  height: 48px;
   min-width: 0;
   padding: 10px 16px;
   margin: 0;
@@ -76,8 +76,30 @@
   justify-content: center;
 }
 #detailModal .action-row > .btn { width: 100%; }
-#detailModal .vehicle-detail-file-upload { width: 100%; min-width: 0; gap: 8px; }
-#detailModal .vehicle-detail-file-upload > .file-upload-button { width: 96px; min-width: 96px; }
+#detailModal .vehicle-detail-file-upload {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+  margin-top: 14px;
+}
+#detailModal .vehicle-detail-file-upload > .file-upload-button { width: 100%; min-width: 0; gap: 8px; }
+#detailModal .vehicle-detail-file-upload > :is(.saved-file-names, .selected-file-names) {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+#detailModal .vehicle-detail-file-upload > :is(.saved-file-names, .selected-file-names):empty { display: none; }
+#detailModal .detail-attachment-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+#detailModal .action-row {
+  padding-inline: 0;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--dkss-border-neutral);
+}
+#detailModal #detailCommentEditor { min-height: 110px; }
+#detailModal .action-row > .js-close-detail-modal:only-child,
+#detailModal .action-row > .btn[hidden] + .js-close-detail-modal { grid-column: 1 / -1; }
 #detailModal .action-row > .btn,
 #detailModal .vehicle-detail-file-upload > .file-upload-button {
   background: linear-gradient(180deg, var(--dkss-surface), #f5f5ff);

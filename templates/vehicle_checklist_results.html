@@ -3,7 +3,7 @@
 {% block title %}車両チェック結果{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261118-compact-6') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261118-detail-buttons-7') }}">
 {% endblock %}
 
 {% block content %}
@@ -891,6 +891,8 @@
                         <input
                             type="text"
                             class="approval-user-search"
+                            data-guide-title="{{ '運行判断の依頼先を選ぶ' if checklist.get('fixed_template_code') == 'daily_inspection_truck_trailer' else '承認依頼先を選ぶ' }}"
+                            data-guide-text="{{ '名前で検索し、候補から整備管理者・補助者を選びます。' if checklist.get('fixed_template_code') == 'daily_inspection_truck_trailer' else '名前で検索し、候補から承認を依頼する人を選びます。' }}"
                             id="approval_user_search_{{ approval_form_ns.index }}"
                             data-approval-index="{{ approval_form_ns.index }}"
                             data-allow-general="{{ '1' if item.approval_allow_general else '0' }}"
@@ -2028,6 +2030,7 @@
 
             <div class="file-upload-cell vehicle-detail-file-upload">
                 <label class="file-upload-button file-upload-button-camera">
+                    <svg class="detail-attachment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z"/><circle cx="12" cy="13" r="4"/></svg>
                     写真
                     <input
                         type="file"
@@ -2039,6 +2042,7 @@
                 </label>
 
                 <label class="file-upload-button file-upload-button-secondary">
+                    <svg class="detail-attachment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 11-9 9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8L15 6"/></svg>
                     ファイル
                     <input
                         type="file"

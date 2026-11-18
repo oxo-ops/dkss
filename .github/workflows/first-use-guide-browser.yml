@@ -1,7 +1,7 @@
 name: First use guide isolated browser
 on:
   pull_request:
-    paths: ['templates/partials/first_use_guide.html', 'static/js/first_use_guide.js', 'static/css/first_use_guide.css', 'tests/first_use_guide_browser/**', '.github/workflows/first-use-guide-browser.yml']
+    paths: ['templates/partials/first_use_guide.html', 'static/js/first_use_guide.js', 'static/css/first_use_guide.css', 'tests/first_use_guide_browser/**', 'static/guide/**', 'templates/vehicle_checklist_results.html', 'static/css/vehicle_checklist_compact.css', 'tests/inspection_detail_buttons_browser/**', '.github/workflows/first-use-guide-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +26,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain)"
           env -i PATH="$PATH" HOME="$HOME" GUIDE_ARTIFACT_DIR="$GUIDE_ARTIFACT_DIR" python tests/first_use_guide_browser/acceptance.py
+      - name: Real detail modal presentation, synthetic data only
+        env:
+          DETAIL_BUTTON_ARTIFACT_DIR: ${{ runner.temp }}/guide-browser-output/detail-buttons
+        run: |
+          env -i PATH="$PATH" HOME="$HOME" DETAIL_BUTTON_ARTIFACT_DIR="$DETAIL_BUTTON_ARTIFACT_DIR" python tests/inspection_detail_buttons_browser/acceptance.py
+      - name: Guide sequence and storage contracts
+        run: node --test tests/guide_images_js.cjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
