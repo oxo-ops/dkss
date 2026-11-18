@@ -9,10 +9,10 @@ function element(tag,text,cls=''){
  e.classList={add(...names){e.className+=' '+names.join(' ')}};
  return e;
 }
-function fixture(){
+function fixture(mobile=false,view='calendar'){
  const list=element('div'),title=element('h2'),dialog={open:false,showModal(){this.open=true},close(){this.open=false},
  querySelector(s){return s==='[data-events-list]'?list:title}};
- const ctx={node:element,data:{vehicles:[{id:3,number:'横浜 100 い 11-11'}]},
+ const ctx={window:{matchMedia:()=>({matches:mobile})},view,node:element,data:{vehicles:[{id:3,number:'横浜 100 い 11-11'}]},
  document:{querySelector:()=>dialog},deadlineState:()=>'',eventLabels:{actual:'実施済み'},labels:{},states:{}};
  vm.createContext(ctx);
  for(const [from,to] of [['invoiceLink(fact)','vehicleCell(v)'],['calendarEvent(entry,compact=false)','drawCalendar(rows)']]){
@@ -54,4 +54,17 @@ test('multiple originals retain the existing selection dialog',()=>{
  a.events.click({preventDefault(){prevented=true}});
  assert(prevented);assert(dialog.open);assert.equal(list.children.length,2);
  assert.equal(list.children[1].href,'/second');
+});
+
+test('mobile month invoice keeps two readable lines and original source',()=>{
+ const {ctx,fact}=fixture(true,'calendar'),a=ctx.calendarEvent({invoice:fact,p:{vehicle_record_id:3}},true);
+ assert(a.className.includes('ip-month-event-lines'));assert.equal(a.children.length,2);
+ assert.equal(a.children[0].textContent,'11-11');assert.equal(a.children[1].textContent,'整備');
+ assert.equal(a.href,fact.source_url);assert(a.attrs['aria-label'].includes(fact.summary));assert.equal(a.dataset.event,'actual');
+});
+test('mobile year invoice retains status content and source in two lines',()=>{
+ const {ctx,fact}=fixture(true,'year'),a=ctx.calendarEvent({invoice:fact,p:{vehicle_record_id:3}},true);
+ assert(a.className.includes('ip-year-event-lines'));assert.equal(a.children.length,2);
+ assert.equal(a.children[0].textContent,'11-11 実施');assert.equal(a.children[1].textContent,'オイル量の確認・補充');
+ assert.equal(a.href,fact.source_url);assert(a.attrs['aria-label'].includes(fact.summary));assert.equal(a.dataset.event,'actual');
 });

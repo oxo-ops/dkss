@@ -35,19 +35,27 @@ def annual_filename(data, args):
     return f'点検計画_{data["year"]}年度' + (f'_{safe}' if safe else '') + '.xlsx'
 
 
+def matches_search(vehicle, row, search):
+    fields = [vehicle.get('number'), vehicle.get('chassis_number')]
+    if row:
+        fields += [KINDS.get(row.get('kind')), row.get('factory'), row.get('note'),
+                   row.get('invoice_summary'), row.get('summary')]
+    return not search or any(search in normalize(value) for value in fields)
+
+
 def annual_rows(data, args):
     """Match browser search/focus/state membership, including empty vehicle rows."""
     search = normalize(args.get('q'))
     focus = data.get('focus_vehicle_id')
-    vehicles = [v for v in data['vehicles'] if (not focus or v['id'] == focus) and
-                (not search or search in normalize(v['number']+' '+v['chassis_number']))]
-    ids = {v['id'] for v in vehicles}
-    rows = [p for p in data['plans'] if p['vehicle_record_id'] in ids and
+    scoped = [v for v in data['vehicles'] if not focus or v['id'] == focus]
+    by_id = {v['id']: v for v in scoped}
+    rows = [p for p in data['plans'] if p['vehicle_record_id'] in by_id and
             p['status'] != 'cancelled' and (not args.get('kind') or p['kind'] == args['kind']) and
-            (not args.get('state') or p['display_state'] == args['state'])]
-    if args.get('state'):
-        visible = {p['vehicle_record_id'] for p in rows}
-        vehicles = [v for v in vehicles if v['id'] in visible]
+            (not args.get('state') or p['display_state'] == args['state']) and
+            matches_search(by_id[p['vehicle_record_id']], p, search)]
+    visible = {p['vehicle_record_id'] for p in rows}
+    vehicles = [v for v in scoped if (not search or matches_search(v, None, search) or v['id'] in visible)
+                and (not args.get('state') or v['id'] in visible)]
     return vehicles, rows
 
 
