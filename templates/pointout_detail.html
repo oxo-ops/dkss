@@ -94,7 +94,7 @@
 
             <div
                 class="content-box mention-display"
-                data-value="{{ result.content }}"
+                data-value="{{ result.display_content|default(result.content) }}"
             ></div>
         </div>
 
