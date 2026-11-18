@@ -1,0 +1,22 @@
+/* Actual Flask HTML, offline. Missing visible targets are recorded, never invented. */
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/opt/codex/cua_node/lib/node_modules/playwright');
+const D=__dirname,repo=path.resolve(process.env.PRODUCT_REPO||'demo-first-save-20261118/livebase-repo');
+const htmlDir=path.resolve(process.env.HTML_OUT||path.join(D,'html'));
+const out=path.resolve(process.env.ARTIFACTS||path.join(D,'browser-artifacts'));fs.mkdirSync(out,{recursive:true});
+(async()=>{const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM?{executablePath:process.env.CHROMIUM}:{}),args:['--no-sandbox']});const rows=[];let posts=0,external=0;try{
+for(const width of [320,390,1165,1316])for(const file of fs.readdirSync(htmlDir).filter(x=>x.endsWith('.html'))){
+const name=file.slice(0,-5),routeInfo=JSON.parse(fs.readFileSync(path.join(htmlDir,'routes.json'),'utf8')).find(x=>x.endpoint===name);assert(routeInfo&&routeInfo.status===200);const fixtureURL=new URL(routeInfo.path,'https://fixture.invalid').href;const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage();
+await page.addInitScript(()=>{for(const page of ['dashboard','pointouts','new_pointout','driving_reports','vehicle_karte','vehicle_karte_history','vehicle_karte_inspections','vehicle_karte_maintenance','vehicle_karte_parts','vehicle_karte_costs','vehicle_karte_documents','vehicle_karte_analysis','vehicle_inspection_plans','notifications','safety_checklists'])localStorage.setItem('dkss:first-guide:v1:demo:'+page,'1')});
+await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(req.method()!=='GET'){posts++;return route.abort()}if(u.origin!=='https://fixture.invalid'){external++;return route.abort()}
+if(u.pathname.endsWith('/analysis/result'))return route.fulfill({contentType:'application/json',body:JSON.stringify(require('./synthetic-analysis.json'))});
+if(u.searchParams.get('panel')==='1'&&fs.existsSync(path.join(htmlDir,'notification-panel.json')))return route.fulfill({contentType:'application/json',body:fs.readFileSync(path.join(htmlDir,'notification-panel.json'),'utf8')});
+if(u.pathname===new URL(fixtureURL).pathname){return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(htmlDir,file),'utf8')})}
+if(u.pathname.startsWith('/static/')){const relative=u.pathname.slice(1),candidate=path.resolve(D,'product',relative),original=path.resolve(repo,relative);for(const f of [candidate,original])if((f.startsWith(D+'/product/static/')||f.startsWith(repo+'/static/'))&&fs.existsSync(f))return route.fulfill({path:f});}
+return route.fulfill({status:404,body:'offline fixture: unavailable data'});});
+await page.goto(fixtureURL);if(name==='vehicle_karte_analysis')await page.locator('.ka-reference-detail-button').first().waitFor({state:'visible'});const launch=page.locator('[data-guide-open]'),panel=page.locator('#firstGuidePanel');let steps=0;
+if(await launch.isVisible()){await launch.click();if(await panel.isVisible()){while(await panel.isVisible()){assert(++steps<30);const rect=await panel.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width+1, name+' horizontal overflow');await page.screenshot({path:path.join(out,`${name}-${width}-${steps}.png`)});await page.locator('[data-guide-next]').click();}await launch.click();assert(await panel.isVisible());await page.keyboard.press('Escape');assert(!(await panel.isVisible()));}}
+if(name==='notifications'){await page.locator('.notification-item').first().click();await page.locator('#notificationDetailPane .dkss-notification-detail').waitFor({state:'visible'});await launch.click();assert(await panel.isVisible());assert.equal(await page.locator('[data-guide-title]').innerText(),'通知の内容を見る');await page.screenshot({path:path.join(out,`notification-panel-${width}.png`)});await page.keyboard.press('Escape');assert(!(await panel.isVisible()));}
+await page.screenshot({path:path.join(out,`${name}-${width}-screen.png`),fullPage:true});
+rows.push({endpoint:name,width,visible_steps:steps,replay_escape:steps>0,empty_or_role_blocked:steps===0});await context.close();}
+assert.equal(posts,0);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({rows,posts,blocked_external_requests:external,synthetic:true,live:false,full_25_page_acceptance:false},null,2));}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
