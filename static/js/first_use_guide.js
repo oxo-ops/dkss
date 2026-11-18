@@ -465,7 +465,7 @@
   // A guide step is not navigation. Keep the current viewport whenever the
   // target is already visible; large regions only need to intersect it.
   function revealOptions(rect, viewport, reducedMotion) {
-    const margin=12, left=viewport.left+margin, top=viewport.top+margin;
+    const margin=0, left=viewport.left+margin, top=viewport.top+margin;
     const right=viewport.left+viewport.width-margin, bottom=viewport.top+viewport.height-margin;
     const fits=(start,end,low,high)=>end-start>high-low ? end>low && start<high : start>=low && end<=high;
     if(fits(rect.left,rect.right,left,right) && fits(rect.top,rect.bottom,top,bottom)) return null;
