@@ -472,9 +472,10 @@
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();
             const head=cell.querySelector('.ip-cal-day-head');
             const room=Math.max(0,cell.clientHeight-head.offsetHeight-2);
-            const available=mobile?Math.max(0,Math.floor(room/30)):Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
-            const limit=entries.length>available?(mobile?Math.max(0,Math.floor((room-24)/30)):Math.max(0,available-1)):available;
-            entries.slice(0,limit).forEach(entry=>items.append(calendarEvent(entry,true)));
+            const eventHeight=mobile&&room<28?18:28;
+            const available=mobile?Math.max(0,Math.floor((room+2)/(eventHeight+2))):Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
+            const limit=entries.length>available?(mobile?Math.max(0,Math.floor((room-24+2)/(eventHeight+2))):Math.max(0,available-1)):available;
+            entries.slice(0,limit).forEach(entry=>{const event=calendarEvent(entry,true);if(mobile&&eventHeight===18)event.classList.add('ip-cal-event-tight');items.append(event);});
             if(entries.length>limit){const more=node('button','＋'+(entries.length-limit)+'件','ip-cal-more');more.type='button';more.setAttribute('aria-label',cell.dataset.date+'の予定をすべて表示');more.addEventListener('click',()=>openEntries(cell.dataset.date+' の予定・実績',entries));items.append(more);}
         }
     }
