@@ -163,6 +163,11 @@ try:
        assert ('判断保留' if scenario=='判定保留' else scenario) in operation.inner_text()
        assert page.locator('.vehicle-process-number svg').count()==3
        assert page.locator('.vehicle-process-step').first.evaluate('(e)=>getComputedStyle(e).clipPath')=='none'
+       guide=page.locator('#firstGuidePanel')
+       if guide.is_visible():
+        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-guide.png'),full_page=True)
+        page.get_by_role('button',name='操作ガイドを閉じる',exact=True).click()
+        assert not guide.is_visible()
        operation.click()
        panel=page.locator('#vehicle-operation-panel');assert panel.is_visible()
        if scenario=='未判定':assert '整備管理者が未設定です。' in panel.inner_text()
