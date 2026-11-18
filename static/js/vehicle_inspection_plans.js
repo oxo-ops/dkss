@@ -772,7 +772,7 @@
         planner.querySelector('.ip-grid').classList.toggle('ip-month-table',view==='month');
         planner.querySelector('.ip-grid').classList.toggle('ip-year-table',view==='year');
         if(view==='year') {
-            for(const v of vehicles) {
+            for(const v of (tableDetails.open ? vehicles : [])) {
                 const tr=node('tr');tr.append(checkbox(v),vehicleCell(v));
                 for(const mon of months) {
                     const td=node('td');if(mon===localMonth())td.classList.add('ip-current-month');td.append(node('span',mon,'ip-mobile-month'));
@@ -965,4 +965,7 @@
         try{const mon=planner.querySelector('[data-plan-bulk-month]').value,reservation=planner.querySelector('[data-plan-bulk-date]').value,factory=planner.querySelector('[data-plan-bulk-factory]').value.trim();if(!reservation&&!factory)throw new Error('予約日か実施先を入力してください。空欄は現在の値を維持します。');const rows=visiblePlans().filter(p=>selected.has(p.vehicle_record_id)&&p.planned_month===mon&&['candidate','planned'].includes(p.status));if(!rows.length)throw new Error('変更する予定のある車両と月を選択してください。');await showReview(rows.map(p=>({...p,reservation_date:reservation||p.reservation_date,factory:factory||p.factory,status:'planned'})));}catch(e){error(planner,'[data-planner-error]',e.message);}
     });
     safeLoad();
+    planner.querySelector('[data-plan-vehicle-table]').addEventListener('toggle',()=>{
+        if(view==='year'&&planner.querySelector('[data-plan-vehicle-table]').open)draw();
+    });
 })();
