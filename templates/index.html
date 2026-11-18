@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/vehicle_icon_sources.html" import vehicle_icon_sources with context %}
 
 {% block title %}ダッシュボード{% endblock %}
 
@@ -104,10 +105,7 @@
                 <div class="dashboard-vehicle-card">
 
                     <img
-                        src="{{ url_for(
-                            'static',
-                            filename='icons/' ~ vehicle_icon
-                        ) }}"
+                        {{ vehicle_icon_sources(vehicle_icon) }}
                         alt=""
                         class="dashboard-vehicle-icon"
                     >
@@ -1022,7 +1020,7 @@
                 <a href="{{ url_for('vehicle_karte', vehicle_record_id=vehicle.vehicle_record_id) }}"
                    class="dashboard-vehicle-table-link">
                     <img
-                        src="{{ url_for('static', filename='icons/' ~ vehicle_icon) }}"
+                        {{ vehicle_icon_sources(vehicle_icon) }}
                         alt=""
                         class="dashboard-vehicle-table-icon"
                     >

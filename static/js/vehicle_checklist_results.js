@@ -1972,6 +1972,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 const img =
                     document.createElement("img");
 
+                img.loading = "lazy";
+                img.decoding = "async";
                 img.src = path;
                 img.className = "preview-image";
 
