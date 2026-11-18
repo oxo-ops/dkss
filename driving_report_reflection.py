@@ -265,15 +265,24 @@ def register_reflections(app, db, prepare, history):
         from driving_report_insights import periods
         if (not is_demo() or app.config.get('PUBLIC_DEMO_SHARED_COMPANY') is not True
                 or session.get('company_code') != app.config.get('PUBLIC_DEMO_COMPANY')
-                or filters.get('scope') != 'office' or not filters.get('office')
-                or filters.get('period') != 'month'
-                or filters.get('breakdown') not in (None, '', 'people', 'offices')
-                or board.get('selected_driver')
-                or board.get('personal_view')):
+                or filters.get('period') != 'month'):
             return None
-        # Only the unfiltered office monthly overview. Never broaden a person's/filter's view.
+        personal = filters.get('scope') == 'self' and board.get('personal_view')
+        office = (filters.get('scope') == 'office' and filters.get('office')
+                  and not board.get('selected_driver') and not board.get('personal_view'))
+        if not (personal or office):
+            return None
+        if personal:
+            if filters.get('breakdown') not in (None, '', 'vehicles'):
+                return None
+        elif filters.get('breakdown') not in (None, '', 'people', 'offices'):
+            return None
+        # Only unfiltered monthly self or office overview; full account/role/evidence
+        # identity is recomputed below. Never reuse another reader's result.
         presentation={'page', 'listing', 'breakdown'}
         base={'scope','office','period','start','end','category'}
+        if personal:
+            base.add('focus')
         defaults={'compare':'previous'}
         if any(v not in ('', None) and k not in base|presentation
                and v != defaults.get(k) for k,v in filters.items()):
@@ -303,7 +312,7 @@ def register_reflections(app, db, prepare, history):
                 for item in old['items']:
                     evidence=by_id.get(item.get('id'))
                     if evidence:
-                        item['links'],item['report_links']=navigation(evidence,links_filters,old_board,rows+previous,True)
+                        item['links'],item['report_links']=navigation(evidence,links_filters,old_board,rows+previous,not personal)
                 return old
         return None
 

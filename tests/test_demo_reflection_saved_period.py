@@ -88,5 +88,42 @@ class SavedPeriodTests(Base):
   self.assertNotIn('hidden',nodes.attrs['data-reflection-snapshot-period'])
 
 
+ def bind_personal(self):
+  from dkss_app import driving_access
+  from identity_fixture import identity_for
+  with self.m.app.test_request_context():
+   session.update(account_identity=identity_for('TEST','admin'),company_code='TEST',username='admin',role='admin')
+   driving_access.assign([self.a],'admin','admin');self.m.db.session.commit()
+  self.args=dict(scope='self',period='month',category='safety')
+ def test_personal_saved_period_keeps_self_and_no_writes(self):
+  self.bind_personal();old=self.call(18,seed=True);before=self.snapshot()
+  for day in (19,20):
+   state=self.call(day)
+   self.assertEqual(state['snapshot']['key'],old['key'])
+   self.assertIn('2026/11/18',state['snapshot']['period_label'])
+   self.assertFalse(state['auto_refresh'])
+   for link in state['snapshot']['items'][0]['links']:
+    self.assertIn('scope=self',link['url'])
+    self.assertIn('period=custom',link['url'])
+  self.assertEqual(before,self.snapshot())
+ def test_personal_not_reused_for_office_filter_or_new_identity(self):
+  self.bind_personal();self.call(18,seed=True)
+  for extra in ({'scope':'office','office':digest(['office','安城'])},
+                {'vehicle':'1'},{'compare':'month'},{'period':'all'}):
+   self.assertNotIn('snapshot',self.call(19,dict(self.args,**extra)))
+  self.recreate_account()
+  self.assertNotIn('snapshot',self.call(19))
+ def test_personal_source_change_rejects_saved_period(self):
+  self.bind_personal();self.call(18,seed=True)
+  self.change_report()
+  self.assertNotIn('snapshot',self.call(19))
+ def test_personal_demo_only_and_seven_day_bound(self):
+  self.bind_personal();self.call(18,seed=True)
+  self.assertNotIn('snapshot',self.call(19,demo=False))
+  self.assertNotIn('snapshot',self.call(26))
+  self.m.app.config['PUBLIC_DEMO_COMPANY']='OTHER'
+  self.assertNotIn('snapshot',self.call(19))
+
+
 def load_tests(loader,tests,pattern):
  return __import__('unittest').TestSuite(SavedPeriodTests(x) for x in SavedPeriodTests.__dict__ if x.startswith('test_'))
