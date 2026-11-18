@@ -381,7 +381,7 @@
         <td class="pointouts-col-content-type">{{ item.content_type }}</td>
         <td
             class="content-summary pointouts-col-content mention-display"
-            data-value="{{ item.content }}"
+            data-value="{{ item.display_content|default(item.content) }}"
         ></td>
         <td class="pointouts-col-status">
             {% if item.category == "Good" %}
@@ -556,7 +556,7 @@
             {% if item.content %}
             <div
                 class="mobile-card-content mention-display"
-                data-value="{{ item.content }}"
+                data-value="{{ item.display_content|default(item.content) }}"
             ></div>
             {% endif %}
 
