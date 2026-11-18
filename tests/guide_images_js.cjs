@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {candidates}=require('../static/js/first_use_guide.js');
-const selectors=['#vehicle_check_filter select[name="vehicle_record_id"]','.inspection-item-detail','.check-choice-buttons','.vehicle-check-complete-form .approval-user-search','#reminder_notify_user_search','.reminder-readonly','.vehicle-check-complete-primary'];
+const selectors=['.vehicle-search-action','.inspection-item-detail','.check-choice-buttons','.vehicle-check-complete-form .approval-user-search','#reminder_notify_user_search','.reminder-readonly','.vehicle-check-complete-primary'];
 function steps(excluded=[]){const elements=Object.fromEntries(selectors.filter(x=>!excluded.includes(x)).map(x=>[x,x==='.vehicle-check-complete-form .approval-user-search'?{dataset:{guideTitle:'運行判断の依頼先を選ぶ'}}:{}]));return candidates('vehicle_checklist_results',x=>elements[x]);}
 test('driver sees detail then evaluation, request, read-only notification and completion',()=>{
  const result=steps(['#reminder_notify_user_search']);
@@ -26,4 +26,14 @@ test('existing storage key is unchanged and private storage failure does not aut
  assert.deepEqual(state(null,'x'),{available:false,seen:true});
  const store=new Map([['x','1']]);const storage={setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k),getItem:k=>store.get(k)};
  assert.deepEqual(state(storage,'x'),{available:true,seen:true});assert.equal(store.get('x'),'1');assert.equal(store.size,1);
+});
+
+test('safety detail has contextual read-only steps without approval controls',()=>{
+ const visible=new Set(['.result-info-card','.checklist-result-detail-card','.checklist-history-card']);
+ const result=candidates('checklist_result_detail',s=>visible.has(s)?{}:null,'demo');
+ assert.deepEqual(result.map(s=>s.title),['点検した対象と日付を確認する','点検の内容を見る','履歴を確認する']);
+});
+test('ordinary driving help retains existing page controls',()=>{
+ const result=candidates('driving_reports',s=>s==='#driving-filter-form'?{}:null,'normal');
+ assert.equal(result.length,1);assert.equal(result[0].title,'実績の範囲を選ぶ');
 });

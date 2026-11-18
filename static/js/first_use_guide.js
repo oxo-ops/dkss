@@ -268,6 +268,12 @@
             "text": "一覧から確認するチェックリストを選びます。"
         }
     ],
+    "checklist_result_detail": [
+        {"selector":".result-info-card","title":"点検した対象と日付を確認する","text":"点検した人、日付と確認状況を確認します。"},
+        {"selector":".checklist-result-detail-card","title":"点検の内容を見る","text":"項目ごとの評価やコメント、添付された写真を確認します。"},
+        {"selector":".approval-card","title":"確認状況を見る","text":"確認者と確認の状況を確認します。操作できる内容は権限に応じて表示されます。"},
+        {"selector":".checklist-history-card","title":"履歴を確認する","text":"この点検の確認・対応の履歴を確認します。"}
+    ],
     "safety_checklist_results": [
         {
             "selector": ".safety-results-table",
@@ -434,6 +440,7 @@
     ]
   };
   const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":".vehicle-search-action","fallbackSelector":"#vehicle_search","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
+  normalPlans.driving_reports = plans.driving_reports;
   normalPlans.vehicle_inspection_plans = plans.vehicle_inspection_plans;
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
   function state(storage, name) {
@@ -551,8 +558,9 @@
     if(root.dataset.page==='vehicle_karte_analysis' && window.location.hash.startsWith('#proposal=')) return;
     const choosingRole=!!find('.public-demo-notice');
     if(choosingRole && !manual) return; // Never interrupt the initial choice automatically.
-    if(!choosingRole) revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
-    steps=candidates(choosingRole?'demo_entry':root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
+    const entryGuide=choosingRole && root.dataset.page==='dashboard';
+    if(!entryGuide) revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
+    steps=candidates(entryGuide?'demo_entry':root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
     previous=document.activeElement;
     const resumeIndex=manual && resumeSelector ? steps.findIndex(step=>step.selector===resumeSelector) : -1;
     index=resumeIndex>=0?resumeIndex:0;clearResume();show();remember();

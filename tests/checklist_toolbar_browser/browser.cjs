@@ -5,6 +5,8 @@ for(const width of [320,390,768,1440])for(const count of [0,8]){
  await page.route('**/*',r=>r.request().url().startsWith('file:')?r.continue():r.abort());
  await page.goto('file://'+path.resolve(process.argv[2],'page-'+count+'.html'));
  assert.equal(await page.locator('.vehicle-date-japanese').innerText(),'11/19');
+ const dateDisplay=await page.locator('.vehicle-date-japanese').evaluate(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return {width:r.width,height:r.height,clip:s.clipPath,opacity:s.opacity};});
+ assert(dateDisplay.width>=(width<=600?80:44) && dateDisplay.height>=44,JSON.stringify({width,dateDisplay}));assert.equal(dateDisplay.clip,'none');assert.equal(dateDisplay.opacity,'1');
  assert.equal(await page.locator('#vehicle_workspace_date').inputValue(),'2026-11-19');
  assert.match(await page.locator('#vehicle_workspace_date').getAttribute('aria-label'),/2026年11月19日/);
  assert.equal(await page.locator('.vehicle-excel-action').getAttribute('href'),'/vehicle/checklist-results/7/excel');

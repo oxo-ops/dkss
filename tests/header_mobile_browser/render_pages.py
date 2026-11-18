@@ -45,6 +45,19 @@ class ActionPages(base.Pages):
      self.assertEqual(marker in text,not demo,(key,marker))
     (out/(key+'.html')).write_text(text)
     rows.append(dict(endpoint=key,path='/settings',status=200,role=role,demo=demo))
+  # Detail help uses a real disposable result, including the unselected role state.
+  self.demo_active=True;self.login('admin')
+  user=m.User.query.filter_by(company_code='AONAGI',username='admin').one()
+  safety=m.Checklist.query.filter_by(company_code='AONAGI',target='安全管理').first()
+  result=m.ChecklistResult(company_code='AONAGI',checklist_id=safety.id,target_type='office',target_office='test',checked_by='Test admin',checked_by_username='admin',checked_by_user_id=user.id,checked_by_identity=user.account_identity,checked_date='2026-11-19',status='確認待ち',answers_json=json.dumps([{'name':'通路の状況','value':'良好','comment':'通路を確認しました'}],ensure_ascii=False))
+  self.db.session.add(result);self.db.session.commit()
+  with self.client.session_transaction() as sess:sess['demo_role_selected']=False
+  with self.app.test_request_context():path=url_for('checklist_result_detail',result_index=result.id)
+  response=self.client.get(path);self.assertEqual(response.status_code,200)
+  self.assertIn('id="firstUseGuide"',response.text)
+  self.assertIn('data-page="checklist_result_detail"',response.text)
+  (out/'checklist_result_detail.html').write_text(response.text)
+  rows.append(dict(endpoint='checklist_result_detail',path=path,status=200,role='admin',demo=True,role_selected=False))
   self.demo_active=False;self.login('admin','B')
   # Existing real role/state fixtures: separate from initial unselected inspection page.
   for state in json.loads((out/'inspection-states/states.json').read_text()):
