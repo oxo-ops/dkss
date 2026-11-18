@@ -1,0 +1,47 @@
+name: Cache only image resource probe
+on:
+  push:
+    branches: [review/cache-only-resource-probe-20261119]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: Compare unchanged baseline and resource-only prototype
+        env:
+          PYTHONPATH: .:tests
+          AWS_EC2_METADATA_DISABLED: 'true'
+          DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+        run: |
+          mkdir -p out
+          git rev-parse HEAD > out/tested-head.txt
+          for mode in baseline candidate; do
+            mkdir -p out/$mode
+            if [ "$mode" = candidate ]; then cp tests/cache_only_probe/candidate.py dkss_app/document_images.py; export CACHE_ONLY=1; fi
+            python tests/q12_document_display_server.py --port 51212 --work-dir /tmp/cache-probe-$mode > /tmp/cache-server-$mode.log 2>&1 &
+            pid=$!
+            trap 'kill $pid 2>/dev/null || true' EXIT
+            for i in $(seq 1 60); do [ -f /tmp/cache-probe-$mode/fixture.json ] && curl -fsS http://127.0.0.1:51212/login >/dev/null && break; sleep 1; done
+            node tests/cache_only_probe/browser.cjs /tmp/cache-probe-$mode/fixture.json out/$mode/browser.json
+            cp /tmp/cache-probe-$mode/requests.jsonl out/$mode/requests.jsonl
+            kill $pid; wait $pid || true; trap - EXIT
+          done
+          python -m unittest test_cache_only_routes_local -v
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: cache-only-resource-probe
+          path: out
