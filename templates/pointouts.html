@@ -2,7 +2,10 @@
 
 {% block title %}安全パトロール結果一覧{% endblock %}
 
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261119-patrol-rows-1') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261119-patrol-rows-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
+<script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
+{% endblock %}
 
 {% block content %}
 

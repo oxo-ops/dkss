@@ -102,6 +102,13 @@ async function registration(page,item,device){
     await page.getByRole('button',{name:'この内容で登録',exact:true}).waitFor();
     await page.getByRole('button',{name:'この内容で登録',exact:true}).click({clickCount:2});
     await page.waitForURL(url=>url.pathname==='/master/vehicles');
+    // Compact mobile rows intentionally show only plate and office. Open the
+    // registered row to verify its chassis; retain the visible and DB assertions.
+    const compactRow=page.locator('details.master-compact-row').filter({has:page.getByText(chassis,{exact:true})}).first();
+    if(await compactRow.isVisible()){
+        assert.equal(await compactRow.getAttribute('open'),null);
+        await compactRow.locator('summary').click();
+    }
     const reflected=page.getByText(chassis,{exact:true}).filter({visible:true}).first();
     await reflected.waitFor();
     await reflected.scrollIntoViewIfNeeded();
