@@ -423,7 +423,7 @@
     ]
 ,
     vehicle_checklist_results: [
-      { selector: '#vehicle_search', title: '車両を選ぶ', text: '車両を検索するか、使用車両のボタンから選びます。' },
+      { selector: '.vehicle-search-action', fallbackSelector: '#vehicle_search', title: '車両を選ぶ', text: '車両を検索するか、使用車両のボタンから選びます。' },
       { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '項目名を押すと詳細が開きます。水色はコメントや写真・添付がある印です。押すと内容を確認できます。' },
       { selector: '.check-choice-buttons', title: '評価を入れる', text: '各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。' },
       { selector: '.vehicle-check-complete-form .approval-user-search', title: '依頼先を選ぶ', text: '名前で検索し、候補から依頼先を選びます。' },
@@ -433,7 +433,7 @@
       { selector: '.vehicle-check-complete-primary', title: '点検を完了する', text: '評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。' }
     ]
   };
-  const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":"#vehicle_check_filter select[name=\"vehicle_record_id\"]","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
+  const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":".vehicle-search-action","fallbackSelector":"#vehicle_search","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
   normalPlans.vehicle_inspection_plans = plans.vehicle_inspection_plans;
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
   function state(storage, name) {
@@ -444,7 +444,7 @@
     if (mode === "demo" && page === "notifications" && find("#notificationDetailPane .dkss-notification-detail")) page="notification_detail";
     const result=[];
     for (const step of (mode === "demo" ? plans[page] : normalPlans[page]) || []) {
-      const target=find(step.selector);
+      const target=find(step.selector) || (step.fallbackSelector ? find(step.fallbackSelector) : null);
       if (target && !result.some(s=>s.target===target)) {
         const content=target.dataset || {};
         result.push({...step,target,title:content.guideTitle || step.title,text:content.guideText || step.text});

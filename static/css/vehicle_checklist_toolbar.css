@@ -1,0 +1,33 @@
+.vehicle-workspace-top .vehicle-workspace-date { position:relative; }
+.vehicle-workspace-top .vehicle-date-japanese {display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 12px;border:1px solid #cbd5e1;border-radius:10px;color:#24364e;background:#fff;font-variant-numeric:tabular-nums;}
+.vehicle-workspace-top .vehicle-date-caption {display:none!important}
+.vehicle-workspace-top .vehicle-workspace-date input {position:absolute!important;inset:0!important;width:100%!important;height:100%!important;opacity:0;cursor:pointer;margin:0!important}
+.vehicle-workspace-top .vehicle-workspace-date:focus-within {outline:2px solid #2563eb;outline-offset:2px;border-radius:10px}
+.vehicle-workspace-top .vehicle-toolbar-symbol {display:none}
+.vehicle-workspace-top .vehicle-search-action {width:44px;min-height:44px;padding:10px}
+.vehicle-workspace-top .vehicle-search-action svg,.vehicle-workspace-top .vehicle-other-defects-menu svg {width:22px;height:22px;flex:none}
+.vehicle-toolbar-ready #vehicle-target-settings>summary {display:none}
+.vehicle-other-defects-menu {position:relative;flex:none}
+.vehicle-other-defects-menu>summary {position:relative;list-style:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;color:#a65c12;cursor:pointer;border:1px solid #d9e1ec;border-radius:10px;background:#fff}
+.vehicle-other-defects-menu>summary::-webkit-details-marker {display:none}
+.vehicle-defect-count {position:absolute;top:-3px;right:-3px;min-width:18px;padding:0 3px;line-height:18px;text-align:center;background:#a65c12;color:#fff;border-radius:10px;font-size:11px}
+.vehicle-other-defects-popover {position:absolute;right:0;top:50px;z-index:30;width:min(320px,calc(100vw - 32px));padding:14px;background:#fff;border:1px solid #ccd6e5;border-radius:12px;box-shadow:0 6px 20px #20345424;color:#24364e;box-sizing:border-box}
+.vehicle-other-defects-popover p {font-size:14px;line-height:1.6;margin:0 0 10px}
+.vehicle-other-defects-popover .btn {white-space:normal}
+@media(max-width:600px) {
+ .vehicle-workspace-top {display:block!important;margin-bottom:8px}
+ .vehicle-workspace-top .vehicle-workspace-header {display:flex!important;flex-wrap:wrap;align-items:center;gap:6px;margin:0!important}
+ .vehicle-workspace-top .vehicle-workspace-heading {display:contents!important}
+ .vehicle-workspace-top .vehicle-workspace-heading h1,.vehicle-workspace-top .vehicle-workspace-heading h2 {order:0;flex:1;min-width:0;margin:0!important;font-size:20px}
+ .vehicle-workspace-top .header-actions {display:flex!important;order:1;gap:6px!important;align-items:center;margin:0!important}
+ .vehicle-workspace-top .vehicle-workspace-subtitle {order:2;display:flex!important;align-items:center;justify-content:space-between;gap:8px;width:100%;margin:0!important}
+ .vehicle-workspace-subtitle>strong {min-width:0;overflow-wrap:anywhere;font-size:16px}
+ .vehicle-workspace-top .vehicle-workspace-date {flex:0 0 80px!important;width:80px!important;min-height:44px!important;margin:0!important}
+ .vehicle-workspace-top .vehicle-date-japanese {width:100%;box-sizing:border-box;font-size:16px}
+ .vehicle-workspace-top .vehicle-excel-action {width:44px;min-width:44px;min-height:44px;padding:10px!important;box-sizing:border-box}
+ .vehicle-workspace-top .vehicle-toolbar-symbol {display:block;width:22px;height:22px}
+ .vehicle-workspace-top .vehicle-toolbar-text {display:none}
+ .vehicle-workspace-top .vehicle-target-settings {margin-top:6px}
+ .vehicle-workspace-top.vehicle-toolbar-ready .vehicle-target-settings:not([open]) {display:none!important}
+ .vehicle-workspace-top .vehicle-workspace-back {max-width:100%;font-size:12px;white-space:normal}
+}

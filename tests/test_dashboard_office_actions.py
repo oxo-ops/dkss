@@ -36,6 +36,7 @@ class OfficeActionsTests(unittest.TestCase):
 
     def test_five_previews_all_original_links_and_escape(self):
         env = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parents[1] / 'templates')), autoescape=select_autoescape())
+        env.globals['url_for'] = lambda endpoint, **values: '/static/' + values['filename']
         issues = [dict(content=f'<script>項目{i}</script>', count=10-i, category='区分',
                        records=[dict(url=f'/source/{i}', date='2026-11-18', checklist='点検')]) for i in range(8)]
         actions = [dict(kind='安全', title=f'対応{i}', state='対策未確認', url=f'/action/{i}') for i in range(7)]
@@ -43,7 +44,10 @@ class OfficeActionsTests(unittest.TestCase):
             dashboard_office_check_trend={'answer_count': 8, 'issues': issues},
             dashboard_office_actions=actions, dashboard_scope_office='A')
         self.assertIn('残り3項目', html)
-        self.assertIn('残り2件', html)
+        self.assertNotIn('残り2件', html)
+        self.assertIn('data-action-kind="安全"', html)
+        self.assertIn('data-action-next', html)
+        self.assertIn('js/dashboard_office_actions.js', html)
         self.assertEqual(html.count('class="office-trend-row"'), 8)
         self.assertEqual(html.count('class="office-action-link"'), 7)
         self.assertEqual(html.split('残り3項目')[0].count('class="office-trend-row"'), 5)

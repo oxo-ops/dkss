@@ -14,12 +14,12 @@ class SavedPeriodTests(Base):
   self.m.app.config.update(PUBLIC_DEMO_SHARED_COMPANY=True,PUBLIC_DEMO_COMPANY='TEST')
   self.a.operation_date='2026-11-10';self.m.db.session.commit()
   self.args=dict(scope='office',office=digest(['office','安城']),period='month',category='safety')
- def call(self,day,args=None,seed=False,demo=True,html=False):
+ def call(self,day,args=None,seed=False,demo=True,html=False,month=11):
   class Clock(datetime):
    @classmethod
    def now(cls,tz=None):
     from zoneinfo import ZoneInfo
-    d=datetime(2026,11,day,12,tzinfo=ZoneInfo('Asia/Tokyo'))
+    d=datetime(2026,month,day,12,tzinfo=ZoneInfo('Asia/Tokyo'))
     return d.astimezone(tz) if tz else d.replace(tzinfo=None)
   with self.m.app.test_request_context('/safety/driving-reports'),patch('driving_report_management.datetime',Clock),patch('driving_report_reflection.datetime',Clock),patch('driving_report_reflection.generate',side_effect=AssertionError('NO_AI')),patch.object(self.executor,'submit',side_effect=AssertionError('NO_QUEUE')):
    session.update(self.claims());session['aonagi_readonly_demo']=demo
@@ -86,6 +86,71 @@ class SavedPeriodTests(Base):
   self.assertIn('hidden',nodes.attrs['data-reflection-status'])
   self.assertEqual(nodes.text['data-reflection-snapshot-period'],'2026/11/01〜2026/11/18の分析')
   self.assertNotIn('hidden',nodes.attrs['data-reflection-snapshot-period'])
+
+
+ def bind_personal(self):
+  from dkss_app import driving_access
+  from identity_fixture import identity_for
+  with self.m.app.test_request_context():
+   session.update(account_identity=identity_for('TEST','admin'),company_code='TEST',username='admin',role='admin')
+   driving_access.assign([self.a],'admin','admin');self.m.db.session.commit()
+  self.args=dict(scope='self',period='month',category='safety')
+ def test_personal_saved_period_keeps_self_and_no_writes(self):
+  self.bind_personal();old=self.call(18,seed=True);before=self.snapshot()
+  for day in (19,20):
+   state=self.call(day)
+   self.assertEqual(state['snapshot']['key'],old['key'])
+   self.assertIn('2026/11/18',state['snapshot']['period_label'])
+   self.assertFalse(state['auto_refresh'])
+   for link in state['snapshot']['items'][0]['links']:
+    self.assertIn('scope=self',link['url'])
+    self.assertIn('period=custom',link['url'])
+  self.assertEqual(before,self.snapshot())
+ def test_personal_not_reused_for_office_filter_or_new_identity(self):
+  self.bind_personal();self.call(18,seed=True)
+  for extra in ({'scope':'office','office':digest(['office','安城'])},
+                {'vehicle':'1'},{'compare':'month'},{'period':'all'}):
+   self.assertNotIn('snapshot',self.call(19,dict(self.args,**extra)))
+  self.recreate_account()
+  self.assertNotIn('snapshot',self.call(19))
+ def test_personal_source_change_rejects_saved_period(self):
+  self.bind_personal();self.call(18,seed=True)
+  self.change_report()
+  self.assertNotIn('snapshot',self.call(19))
+ def test_personal_demo_only_and_seven_day_bound(self):
+  self.bind_personal();self.call(18,seed=True)
+  self.assertNotIn('snapshot',self.call(19,demo=False))
+  self.assertNotIn('snapshot',self.call(26))
+  self.m.app.config['PUBLIC_DEMO_COMPANY']='OTHER'
+  self.assertNotIn('snapshot',self.call(19))
+
+ def test_personal_month_boundary_never_reuses_prior_month(self):
+  self.bind_personal();self.call(18,seed=True);before=self.snapshot()
+  self.assertNotIn('snapshot',self.call(1,month=12))
+  self.assertEqual(before,self.snapshot())
+ def test_personal_role_change_does_not_reuse_admin_result(self):
+  self.bind_personal();self.call(18,seed=True)
+  self.m.User.query.filter_by(username='admin').one().role='user'
+  self.m.db.session.commit()
+  with self.client.session_transaction() as state:state['role']='user'
+  self.assertNotIn('snapshot',self.call(19))
+ def test_personal_revoked_assignment_cannot_reuse_saved_result(self):
+  from dkss_app import driving_access
+  self.bind_personal();self.call(18,seed=True)
+  with self.m.app.test_request_context():
+   session.update(self.claims())
+   driving_access.assign([self.a],None,'admin');self.m.db.session.commit()
+  before=self.snapshot()
+  state=self.call(19)
+  self.assertNotIn('snapshot',state)
+  self.assertEqual(state['items'],[])
+  self.assertEqual(before,self.snapshot())
+ def test_personal_html_explicitly_labels_old_period(self):
+  self.bind_personal();self.call(18,seed=True)
+  html=self.call(20,html=True)
+  self.assertIn('2026/11/01〜2026/11/18の分析',html)
+  self.assertIn('data-status="new"',html)
+  self.assertIn('data-auto-refresh="false"',html)
 
 
 def load_tests(loader,tests,pattern):

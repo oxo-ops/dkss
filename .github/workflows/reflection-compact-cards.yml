@@ -1,0 +1,39 @@
+name: Reflection compact cards
+on:
+  push:
+    branches: [review/reflection-disclosure-remove-20261119, 'validation/header-guide-followup-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: Actual templates, action targets and unchanged saved results
+        env:
+          PYTHONPATH: .:tests
+          AWS_EC2_METADATA_DISABLED: 'true'
+          DOCUMENT_IMPORT_WORKER_ENABLED: '0'
+          REFLECTION_CARD_OUT: out
+        run: |
+          mkdir -p out
+          git rev-parse HEAD > out/tested-head.txt
+          python -m unittest test_reflection_disclosure_removed test_driving_ai_navigation test_demo_reflection_saved_period -v
+          node tests/reflection_disclosure/browser.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: reflection-compact-cards
+          path: out
