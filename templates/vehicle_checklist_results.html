@@ -4,6 +4,7 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_compact.css', v='20261119-workspace-toolbar-8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_checklist_toolbar.css', v='20261119-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -44,12 +45,12 @@
     <div class="header-actions">
         {% if vehicle_compact_ready %}
             <label class="vehicle-workspace-date">
-                <span>点検日</span>
+                <span class="vehicle-date-caption">点検日</span><span class="vehicle-date-japanese" aria-hidden="true">{{ month|int }}/{{ active_day|int }}</span>
                 <input
                     type="date"
                     id="vehicle_workspace_date"
                     value="{{ '%04d-%02d-%02d'|format(year|int, month|int, active_day|int) }}"
-                    aria-label="表示する点検日"
+                    aria-label="表示する点検日 {{ year }}年{{ month|int }}月{{ active_day|int }}日" lang="ja"
                     required
                 >
             </label>
@@ -58,10 +59,25 @@
         {% if vehicle_record_id and export_ns.result %}
         <a
             href="/vehicle/checklist-results/{{ export_ns.result.index }}/excel"
-            class="btn"
+            class="btn vehicle-excel-action" aria-label="Excel出力" title="Excel出力"
         >
-            Excel出力
+            <svg class="vehicle-toolbar-symbol" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12l5 5m0-5-5 5"/></svg><span class="vehicle-toolbar-text">Excel出力</span>
         </a>
+        {% endif %}
+
+        {% if vehicle_compact_ready %}
+        <button type="button" class="btn vehicle-search-action" aria-label="車両を変更" title="車両を変更" aria-controls="vehicle-target-settings" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
+        {% if vehicle_today and not vehicle_response_ready and other_vehicle_inspection_defects %}
+        <details class="vehicle-other-defects-menu">
+            <summary aria-label="別の日の現在の未解消不具合 {{ other_vehicle_inspection_defects|length }}件" title="別の日の未解消不具合">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 21h20zM12 9v5M12 17v1"/></svg><span class="vehicle-defect-count">{{ other_vehicle_inspection_defects|length }}</span>
+            </summary>
+            <div class="vehicle-other-defects-popover">
+                <p>別の日に記録された、現在未解消の不具合が {{ other_vehicle_inspection_defects|length }} 件あります。表示中の点検日時点の状態ではありません。各不具合の点検日を確認し、元の点検日で対応してください。</p>
+                <a class="btn btn-outline" href="#vehicle-other-day-defects">未解消の不具合を確認（{{ other_vehicle_inspection_defects|length }}件）</a>
+            </div>
+        </details>
+        {% endif %}
         {% endif %}
 
         {% if vehicle_response_ready and (
@@ -233,7 +249,7 @@
 {% endif %}
 
 {% if vehicle_today and selected_vehicle %}
-{% if not vehicle_response_ready and (not vehicle_today.is_selected or other_vehicle_inspection_defects) %}
+{% if not vehicle_response_ready and (not vehicle_today.is_selected or (other_vehicle_inspection_defects and not vehicle_compact_ready)) %}
 <div class="card form-card vehicle-approval-card">
 
     {% if not vehicle_today.is_selected %}
@@ -243,7 +259,7 @@
     </a>
     {% endif %}
 
-    {% if other_vehicle_inspection_defects %}
+    {% if other_vehicle_inspection_defects and not vehicle_compact_ready %}
     <p>この車両には、表示中の点検日とは別の日に記録された、現在未解消の不具合が {{ other_vehicle_inspection_defects|length }} 件あります。これは表示中の点検日時点の状態ではありません。各不具合の点検日を確認し、元の点検日で対応を続けてください。</p>
     <a class="btn btn-outline" href="#vehicle-other-day-defects">
         別の日の現在の未解消を確認（{{ other_vehicle_inspection_defects|length }}件）
@@ -2162,4 +2178,7 @@
     ) }}"
 ></script>
 
+<script src="{{ url_for('static', filename='js/vehicle_checklist_toolbar.js', v='20261119-1') }}"></script>
+
 {% endblock %}
+
