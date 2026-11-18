@@ -28,9 +28,11 @@ for(const name of names)for(const width of [320,390,1316])for(const zoom of [1,2
  const opener=page.locator('.ka-reference-detail-button').first();await opener.click();const drawer=page.locator('.ka-reference-drawer');await drawer.waitFor({state:'visible'});
  assert((await drawer.locator('.ka-drawer-summary-action').innerText()).includes('長い点検・整備記録の内容を確認し、対象車両のタイヤとバルブおよび周辺部品を点検して記録する。'));
  assert(await drawer.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'drawer no internal horizontal overflow');
+ assert(await drawer.evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&r.top>=-1&&r.bottom<=innerHeight+1}),'entire drawer stays inside viewport');
  const close=drawer.locator('.ka-drawer-close');assert(await close.isVisible());
  await page.screenshot({path:path.join(out,`${name}-${width}-${zoom}x-drawer.png`),fullPage:true});await close.click();await drawer.waitFor({state:'hidden'});assert(await opener.evaluate(e=>document.activeElement===e),'drawer focus returns');
  }
+ if(width<=640&&zoom===2&&['vehicle_karte','vehicle_karte_analysis'].includes(name)){const text=page.locator(name==='vehicle_karte'?'.ko-status-tile':'.ka-video-copy').first();assert.equal(await text.count(),1,'required reflow target');assert(await text.evaluate(e=>e.getBoundingClientRect().width>=Math.min(180,innerWidth-40)),'usable text width at enlarged narrow viewport');}
  rows.push({name,width,zoom,css_zoom_not_browser_ui_zoom:true,analysis_api_synthetic:true,passed:true,content_links_states_unchanged:true,desktop_pixel_unchanged:width>640});await context.close();
 }
 assert.equal(rows.length,48);assert.equal(posts,0);assert.equal(external,0);assert.equal(ws,0);
