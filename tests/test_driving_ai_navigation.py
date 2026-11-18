@@ -33,6 +33,7 @@ class AiNavigationTests(unittest.TestCase):
         response,context=self.render(url)
         self.assertEqual(context['reflection']['status'],'completed')
         from test_driving_analysis_navigation import Tree
+        self.assertNotIn('根拠・比較条件を見る', response.get_data(as_text=True))
         tree=Tree(response.get_data(as_text=True))
         actions=[n for n in tree.nodes if n['tag']=='a' and 'data-analysis-destination' in n['attrs']]
         self.assertTrue(actions)
