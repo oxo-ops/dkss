@@ -16,8 +16,8 @@ partial=re.sub(r'<link[^>]*>', '',partial)
 partial=re.sub(r'<script[^>]*>.*?</script>','',partial,flags=re.S)
 html='<!doctype html><html><head><meta charset="utf-8"><style>body{margin:16px}select,input,button{min-height:44px} .vehicle-history-categories{margin-top:100px;height:48px}</style><style>'+ (ROOT/'static/css/first_use_guide.css').read_text()+'</style></head><body>'+partial+'''<div class="vehicle-history-categories">種類</div><form class="vehicle-karte-history-filters"><select name="event_type"><option>すべて</option><option>整備</option></select><div style="height:1200px"></div><input id="history_start_date" type="date"><button type="submit">絞り込み</button></form><div style="height:900px"></div><a class="vehicle-history-record-link" href="/record">記録</a><div style="height:900px"></div></body></html>'''
 report={'head':HEAD,'synthetic':True,'full_shell':False,'live_access':False,'rows':[],'blocked':[]};page=None
+pw=sync_playwright().start();browser=None
 try:
- with sync_playwright() as pw:
   browser=pw.chromium.launch()
   try:
    for width in (320,390,1316):
@@ -65,11 +65,18 @@ try:
      row.update(passed=True,calls=page.evaluate('calls'),samples=page.evaluate('samples'))
      context.close();page=None
    assert not report['blocked'], 'Unexpected network attempt'
-  finally: browser.close()
+  except Exception:
+   if page:
+    try: page.screenshot(path=str(OUT/'FAILED.png'))
+    except Exception as shot: report['screenshot_error']=type(shot).__name__
+   raise
 except Exception as exc:
  report['failure']={'type':type(exc).__name__,'message':str(exc)}
  if page:
   try: page.screenshot(path=str(OUT/'FAILED.png'))
   except Exception as shot: report['screenshot_error']=type(shot).__name__
  raise
-finally: (OUT/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+finally:
+ (OUT/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+ if browser: browser.close()
+ pw.stop()
