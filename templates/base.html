@@ -41,7 +41,7 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261118-sidebar-alignment-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications_dashboard.css', v='20261111-priority-1') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/alseon_brand.css', v='20261118-dark-display-1') }}">
     {% if import_flow %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/import_flow.css', v='20261026-entry-reset-1') }}">
     {% endif %}
@@ -73,6 +73,8 @@
 {# Karte routes also have legacy /master/vehicles/... aliases. Use their
    resolved endpoint so the same page keeps the same navigation selection. #}
 {% set is_vehicle_karte_page = request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
+
+{% include "_alseon_brand_filter.html" %}
 
 <div class="app-layout">
 

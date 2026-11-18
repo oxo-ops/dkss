@@ -130,6 +130,12 @@ def brand_roundtrip(page, width, out, role, scene=0):
         logo = page.locator('.alseon-logo')
         require(logo.get_attribute('aria-label') == 'ALSEON ホーム', 'brand accessible name')
         require(logo.locator('img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth>0)'), 'logo asset failed to load')
+        require(logo.evaluate("e=>getComputedStyle(e).backgroundColor") == 'rgba(0, 0, 0, 0)', 'opaque logo tile')
+        require(page.locator('#alseon-dark-logo feColorMatrix').count() == 1, 'missing dark display matrix')
+        require(logo.locator('img').evaluate_all("es=>es.every(e=>getComputedStyle(e).filter.includes('alseon-dark-logo'))"), 'dark display filter not applied')
+        toggle.hover()
+        require(toggle.evaluate("e=>getComputedStyle(e).backgroundColor") == 'rgba(15, 23, 42, 0.18)', 'sidebar hover palette regressed')
+        require(toggle.evaluate("e=>getComputedStyle(e).color") == 'rgb(255, 255, 255)', 'sidebar toggle contrast regressed')
         geometry = logo.evaluate('''e=>{const r=e.getBoundingClientRect(),t=document.querySelector('#sidebarToggle').getBoundingClientRect(),s=e.closest('.sidebar').getBoundingClientRect();
           const contained=q=>q.left>=s.left-1&&q.right<=s.right+1&&q.top>=s.top-1&&q.bottom<=s.bottom+1;
           return {width:r.width,height:r.height,sidebarWidth:s.width,sidebarRight:s.right,toggleRight:t.right,sidebarContainsLogo:contained(r),sidebarContainsToggle:contained(t),inside:r.left>=0&&r.right<=innerWidth,

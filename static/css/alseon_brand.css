@@ -1,4 +1,4 @@
-/* Preserve the supplied navy/blue artwork; only its local backing is white. */
+/* Preserve supplied artwork and alpha; never add a white logo tile. */
 .sidebar-head .alseon-logo {
     width: 164px;
     height: 36px;
@@ -7,7 +7,7 @@
     padding: 0 8px;
     box-sizing: border-box;
     border-radius: 6px;
-    background: #fff;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -33,4 +33,24 @@
     body[data-responsive-shell]:has(.alseon-logo) .sidebar-head { padding-right: 68px; }
     body.sidebar-collapsed .alseon-wordmark { display: block; }
     body.sidebar-collapsed .alseon-symbol { display: none; }
+}
+
+/* Keep the original shell control treatment, including touch-hover.
+   The global button:hover rule otherwise applies the lavender form palette. */
+.sidebar-head .sidebar-toggle,
+.sidebar-head .sidebar-toggle:hover,
+.sidebar-head .sidebar-toggle:active {
+    background: rgba(15, 23, 42, 0.18);
+    color: var(--dkss-surface);
+    border: 1px solid rgba(255,255,255,0.28);
+}
+.sidebar-head .sidebar-toggle:focus-visible {
+    outline: 2px solid var(--dkss-surface);
+    outline-offset: 2px;
+}
+
+/* Official 04 dark-background treatment: geometry and PNG alpha stay intact. */
+.sidebar-head .alseon-wordmark img,
+.sidebar-head .alseon-symbol img {
+    filter: url(#alseon-dark-logo);
 }
