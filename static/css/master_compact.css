@@ -14,3 +14,11 @@
 .vehicle-workflow-tabs>a:not(.master-compact-add){flex:1 1 auto;width:auto;min-height:44px;padding:6px 8px}
 .vehicle-workflow-tabs>.master-compact-add,.vehicle-workflow-tabs>.master-filter-toggle{flex:0 0 44px}
 }
+
+/* Existing master/header rules set full-width buttons. Keep only these controls compact. */
+body .main-content .driver-master-page-header .header-actions{display:flex;flex-direction:row;align-items:center;justify-content:flex-end;gap:8px;width:100%;margin:0}
+body .main-content :is(.driver-master-page-header,.vehicle-workflow-tabs) :is(.master-filter-toggle,.master-compact-add){display:inline-flex!important;flex:0 0 44px!important;width:44px!important;max-width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;border:1px solid #bfd1e6!important;border-radius:50%!important;background:#fff!important;color:var(--dkss-action-blue,#2563eb)!important;box-shadow:0 2px 5px #183b6914!important}
+body .main-content :is(.driver-master-page-header,.vehicle-workflow-tabs) .master-filter-toggle[hidden]{display:none!important}
+@media(max-width:768px){
+body .main-content .mobile-card-list .master-compact-row{border-radius:0!important;box-shadow:none!important;border:0!important;border-bottom:1px solid #d9e2ed!important;margin:0!important}
+}
