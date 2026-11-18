@@ -654,7 +654,7 @@
         }
         root.append(grid,pending);
         requestAnimationFrame(fitCalendar);
-        if(!entries.length)root.append(node('p','この月の日付付きの予定・実績はありません。','ip-cal-empty'));
+        if(!entries.length)root.append(node('p',hasActiveFilters()?'この条件に該当する点検はありません。':'この月の日付付きの予定・実績はありません。','ip-cal-empty'));
     }
     function fitCalendar() {
         if(view!=='calendar')return;
@@ -714,8 +714,10 @@
         const rank=p=>p.status==='completed'?3:p.display_state==='awaiting'||(p.expiry_date&&p.expiry_date<=data.today)?0:!p.reservation_date?1:2;
         return rank(a)-rank(b)||(a.expiry_date||a.reservation_date||a.planned_month).localeCompare(b.expiry_date||b.reservation_date||b.planned_month)||a.vehicle_record_id-b.vehicle_record_id;
     }
+    function hasActiveFilters() { return !!(kind||state||filters.elements.search.value||focus); }
     function draw() {
         if (!data) return;
+        const filtered=hasActiveFilters();
         if(view!=='year')yearFocusKey='';
         planner.dataset.view=view;
         periodHome.append(periodControl);
@@ -814,7 +816,7 @@
                 }
             }
         }
-        if(!body.children.length){const tr=node('tr'),td=node('td',data.needs_office?'営業所を選択してください。':state?'この条件に該当する点検はありません。':'この期間の予定・実績はありません。','ip-empty');td.colSpan=columns.length+1;tr.append(td);body.append(tr);}
+        if(!body.children.length){const tr=node('tr'),td=node('td',data.needs_office?'営業所を選択してください。':filtered?'この条件に該当する点検はありません。':'この期間の予定・実績はありません。','ip-empty');td.colSpan=columns.length+1;tr.append(td);body.append(tr);}
         const missing=data.missing.filter(p=>(!kind||p.kind===kind)&&vehicles.some(v=>v.id===p.vehicle_record_id));
         planner.querySelector('[data-plan-missing-count]').textContent='基準未設定 '+missing.length+'件';
         const list=planner.querySelector('[data-plan-missing]');list.replaceChildren();missing.forEach(p=>{const v=data.vehicles.find(v=>v.id===p.vehicle_record_id);list.append(node('li',v.number+' ／ '+labels[p.kind]+'：'+p.reason));});
@@ -823,8 +825,8 @@
         selectionChanged();
         planner.querySelector('[data-empty-action]').hidden=!!(rows.length||((!state||state==='completed')&&invoiceRows.length))||data.needs_office||view==='year';
         planner.querySelector('[data-empty-add]').hidden=!data.can_edit||!data.vehicles.length;
-        const filtered=!!(kind||state||filters.elements.search.value||focus);
         planner.querySelector('[data-clear-filters]').hidden=!filtered;planner.querySelector('[data-plan-clear-mobile]').hidden=!filtered;
+        planner.querySelector('[data-empty-message]').hidden=filtered;
         planner.querySelector('[data-empty-message]').textContent=filtered?'この条件に該当する点検はありません。':'予定を追加するか、基準未設定の車両を確認してください。';
         const url=new URL(location.href);url.search='';
         const office=filters.elements.office.value;url.searchParams.set('scope',office==='__company'?'company':'office');if(office&&office!=='__company')url.searchParams.set('office',office);
