@@ -7,6 +7,8 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-1') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-1') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/master_compact.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/master_compact.js', v='20261119-1') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -27,9 +29,8 @@
         請求書の確認
     </a>
     <a href="{{ url_for('vehicle_registration_method') }}"
-       class="btn btn-primary vehicle-master-add-button">
-        ＋ 車両追加
-    </a>
+       class="btn btn-primary vehicle-master-add-button master-compact-add" aria-label="車両を新規登録" title="車両を新規登録"><span aria-hidden="true">＋</span></a>
+<button type="button" class="vehicle-filter-toggle master-filter-toggle" data-master-filter="vehicle" aria-label="車両の検索条件を開く" aria-controls="vehicleFilterPanel" aria-expanded="true" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
 </nav>
 <div id="vehicle-workflow-content">
 {% if invoice_review_view %}
@@ -606,7 +607,7 @@
 </section>
 {% else %}
 
-<div class="card vehicle-master-filter-card vehicle-search-card">
+<div class="card vehicle-master-filter-card vehicle-search-card" id="vehicleFilterPanel">
     <h3 class="vehicle-search-heading">検索条件</h3>
 
     <form method="get" class="vehicle-master-filter-form vehicle-search-form" data-search-clear-scope="vehicle">
@@ -966,7 +967,7 @@
 
 <div class="mobile-card-list vehicle-master-mobile-list">
     {% for vehicle in vehicles %}
-        <div class="mobile-list-card">
+        <details class="mobile-list-card master-compact-row"><summary><strong>{% if vehicle.plate_number %}{{ vehicle.plate_area }} {{ vehicle.plate_class }} {{ vehicle.plate_kana }} {{ vehicle.plate_number }}{% else %}ナンバー未登録{% endif %}</strong><span>{{ vehicle.office or "-" }}</span></summary><div class="master-compact-detail">
 
             <div class="mobile-card-head">
                 <strong>{{ vehicle.chassis_number }}</strong>
@@ -1057,7 +1058,7 @@
                 </form>
             </div>
 
-        </div>
+        </div></details>
     {% else %}
         <div class="mobile-list-card">
             車両が登録されていません。
