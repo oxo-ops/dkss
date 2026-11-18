@@ -252,21 +252,12 @@
         }
     ],
     "vehicle_inspection_plans": [
-        {
-            "selector": "#inspection-plan-filters",
-            "title": "計画の条件を選ぶ",
-            "text": "車両などの条件で点検計画を絞れます。"
-        },
-        {
-            "selector": ".ip-month-picker",
-            "title": "表示する月を選ぶ",
-            "text": "確認したい年月を選びます。"
-        },
-        {
-            "selector": ".ip-grid-scroll",
-            "title": "予定を確認する",
-            "text": "表示された予定から詳しい内容を確認します。"
-        }
+        {"selector":"[data-plan-view-toggle]","title":"表示形式を選ぶ","text":"一覧・月・年間を切り替えます。"},
+        {"selector":"[data-plan-search-toggle]","title":"予定を検索する","text":"車両番号や点検・修理の内容から検索できます。"},
+        {"selector":"[data-plan-filter-toggle]","title":"条件で絞る","text":"営業所・点検種別・実施状況を選びます。"},
+        {"selector":".ip-month-picker","title":"表示する月を選ぶ","text":"確認したい月を選びます。矢印で前後の月へ移動できます。"},
+        {"selector":"[data-plan-calendar], [data-plan-year-calendar], .ip-grid-scroll","title":"予定を確認する","text":"予定を押すと詳細を確認できます。"},
+        {"selector":"[data-plan-add]","title":"予定を追加する","text":"車両と予定を入力して保存します。"}
     ],
     "safety_checklists": [
         {
@@ -441,6 +432,7 @@
     ]
   };
   const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":"#vehicle_check_filter select[name=\"vehicle_record_id\"]","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
+  normalPlans.vehicle_inspection_plans = plans.vehicle_inspection_plans;
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
   function state(storage, name) {
     try { const test=name+':probe'; storage.setItem(test,'1'); storage.removeItem(test); return { available:true, seen:storage.getItem(name)==='1' }; }
