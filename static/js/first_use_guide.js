@@ -28,11 +28,13 @@
         },
         {
             "selector": ".dashboard-trend-tabs",
+            "revealSelector": ".dashboard-office-trends",
             "title": "営業所の傾向を見る",
             "text": "安全・点検と整備費を切り替えて確認できます。"
         },
         {
             "selector": "[data-reference-target=\"#dashboard-reference-inspection\"]",
+            "revealSelector": ".dashboard-reference-safety",
             "title": "期限や集計を確認する",
             "text": "車検期限が近い車両など、下の集計を開けます。"
         },
@@ -459,14 +461,16 @@
     return true;
   }
   // A guide step is not navigation. Keep the current viewport whenever the
-  // target is already visible; large regions only need to intersect it.
+  // target is fully visible. Oversized regions reveal their beginning instead
+  // of accepting a tiny intersection at the bottom of the viewport.
   function revealOptions(rect, viewport, reducedMotion) {
-    const margin=0, left=viewport.left+margin, top=viewport.top+margin;
+    const margin=12, left=viewport.left+margin, top=viewport.top+margin;
     const right=viewport.left+viewport.width-margin, bottom=viewport.top+viewport.height-margin;
-    const fits=(start,end,low,high)=>end-start>high-low ? end>low && start<high : start>=low && end<=high;
+    const fits=(start,end,low,high)=>end-start>high-low ? Math.abs(start-low)<=margin : start>=low && end<=high;
     if(fits(rect.left,rect.right,left,right) && fits(rect.top,rect.bottom,top,bottom)) return null;
-    return {block:'nearest',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
+    return {block:rect.bottom-rect.top>bottom-top?'start':'center',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
   }
+
   function coachmarkPlacement(rect, viewport, width, height) {
     const gap=12, edge=12, leftEdge=viewport.left+edge, rightEdge=viewport.left+viewport.width-edge;
     const topEdge=viewport.top+edge, bottomEdge=viewport.top+viewport.height-edge;
@@ -537,8 +541,9 @@
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
     const visual=window.visualViewport;
     const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
-    const options=revealOptions(active.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if(options) active.scrollIntoView(options);
+    const revealTarget=s.revealSelector ? (active.closest(s.revealSelector) || active) : active;
+    const options=revealOptions(revealTarget.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(options) revealTarget.scrollIntoView(options);
     position();
   }
   function open(manual){
@@ -573,3 +578,4 @@
     else afterLayout();
   }else startInitialGuide();
 })();
+

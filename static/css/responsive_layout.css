@@ -120,7 +120,7 @@
     body[data-responsive-shell] #notificationLayout {grid-template-columns:minmax(0,1fr);}
 }
 
-/* Phone readability: keep navigation in an opaque header, not over page text. */
+/* Keep only the compact controls above content, never an opaque full-width strip. */
 @media screen and (max-width:900px) {
     body[data-responsive-shell] {overflow-x:clip; overflow-y:visible;}
     body[data-responsive-shell] .main-content {padding-top:12px !important; overflow:visible;}
@@ -128,7 +128,8 @@
         margin:0 0 12px !important;
         position:sticky !important; top:0 !important; z-index:900;
         min-block-size:56px; padding-block:4px;
-        background:var(--dkss-bg, #f2f5ff);
+        background:transparent;
+        box-shadow:none; border:0; pointer-events:none; gap:0;
     }
 }
 @media screen and (max-width:600px) {
@@ -235,3 +236,13 @@
 /* Purpose choices reuse the existing shared-demo role action. */
 .public-demo-purpose-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !important; height: auto; max-width: 100%; }
+
+
+@media screen and (max-width:900px) {
+ body[data-responsive-shell] .main-content > .top-bar > * {pointer-events:auto;}
+ body[data-responsive-shell] .top-bar > #firstUseGuide {margin-right:0;}
+ body[data-responsive-shell] #firstUseGuide > .first-guide-launch {width:44px;height:44px;min-width:44px;min-height:44px;}
+ body[data-responsive-shell] .top-bar > .notification-menu {margin:0;flex:0 0 44px;}
+ body[data-responsive-shell] .notification-bell {width:44px;height:44px;min-width:44px;min-height:44px;box-sizing:border-box;}
+ body[data-responsive-shell] .top-bar-user {padding-inline:0;width:44px;min-width:44px;height:44px;box-sizing:border-box;justify-content:center;}
+}
