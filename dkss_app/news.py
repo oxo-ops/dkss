@@ -168,11 +168,20 @@ def itc_new_news():
             ):
                 return "添付ファイルの検証に失敗しました。", 400
 
-        for file in uploaded_files:
-            filename = _dkss_storage.save_uploaded_file(file)
+        request_saved_files = []
+        try:
+            for file in uploaded_files:
+                filename = _dkss_storage.save_uploaded_file(file)
+    
+                if filename:
+                    file_names.append(filename)
+                    request_saved_files.append(filename)
 
-            if filename:
-                file_names.append(filename)
+        except Exception:
+            _dkss_common.db.session.rollback()
+            for request_filename in request_saved_files:
+                _dkss_storage.delete_uploaded_file(request_filename)
+            raise
 
         # News登録
 
@@ -212,7 +221,9 @@ def itc_new_news():
         )
 
         # Persist news, audit and all recipients before any external delivery.
-        _dkss_common.db.session.commit()
+        commit_response = _commit_attachment_form("/itc", preserve_news_conflicts=True)
+        if commit_response is not None:
+            return commit_response
         _dkss_common.db.session.info["q04_news_committed"] = True
         for user_id, notification_id, saved_title, saved_message, link in pending:
             user = _dkss_common.db.session.get(_dkss_models.User, user_id) if user_id else None
@@ -379,11 +390,20 @@ def itc_edit_news(index):
             ):
                 return "添付ファイルの検証に失敗しました。", 400
 
-        for file in uploaded_files:
-            filename = _dkss_storage.save_uploaded_file(file)
+        request_saved_files = []
+        try:
+            for file in uploaded_files:
+                filename = _dkss_storage.save_uploaded_file(file)
+    
+                if filename:
+                    files.append(filename)
+                    request_saved_files.append(filename)
 
-            if filename:
-                files.append(filename)
+        except Exception:
+            _dkss_common.db.session.rollback()
+            for request_filename in request_saved_files:
+                _dkss_storage.delete_uploaded_file(request_filename)
+            raise
 
         news.title = title
         news.message = message
@@ -403,7 +423,9 @@ def itc_edit_news(index):
             company_code=news.company_code,
         )
 
-        _dkss_common.db.session.commit()
+        commit_response = _commit_attachment_form("/itc", preserve_news_conflicts=True)
+        if commit_response is not None:
+            return commit_response
 
         return _dkss_common.redirect("/itc")
 
@@ -534,3 +556,25 @@ def itc_delete_news(index):
                 _dkss_common.os.remove(file_path)
 
     return _dkss_common.redirect("/itc")
+
+def _commit_attachment_form(destination, preserve_news_conflicts=False):
+    """Keep uploaded files when the result of an attempted commit is unknown."""
+    try:
+        _dkss_common.db.session.commit()
+    except _dkss_common.SQLAlchemyError as error:
+        state = getattr(getattr(error, "orig", None), "pgcode", None) or getattr(getattr(error, "orig", None), "sqlstate", None)
+        if preserve_news_conflicts and isinstance(error, DBAPIError) and state in {"55P03", "40P01", "40001"}:
+            raise  # Preserve the existing News conflict response.
+        _dkss_common.db.session.rollback()
+        message = "保存結果を確認できません。再送せず、登録済みの内容を確認してください。"
+        if (_dkss_common.request.headers.get("X-DKSS-Final-Submit") == "1"
+                or _dkss_common.request.headers.get("X-DKSS-Validation-Only") == "1"
+                or not _dkss_http.is_html_document_request()):
+            response = _dkss_common.jsonify({"errors": [{"field": "", "message": message}]})
+            response.status_code = 500
+            response.headers["X-DKSS-Form-Errors"] = "1"
+            return response
+        _dkss_common.flash(message, "error:")
+        return _dkss_common.redirect(destination)
+    return None
+

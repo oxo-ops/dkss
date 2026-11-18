@@ -7979,6 +7979,13 @@ def save_vehicle_checklist_detail(index):
                 )
             ])
 
+        except Exception:
+            # Only files created successfully by this request are eligible.
+            _dkss_common.db.session.rollback()
+            for saved_filename in saved_filenames:
+                _dkss_storage.delete_uploaded_file(saved_filename)
+            raise
+
         if filename:
             saved_filenames.append(filename)
             answer["files"].append(filename)
@@ -8127,30 +8134,42 @@ def save_vehicle_checklist_detail(index):
     except _dkss_common.IntegrityError:
         _dkss_common.db.session.rollback()
 
-        for filename in saved_filenames:
-            _dkss_storage.delete_uploaded_file(filename)
+        # Commit was attempted: retain new files until outcome is verified.
 
-        return _dkss_http.return_form_errors([
+        error_response = _dkss_http.return_form_errors([
             (
                 "同じ点検結果が同時に更新されました。"
                 "画面を再読み込みして確認してください。",
                 ""
             )
         ], status_code=409)
+        if (_dkss_http.is_html_document_request()
+                and _dkss_common.request.headers.get("X-DKSS-Final-Submit") != "1"
+                and _dkss_common.request.headers.get("X-DKSS-Validation-Only") != "1"):
+            return _dkss_common.redirect(_dkss_common.url_for(
+                "vehicle_checklist_results", index=index, vehicle_record_id=vehicle_record_id,
+                year=year, month=month, active_day=active_day))
+        return error_response
 
     except _dkss_common.SQLAlchemyError:
         _dkss_common.db.session.rollback()
 
-        for filename in saved_filenames:
-            _dkss_storage.delete_uploaded_file(filename)
+        # Commit was attempted: retain new files until outcome is verified.
 
-        return _dkss_http.return_form_errors([
+        error_response = _dkss_http.return_form_errors([
             (
-                "車両チェックリストの更新に失敗しました。"
-                "もう一度お試しください。",
+                "車両チェックリストの保存結果を確認できません。"
+                "再送せず、登録済みの内容を確認してください。",
                 ""
             )
         ], status_code=500)
+        if (_dkss_http.is_html_document_request()
+                and _dkss_common.request.headers.get("X-DKSS-Final-Submit") != "1"
+                and _dkss_common.request.headers.get("X-DKSS-Validation-Only") != "1"):
+            return _dkss_common.redirect(_dkss_common.url_for(
+                "vehicle_checklist_results", index=index, vehicle_record_id=vehicle_record_id,
+                year=year, month=month, active_day=active_day))
+        return error_response
 
     dispatch_vehicle_defect_notifications(result_record)
 
