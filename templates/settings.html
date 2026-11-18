@@ -8,6 +8,10 @@
     <h2>設定</h2>
 </div>
 
+{% if session.get('aonagi_readonly_demo') and public_demo_shared|default(false) %}
+<p><a class="btn" href="/demo">体験の切替</a></p>
+{% endif %}
+
 <div class="card settings-user-card">
     <h3>ユーザー情報</h3>
 

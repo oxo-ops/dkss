@@ -231,3 +231,7 @@
 @media screen and (max-width:900px) and (prefers-reduced-motion:reduce) {
  body[data-responsive-shell] .sidebar, body[data-responsive-shell] .sidebar-toggle { transition:none; }
 }
+
+/* Purpose choices reuse the existing shared-demo role action. */
+.public-demo-purpose-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.public-demo-purpose-actions .btn { min-height: 44px; max-width: 100%; }

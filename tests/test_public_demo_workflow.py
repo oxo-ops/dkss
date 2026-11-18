@@ -65,7 +65,7 @@ class DemoWorkflowTests(Base):
             root = Document(response.get_data(as_text=True)).root
             notice = root.find(cls='public-demo-notice')[0].text
             self.assertNotIn('架空', notice)
-            for text in ['他の利用者にも見えます', '個人情報や実際の業務資料は入力しない', '外部送信されません']:
+            for text in ['点検する', '結果・管理を見る']:
                 self.assertIn(text, notice)
             notes.append(notice)
         self.assertEqual(len(set(notes)), 1)
@@ -93,8 +93,8 @@ class DemoWorkflowTests(Base):
                 self.assertLess(notice, html.index('</main>', main))
                 self.assertEqual(html.count('class="alert public-demo-notice"'), 1)
                 self.assertEqual(html.count('action="/demo/role"'), 1)
-                self.assertIn('運転者', html[notice:])
-                self.assertIn('管理者', html[notice:])
+                self.assertIn('点検する', html[notice:])
+                self.assertIn('結果・管理を見る', html[notice:])
 
     def test_demo_real_input_to_judgment_no_external_delivery(self):
         from dkss_app.extensions import limiter

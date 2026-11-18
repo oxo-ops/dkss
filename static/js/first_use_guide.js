@@ -1,6 +1,10 @@
 (function () {
   'use strict';
   const plans = {
+    "demo_entry": [
+        {"selector":"[data-demo-purpose=\"inspection\"]","title":"点検する","text":"運転者として日常点検表を開きます。点検項目を確認し、評価の入力から点検完了まで試せます。"},
+        {"selector":"[data-demo-purpose=\"management\"]","title":"結果・管理を見る","text":"管理者としてホームを開きます。点検結果や安全管理、車両の情報を確認できます。"}
+    ],
     "dashboard": [
         {
             "selector": ".dashboard-vehicles-section",
@@ -510,8 +514,7 @@
   }
   const visible=el=>el && el.isConnected && el.getClientRects().length && getComputedStyle(el).visibility!=='hidden' && !el.closest('[hidden], [inert]');
   const find=selector=>Array.from(document.querySelectorAll(selector)).find(visible);
-  if(find('.public-demo-notice')) { root.hidden=true; return; }
-  function remember(){try{storage.setItem(name,'1');}catch(_){}}
+  function remember(){if(find('.public-demo-notice'))return;try{storage.setItem(name,'1');}catch(_){}}
   function clearTarget(){if(active) active.classList.remove('first-guide-target'); active=null;}
   function close(restore=true, keepResume=false){if(!keepResume)clearResume();clearTarget();panel.hidden=true;remember();if(restore && previous && previous.isConnected) previous.focus({preventScroll:true});}
   function position(){
@@ -548,9 +551,10 @@
   function open(manual){
     if(document.querySelector('dialog[open], .modal-bg.is-open, .ka-reference-drawer:not([hidden])')) return;
     if(root.dataset.page==='vehicle_karte_analysis' && window.location.hash.startsWith('#proposal=')) return;
-    if(find('.public-demo-notice')) return; // Never restore/interfere with initial role selection.
-    revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
-    steps=candidates(root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
+    const choosingRole=!!find('.public-demo-notice');
+    if(choosingRole && !manual) return; // Never interrupt the initial choice automatically.
+    if(!choosingRole) revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
+    steps=candidates(choosingRole?'demo_entry':root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
     previous=document.activeElement;
     const resumeIndex=manual && resumeSelector ? steps.findIndex(step=>step.selector===resumeSelector) : -1;
     index=resumeIndex>=0?resumeIndex:0;clearResume();show();remember();

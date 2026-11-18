@@ -142,6 +142,8 @@ def guard():
         session.update(demo_role_selected=True, demo_role=role, username=user.username, account_identity=user.account_identity,
             role=user.role, name=(user.last_name or '')+(user.first_name or ''), office=user.office,
             password_changed_at=user.password_changed_at, password_expired=False)
+        if shared() and request.form.get('demo_entry') == 'purpose':
+            return True, redirect(shared_entry_link() if role == 'driver' else '/')
         return True, redirect(role_return_target() if shared() else link())
     if request.endpoint in {'approval_candidates', 'mention_users', 'search_vehicles'}:
         if request.method not in {'GET', 'HEAD'}:
