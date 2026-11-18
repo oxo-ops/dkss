@@ -1,6 +1,6 @@
 /* Clears only the named query input. It does not submit or reset other filters. */
 (()=>{'use strict';
-const scopes=[['.pointouts-filter-form',{keyword:'安全記録'}],['.patrol-search-box',{keyword:'車両整備記録'}],['.checklist-master-filter-form',{keyword:'チェックリスト名'}],['.driver-master-filter-form',{keyword:'氏名・ユーザーID',vehicle:'使用車両'}],['.vehicle-master-filter-form',{plate_number_search:'車番',chassis_number_search:'車台番号'}]];
+const scopes=[['.notification-filter',{q:'通知'}],['.pointouts-filter-form',{keyword:'安全記録'}],['.patrol-search-box',{keyword:'車両整備記録'}],['.checklist-master-filter-form',{keyword:'チェックリスト名'}],['.driver-master-filter-form',{keyword:'氏名・ユーザーID',vehicle:'使用車両'}],['.vehicle-master-filter-form',{plate_number_search:'車番',chassis_number_search:'車台番号'}]];
 function init(){for(const [selector,names] of scopes){const panel=document.querySelector(selector);if(!panel)continue;
 for(const [name,label] of Object.entries(names)){const input=panel.querySelector('input[name="'+name+'"]');if(!input||input.dataset.searchClearReady)continue;input.dataset.searchClearReady='true';
 const wrap=document.createElement('span');wrap.className='query-clear-field';input.before(wrap);wrap.append(input);
