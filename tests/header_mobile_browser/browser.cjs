@@ -2,7 +2,7 @@ const fs=require('fs'),path=require('path'),assert=require('node:assert/strict')
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const repo=path.resolve(process.env.PRODUCT_REPO),html=path.resolve(process.env.HTML_OUT),out=path.resolve(process.env.ARTIFACTS);
 (async()=>{fs.mkdirSync(out,{recursive:true});let report=[],blocked=[],current;const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-try{for(const width of [320,390,768,1440])for(const name of ['pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input']){
+try{for(const width of [320,390,768,1440])for(const name of ['dashboard','pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input']){
  const file=path.join(html,name+'.html');assert(fs.existsSync(file),name);const info=JSON.parse(fs.readFileSync(path.join(html,'routes.json'))).find(r=>r.endpoint===name);assert(info);
  const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block'});await context.routeWebSocket('**/*',ws=>{blocked.push('WS');ws.close()});const page=await context.newPage();current=page;
  await page.route('**/*',route=>{const req=route.request(),url=new URL(req.url());if(req.method()!=='GET'||url.origin!=='https://fixture.invalid'){blocked.push(req.method()+' '+url.origin);return route.abort()}
@@ -10,9 +10,9 @@ try{for(const width of [320,390,768,1440])for(const name of ['pointouts','vehicl
  if(url.pathname.startsWith('/static/')){const f=path.resolve(repo,'.'+url.pathname);if(f.startsWith(repo+'/static/')&&fs.existsSync(f))return route.fulfill({path:f});}
  return route.fulfill({status:404,body:'offline fixture'});});
  await page.goto(new URL(info.path,'https://fixture.invalid').href);await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
- const guide=page.locator('#firstGuidePanel');if(await guide.isVisible())await page.locator('[data-guide-close]').click();
+ const guide=page.locator('#firstGuidePanel');if(name==='dashboard'&&width<=900){assert(await guide.isVisible(),'initial dashboard guidance must be visible for menu acceptance');const toggle=page.locator('#sidebarToggle');await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'true');await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'false');}if(await guide.isVisible())await page.locator('[data-guide-close]').click();
  const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert(await avatar.isVisible());assert.equal(await bar.locator('.top-bar-user-name').isVisible(),width>767);
- const help=bar.locator('#firstUseGuide'),bell=bar.locator('.notification-menu');if(await help.count()){assert(await help.evaluate((e)=>e.nextElementSibling?.classList.contains('notification-menu')),'help directly before notification');}
+ const help=bar.locator('#firstUseGuide'),bell=bar.locator('.notification-menu');if(await help.count()){assert(await help.evaluate((e)=>{let n=e.nextElementSibling;while(n&&['SCRIPT','LINK','STYLE'].includes(n.tagName))n=n.nextElementSibling;return n?.classList.contains('notification-menu');}),'help directly before notification');}
  const controls=bar.locator('.first-guide-launch,.notification-bell,.top-bar-user,.karte-mobile-search-trigger');
  const rects=await controls.evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width&&getComputedStyle(e).display!=='none').map(e=>{const r=e.getBoundingClientRect();return {label:e.getAttribute('aria-label'),x:r.x,y:r.y,w:r.width,h:r.height}}));
  if(width<768){for(const r of rects){assert(r.w>=44&&r.h>=44,JSON.stringify({name,width,r}));assert(r.x>=0&&r.x+r.w<=width+1,JSON.stringify({name,width,r}));}for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){let a=rects[i],b=rects[j];assert(a.x+a.w<=b.x+1||b.x+b.w<=a.x+1||a.y+a.h<=b.y+1||b.y+b.h<=a.y+1,'header overlap');}}
@@ -28,5 +28,5 @@ try{for(const width of [320,390,768,1440])for(const name of ['pointouts','vehicl
  if(width<=768){assert(await list.isVisible());assert.equal(await table.isVisible(),false);const row=list.locator('.checklist-compact-disclosure').first(),summary=row.locator('summary');assert.equal(await summary.locator(':scope > *').count(),2);assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);await summary.click();assert(await row.locator('.checklist-compact-detail').isVisible());assert(await row.locator('.master-order-handle').isVisible());await summary.press('Enter');assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);}else{assert(await table.isVisible());assert.equal(await list.isVisible(),false);}
  }
  report.push({name,width,passed:true,rects});await context.close();}
- assert.equal(report.length,24);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
+ assert.equal(report.length,28);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
 }catch(e){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({error:String(e),report,blocked},null,2));if(current&&!current.isClosed())await current.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});
