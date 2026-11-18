@@ -833,7 +833,8 @@ def vehicle_karte_inspections(vehicle_record_id):
 
 
 
-def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_snapshot=None):
+def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_snapshot=None,
+                                      maintenance_preview=None):
     entries = []
     if read_snapshot is not None:
         read_snapshot.require_scope(company_code, vehicle_record_id)
@@ -1077,6 +1078,20 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
         })
 
     maintenance_records = records_for(_dkss_models.VehicleMaintenanceRecord)
+    if maintenance_preview is not None:
+        # Overview alone needs five recent factual maintenance entries. Keep the
+        # snapshot complete for costs, mileage evidence and unresolved actions.
+        # Scope comes from records_for, never from caller-supplied IDs alone.
+        from heapq import nlargest
+        factual_ids, through, limit = maintenance_preview
+        candidates = (
+            (normalize_date(record.completion_date) or normalize_date(record.entry_date),
+             f"maintenance:{record.id}", record)
+            for record in maintenance_records if record.id in factual_ids
+        )
+        maintenance_records = [item[2] for item in nlargest(
+            limit, (item for item in candidates if item[0] and item[0] <= through),
+            key=lambda item: (item[0], item[1]))]
 
     for record in maintenance_records:
         invoice_details = _dkss_serialization.safe_json_dict(record.invoice_details_json)
