@@ -9,7 +9,7 @@
             <a class="dashboard-safety-opening" href="{{ item.url }}" title="{{ display_content }}">
                 <span class="dashboard-safety-story-title">{{ display_content }}</span>
             </a>
-            <p class="dashboard-safety-next">{{ item.action }}{% if item.due_date %} · <time datetime="{{ item.due_date }}" title="{{ item.due_date }}">期限 {{ item.due_date }}</time>{% endif %}</p>
+            <p class="dashboard-safety-next">{{ item.action }}{% if item.due_date %} · <time datetime="{{ item.due_date }}" title="{{ item.due_date }}">期限 {% set due = item.due_date|string %}{% if due|length == 10 and due[4] == '-' and due[7] == '-' %}{{ due[5:7] }}/{{ due[8:10] }}{% else %}{{ item.due_date }}{% endif %}</time>{% endif %}</p>
             <small>{{ item.location }}</small>
         </div>
     </li>

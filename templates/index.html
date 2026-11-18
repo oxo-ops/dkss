@@ -11,7 +11,7 @@
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_refinement.css', v='20261117-home-succinct-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_office_trends.css', v='20261118-video-lists-2') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261118-proposal-row-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261119-proposal-inset-4') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_summary_mobile.css', v='20261118-history-button-1') }}">
 {% endblock %}
 
@@ -394,7 +394,7 @@
                 <span class="dashboard-video-copy"><strong>{{ item.target or item.title }}</strong><span class="dashboard-video-action">{{ item.action }}</span>
                     <span class="dashboard-video-meta"><span class="dashboard-video-timing">目安：{{ item.timing or '時期の判断材料不足' }}</span><span class="dashboard-video-state" data-state="{{ item.feedback_status or 'open' }}">{{ {'open':'未着手','accepted':'採用','in_progress':'対応中','completed':'完了','dismissed':'見送り'}.get(item.feedback_status, '未着手') }}</span></span>
                 </span>
-                <span class="dashboard-video-vehicle">{{ item.vehicle_number }}</span><span class="dashboard-video-detail" aria-hidden="true">詳細 ›</span>
+                <span class="dashboard-video-vehicle">{{ item.vehicle_number }}</span><span class="dashboard-video-detail" aria-hidden="true">›</span>
             </a></li>
             {% endfor %}
         </ul>
