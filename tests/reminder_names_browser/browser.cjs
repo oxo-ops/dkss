@@ -10,6 +10,7 @@ for(const width of [320,390,1440])for(const info of routes){
  if(u.pathname==='/api/mention-users')return r.fulfill({json:{users:[{username:'admin',name:'通知担当太郎',role:'admin',office:'確認用'}]}});
  const f=path.resolve(root,'.'+u.pathname);if(u.pathname.startsWith('/static/')&&f.startsWith(root+'/static/')&&fs.existsSync(f))return r.fulfill({path:f});return r.fulfill({status:404,body:'offline fixture'});});
  page=await c.newPage();await page.goto('https://fixture.invalid'+info.path);
+ const guide=page.locator('#firstGuidePanel');if(await guide.isVisible())await page.locator('[data-guide-close]').click();
  const box=page.locator(info.role==='driver'?'[data-reminder-readonly]':'#selected_reminder_notify_users');
  await box.locator('.selected-vehicle-tag').filter({hasText:'通知担当太郎'}).waitFor({state:'visible'});
  assert(!/\badmin\b/.test(await box.innerText()));
