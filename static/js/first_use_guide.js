@@ -462,7 +462,28 @@
     record.open = true;
     return true;
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord};
+  // A guide step is not navigation. Keep the current viewport whenever the
+  // target is already visible; large regions only need to intersect it.
+  function revealOptions(rect, viewport, reducedMotion) {
+    const margin=0, left=viewport.left+margin, top=viewport.top+margin;
+    const right=viewport.left+viewport.width-margin, bottom=viewport.top+viewport.height-margin;
+    const fits=(start,end,low,high)=>end-start>high-low ? end>low && start<high : start>=low && end<=high;
+    if(fits(rect.left,rect.right,left,right) && fits(rect.top,rect.bottom,top,bottom)) return null;
+    return {block:'nearest',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
+  }
+  function coachmarkPlacement(rect, viewport, width, height) {
+    const gap=12, edge=12, leftEdge=viewport.left+edge, rightEdge=viewport.left+viewport.width-edge;
+    const topEdge=viewport.top+edge, bottomEdge=viewport.top+viewport.height-edge;
+    const left=Math.max(leftEdge,Math.min(rightEdge-width,rect.left));
+    const below=rect.bottom+gap, above=rect.top-height-gap;
+    let side='below', top=below;
+    if(below+height>bottomEdge){side='above';top=above;}
+    if(top<topEdge || top+height>bottomEdge){top=Math.max(topEdge,Math.min(top,bottomEdge-height));side='overlap';}
+    const targetCenter=Math.max(rect.left,Math.min(rect.right,(left+width/2)));
+    const arrow=Math.max(20,Math.min(width-20,targetCenter-left));
+    return {left,top,side,arrow};
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord,revealOptions,coachmarkPlacement};
   if (typeof document === 'undefined') return;
   const root=document.getElementById('firstUseGuide');
   if (!root) return;
@@ -496,11 +517,18 @@
   function position(){
     if(panel.hidden || !active) return;
     if(!visible(active)){close(false);return;}
-    const r=active.getBoundingClientRect(), h=panel.offsetHeight, w=panel.offsetWidth;
-    const above=r.top-h-12, below=r.bottom+12;
-    const preferred=below>=12 && below+h<=innerHeight-12?below:above>=12?above:innerHeight-h-12;
-    const top=Math.max(12,Math.min(Math.max(12,innerHeight-h-12),preferred));
-    panel.style.top=top+'px';panel.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left))+'px';
+    const visual=window.visualViewport;
+    const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
+    // DOMRect is visual geometry; fixed style coordinates remain unzoomed.
+    // Convert once, preserving target/scroll behavior under CSS layout zoom.
+    const before=panel.getBoundingClientRect();
+    const scale=panel.offsetWidth>0 && before.width>0 ? before.width/panel.offsetWidth : 1;
+    panel.style.maxHeight=Math.max(80,viewport.height-24)/scale+'px';
+    panel.style.width=Math.min(330,viewport.width-24)/scale+'px';
+    const bounds=panel.getBoundingClientRect();
+    const p=coachmarkPlacement(active.getBoundingClientRect(),viewport,bounds.width,bounds.height);
+    panel.style.top=p.top/scale+'px';panel.style.left=p.left/scale+'px';panel.dataset.side=p.side;
+    panel.style.setProperty('--guide-arrow-x',p.arrow/scale+'px');
   }
   function show(){
     clearTarget();
@@ -511,7 +539,11 @@
     if(picture) picture.hidden=s.selector!=='.inspection-item-detail';
     if(aiPicture) aiPicture.hidden=s.selector!=='.ka7-proposals .ka-reference-detail-button';
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
-    active.scrollIntoView({block:'center',behavior:'instant'});position();
+    const visual=window.visualViewport;
+    const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
+    const options=revealOptions(active.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(options) active.scrollIntoView(options);
+    position();
   }
   function open(manual){
     if(document.querySelector('dialog[open], .modal-bg.is-open, .ka-reference-drawer:not([hidden])')) return;
@@ -532,6 +564,7 @@
   document.addEventListener('click',e=>{if(!panel.hidden&&!root.contains(e.target)) {if(resumable)pauseForOperation(e.target);else close(false);}},true);
   new MutationObserver(()=>{if(!panel.hidden && active && !visible(active)) close(false);}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
   window.addEventListener('resize',position);window.addEventListener('scroll',position,{passive:true});
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',position);window.visualViewport.addEventListener('scroll',position,{passive:true});}
   function startInitialGuide(){
     if(initial.available&&!initial.seen && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) open(false);
   }
