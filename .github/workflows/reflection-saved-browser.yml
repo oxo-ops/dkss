@@ -1,0 +1,49 @@
+name: Saved period AI isolated PG and browser
+on:
+  push:
+    branches: [review/demo-reflection-rollover-20261119, review/priority-ui-267-20261119]
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: fixture
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: reflection_fixture
+        ports: ['55441:5432']
+        options: >-
+          --health-cmd "pg_isready -U fixture -d reflection_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/reflection-venv"
+          "$RUNNER_TEMP/reflection-venv/bin/pip" install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/reflection-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Exact HEAD disposable PG and real browser
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain)"
+          mkdir -p "$RUNNER_TEMP/reflection-output"
+          env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 "$RUNNER_TEMP/reflection-venv/bin/python" tests/reflection_saved_browser/check.py --repo "$GITHUB_WORKSPACE" --out "$RUNNER_TEMP/reflection-output" --pg --browser 2>&1 | tee "$RUNNER_TEMP/reflection-output/TEST.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: reflection-saved-${{ github.sha }}
+          path: ${{ runner.temp }}/reflection-output/
+          retention-days: 7
