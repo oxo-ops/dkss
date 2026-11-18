@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/video_proposal_lists.css', v='20261119-proposal-meta-row-5') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_summary_mobile.css', v='20261118-history-button-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_mobile_priority.css', v='20261119-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_quiet_affordances.css', v='20261119-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -402,7 +403,7 @@
                 <span class="dashboard-video-copy"><strong>{{ item.target or item.title }}</strong><span class="dashboard-video-action">{{ item.action }}</span>
                     <span class="dashboard-video-meta"><span class="dashboard-video-timing">目安：{{ item.timing or '時期の判断材料不足' }}</span><span class="dashboard-video-state" data-state="{{ item.feedback_status or 'open' }}">{{ {'open':'未着手','accepted':'採用','in_progress':'対応中','completed':'完了','dismissed':'見送り'}.get(item.feedback_status, '未着手') }}</span></span>
                 </span>
-                <span class="dashboard-video-vehicle">{{ item.vehicle_number }}</span><span class="dashboard-video-detail" aria-hidden="true">›</span>
+                <span class="dashboard-video-vehicle">{{ item.vehicle_number }}</span><span class="dashboard-video-detail" aria-hidden="true"></span>
             </a></li>
             {% endfor %}
         </ul>
@@ -604,19 +605,19 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M9 3h6v4H9zM8 11h8m-8 4h8"/></svg>
                     <strong>運行判断・不具合対応</strong>
                     <b class="dashboard-request-count">{{ request_counts.get('vehicle_response', '—') }}<small>件</small></b>
-                    <span aria-hidden="true">›</span>
+                    <span aria-hidden="true"></span>
                 </a>
                 <a href="/notifications?view=action&amp;category=vehicle&amp;type=vehicle_approvals">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 2h6v5H9zM8 13l3 3 5-6"/></svg>
                     <strong>車両チェックリストの承認</strong>
                     <b class="dashboard-request-count">{{ request_counts.get('vehicle_approvals', '—') }}<small>件</small></b>
-                    <span aria-hidden="true">›</span>
+                    <span aria-hidden="true"></span>
                 </a>
                 <a href="/pointouts?type=user&amp;mine=1&amp;pending=1">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 3v6c0 5-4 9-8 11-4-2-8-6-8-11V5zM8 12l3 3 5-6"/></svg>
                     <strong>あなたへの未対応指摘</strong>
                     <b class="dashboard-request-count">{{ my_pending_pointouts|length }}<small>件</small></b>
-                    <span aria-hidden="true">›</span>
+                    <span aria-hidden="true"></span>
                 </a>
             </div>
         </section>
@@ -626,19 +627,19 @@
     {% if dashboard_settings.get('show_analysis', True) %}
     <button type="button" data-reference-target=".dashboard-analysis-section">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10m5 10V4m5 16v-8m5 8V7"/></svg>
-        チェックリスト集計 <span>›</span>
+        チェックリスト集計 <span></span>
     </button>
     {% endif %}
     {% if dashboard_settings.get('show_ranking', True) %}
     <button type="button" data-reference-target="#dashboard-reference-ranking">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8v7a4 4 0 0 1-8 0zM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v6m-4 1h8"/></svg>
-        無事故無違反ランキング <span>›</span>
+        無事故無違反ランキング <span></span>
     </button>
     {% endif %}
     {% if dashboard_settings.get('show_inspection', True) %}
     <button type="button" data-reference-target="#dashboard-reference-inspection">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-6h10l2 6M4 10h16v9H4zM7 19v2m10-2v2M7 14h1m8 0h1"/></svg>
-        車検期限が近い車両 <span>›</span>
+        車検期限が近い車両 <span></span>
     </button>
     {% endif %}
 </nav>
@@ -705,7 +706,7 @@
                     </div>
                     <a class="dashboard-report-back"
                        href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}{% else %}/safety/checklists/{{ item.id }}{% endif %}">
-                        点検表を開く ›
+                        点検表を開く 
                     </a>
                 </div>
 
@@ -790,7 +791,7 @@
                         <div class="dashboard-analysis-important-actions">
                             <strong class="dashboard-analysis-important-rate">{{ item.improvement_items[0].improvement_rate }}%</strong>
                             {% if item.improvement_items[0].result_url %}
-                            <a class="dashboard-report-back" href="{{ item.improvement_items[0].result_url }}">記録を見る ›</a>
+                            <a class="dashboard-report-back" href="{{ item.improvement_items[0].result_url }}">記録を見る </a>
                             {% endif %}
                         </div>
                     </div>
@@ -841,7 +842,7 @@
                                     <td>
                                         <a class="dashboard-report-back"
                                            href="{% if item.target == '車両管理' %}/vehicle/checklists/{{ item.id }}?vehicle_record_id={{ target.vehicle_record_id }}&year={{ target.year|urlencode }}&month={{ target.month|urlencode }}&active_day={% if item.frequency_unit == 'year' %}{{ target.year|urlencode }}{% elif item.display_type == 'month' %}{{ target.day|urlencode }}{% else %}{{ target.month|urlencode }}{% endif %}{% else %}/safety/checklists/{{ item.id }}?target_type={{ target.target_type|urlencode }}&target_value={{ target.target_value|urlencode }}{% endif %}">
-                                            履歴 ›
+                                            履歴 
                                         </a>
                                     </td>
                                 </tr>
@@ -861,7 +862,7 @@
                         <span class="dashboard-history-preview-note">直近{{ [history.rows|length, 5]|min }}件／全{{ history.total }}件</span>
                         <span class="dashboard-history-full-note">直近{{ history.rows|length }}件／全{{ history.total }}件</span>
                         {% if history.rows|length > 5 %}
-                        <button type="button" class="dashboard-history-open">履歴を詳しく見る ›</button>
+                        <button type="button" class="dashboard-history-open">履歴を詳しく見る </button>
                         {% endif %}
                     </div>
 
@@ -888,7 +889,7 @@
                                     <td>{{ item.name }}</td>
                                     <td data-summary-label="得点">{{ record.score if record.score is number else '—' }}{% if record.score is number %}点{% endif %}</td>
                                     <td data-summary-label="状態"><span class="dashboard-history-state" data-status="{{ record.status }}">{{ record.status }}</span></td>
-                                    <td><a class="dashboard-report-back" href="{{ record.url }}">詳細 ›</a></td>
+                                    <td><a class="dashboard-report-back" href="{{ record.url }}">詳細 </a></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -1103,7 +1104,7 @@
                         {{ item.remaining_days }}日
                         {% endif %}
                     </td>
-                    <td><a href="{{ item.url }}">点検記録 ›</a></td>
+                    <td><a href="{{ item.url }}">点検記録 </a></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1123,7 +1124,7 @@
         <p class="help-text">3か月点検の予定月・予約日が未登録の車両です。車両カルテのヘッダーから設定できます。</p>
         <ul>
             {% for item in periodic.unregistered %}
-            <li><a href="{{ item.url }}">{{ item.number }}：点検記録を確認 ›</a></li>
+            <li><a href="{{ item.url }}">{{ item.number }}：点検記録を確認 </a></li>
             {% endfor %}
         </ul>
     </details>
