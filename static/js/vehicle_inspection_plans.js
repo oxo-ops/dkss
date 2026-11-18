@@ -307,6 +307,15 @@
     function closeSearch() {
         if (searchDialog?.open) { restoreSearch(); searchDialog.close(); }
     }
+    function handleSearchKey(event) {
+        if (!searchDialog?.open || event.isComposing) return;
+        if (event.key === 'Escape') {
+            // type=search otherwise consumes Escape to clear only the query.
+            event.preventDefault(); closeSearch();
+        } else if (event.key === 'Enter') {
+            event.preventDefault(); renderSearchResults(); filters.elements.search.blur();
+        }
+    }
     function renderSearchResults() {
         if (!searchDialog?.open) return;
         const list = searchDialog.querySelector('[data-search-results]');
@@ -767,7 +776,7 @@
     filters.addEventListener('submit',e=>{e.preventDefault();safeLoad();});
     filters.elements.office.addEventListener('change',()=>{focus=null;selected.clear();safeLoad();});
     filters.elements.search.addEventListener('input',()=>{draw();renderSearchResults();});
-    filters.elements.search.addEventListener('keydown',event=>{if(searchDialog?.open&&event.key==='Enter'){event.preventDefault();renderSearchResults();filters.elements.search.blur();}});
+    filters.elements.search.addEventListener('keydown',handleSearchKey);
     monthInput.addEventListener('change',()=>{const target=monthInput.value;monthInput.value=committedMonth;if(validMonth(target))navigateMonth(target);});
     const yearPicker=planner.querySelector('[data-year-month-picker]');
     yearPicker.addEventListener('click',()=>{try{yearPicker.showPicker?.();}catch(_){}});
