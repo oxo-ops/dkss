@@ -210,7 +210,7 @@ body .main-content .inspection-plans[data-inspection-planner] > .ip-view-switch 
    width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;margin:0!important;
  }
  body .main-content .inspection-plans[data-inspection-planner] [data-plan-filter-count]:not([hidden]){position:absolute;top:0;right:0;min-width:16px;border-radius:10px;font-size:10px;background:#2059a1;color:#fff;}
- body .main-content .inspection-plans[data-inspection-planner] .ip-active-filter{display:block!important;margin:3px 0!important;font-size:11px!important;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-active-filter{display:block!important;min-height:16px;margin:3px 0!important;font-size:11px!important;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
  body .main-content .inspection-plans[data-inspection-planner] .ip-filter-dialog .ip-mobile-filters > summary{display:none!important;}
  body .main-content .inspection-plans[data-inspection-planner] .ip-filter-dialog .ip-filters{display:grid!important;grid-template-columns:minmax(0,1fr);}
  body .main-content .inspection-plans[data-inspection-planner] .ip-filter-dialog .ip-filters :is(input,select){width:100%!important;max-width:100%!important;min-height:44px!important;height:44px!important;}
@@ -263,3 +263,32 @@ body .main-content .inspection-plans[data-inspection-planner] > .ip-view-switch 
  body .main-content .inspection-plans[data-inspection-planner] .ip-cal-items :is(a,button).ip-cal-event-tight{height:18px!important;min-height:18px!important;max-height:18px!important;line-height:16px!important;white-space:nowrap!important;text-overflow:ellipsis!important;}
  body .main-content .inspection-plans[data-inspection-planner] .ip-cal-items .ip-cal-event-tight > span{display:inline!important;line-height:16px!important;}
 }
+
+/* Focused search surface: the calendar stays behind it, without extra settings. */
+.ip-search-dialog{box-sizing:border-box;position:fixed;inset:0 0 auto;margin:16px auto 0;width:min(760px,calc(100% - 24px));max-width:none;max-height:calc(100dvh - 32px);padding:14px;border:1px solid #d9e3ef;border-radius:24px;background:rgba(250,252,255,.98);color:#243b53;box-shadow:0 18px 60px #17395c24;overflow:auto}
+.ip-search-dialog::backdrop{background:rgba(27,42,60,.24)}
+.ip-search-bar{display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fafcff;z-index:1}
+.ip-search-field{display:flex;align-items:center;gap:10px;min-width:0;flex:1;background:#fff;border:1px solid #d5dfea;border-radius:999px;padding:4px 12px;min-height:48px}
+.ip-search-field>svg{width:22px;height:22px;flex:none;color:#24476b}
+.ip-search-field input[type=search]{min-width:0;width:100%;border:0;box-shadow:none;background:transparent;padding:9px 0;margin:0;font-size:16px;outline-offset:3px}
+.ip-search-field input::-webkit-search-cancel-button{display:none}
+.ip-search-clear,.ip-search-close{display:grid;place-items:center;flex:none;border:0;cursor:pointer;color:#24476b;background:#edf2f8;min-width:44px;min-height:44px;border-radius:50%;font-size:26px;padding:0}
+.ip-search-close{min-width:50px;min-height:50px;background:#fff;border:1px solid #d5dfea}
+.ip-search-clear[hidden]{display:none}
+.ip-search-status{margin:12px 8px;color:#506983;font-size:13px}
+.ip-search-results{margin:0;padding:0;list-style:none}
+.ip-search-results>li+li{border-top:1px solid #e1e8f1}
+.ip-search-result{box-sizing:border-box;display:flex!important;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;width:100%;padding:14px 10px;border:0;border-radius:10px;background:transparent;color:#243b53;text-decoration:none;cursor:pointer;white-space:normal;overflow-wrap:anywhere}
+.ip-search-result:hover,.ip-search-result:focus-visible{background:#eaf2ff;outline:2px solid #739ed5}
+.ip-search-result>span{font-size:13px;color:#526982}
+.ip-search-result-note{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media(max-width:700px){.ip-search-dialog{margin:8px auto 0;width:calc(100% - 12px);padding:10px;border-radius:24px;max-height:calc(100dvh - 16px)}.ip-search-field{gap:6px;padding-inline:10px}.ip-search-field input[type=search]{font-size:16px}.ip-search-bar{gap:8px}}
+
+/* Month browsing retains the fiscal-year dataset; no unrequested adjacent data. */
+.inspection-plans .ip-year-days-scroll{scroll-snap-type:x proximity}
+.inspection-plans .ip-year-month-head{scroll-snap-align:start}
+.inspection-plans .ip-year-days-grid{box-sizing:content-box}
+.inspection-plans .ip-year-position{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.inspection-plans .ip-month-navigation [data-plan-today],.inspection-plans .ip-month-navigation [data-period]{min-width:44px;min-height:44px}
+
+.inspection-plans:not([data-view="year"]) [data-year-month-picker],.inspection-plans[data-view="year"] .ip-month-picker input[name="month"]{display:none!important}
