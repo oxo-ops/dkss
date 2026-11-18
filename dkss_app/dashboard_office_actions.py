@@ -16,11 +16,6 @@ def office_actions(office, safety, vehicles):
             # A user's assigned vehicle may belong to another office.
             if item.get("office") == office:
                 vehicle_rows.append(dict(item, kind="車両"))
-    # Alternate existing ordered lists; this is not a new cross-domain risk rank.
-    rows = []
-    for index in range(max(len(safety_rows), len(vehicle_rows))):
-        if index < len(safety_rows):
-            rows.append(safety_rows[index])
-        if index < len(vehicle_rows):
-            rows.append(vehicle_rows[index])
-    return rows
+    # Group domains without changing either domain's authorized membership or order.
+    # Safety workflow states are not compared against vehicle priority scores.
+    return safety_rows + vehicle_rows

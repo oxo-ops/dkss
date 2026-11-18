@@ -5,6 +5,7 @@ set -euo pipefail
 [[ -z "$(git status --porcelain)" ]]
 PY=$(command -v python); NODE=$(command -v node)
 mkdir -p "$ARTIFACTS"
+env -i PATH="$PATH" HOME="$HOME" PYTHONPATH="$PWD" "$PY" -m unittest discover -s tests -p test_dashboard_office_actions.py -v
 printf '%s\n' "$GITHUB_SHA" > "$ARTIFACTS/head.txt"
 env -i PATH="$PATH" HOME="$HOME" "$PY" tests/dashboard_mobile_priority/render_fixture.py --repo "$PWD" --out "$ARTIFACTS/fixture"
 env -i PATH="$PATH" HOME="$HOME" PLAYWRIGHT_MODULE="$PLAYWRIGHT_MODULE" "$NODE" tests/dashboard_mobile_priority/browser.cjs "$ARTIFACTS/fixture" "$ARTIFACTS/results"
