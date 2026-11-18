@@ -15,10 +15,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - run: |
+          python -m pip install -r requirements.txt
           npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
       - name: Synthetic browser without application credentials
@@ -26,7 +30,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           node --check static/js/vehicle_checklist_results.js
-          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" ARTIFACTS="$RUNNER_TEMP/attachment-lazy" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_lazy/browser.cjs
+          mkdir -p "$RUNNER_TEMP/attachment-lazy/html"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/attachment-lazy/html" python tests/attachment_lazy/render.py 2>&1 | tee "$RUNNER_TEMP/attachment-lazy/route.log"
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/attachment-lazy/html" ARTIFACTS="$RUNNER_TEMP/attachment-lazy" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_lazy/browser.cjs
           git rev-parse HEAD > "$RUNNER_TEMP/attachment-lazy/head.txt"
       - uses: actions/upload-artifact@v7
         if: always()
