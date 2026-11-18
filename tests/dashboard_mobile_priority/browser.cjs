@@ -25,7 +25,10 @@ if(checks.bad.length||checks.overflow)throw Error('content overflow '+JSON.strin
 if(width<=600)for(const row of await page.locator('.dashboard-video-proposal').all()){
  const b=await row.boundingBox();if(b.height<44)throw Error('tap height');
  const [t,s,d]=await Promise.all(['.dashboard-video-timing','.dashboard-video-state','.dashboard-video-detail'].map(x=>row.locator(x).boundingBox()));
- if(Math.abs(t.y-s.y)>2||Math.abs(t.y-d.y)>2||t.x+t.width>s.x+1||s.x+s.width>d.x+1)throw Error('meta overlap/order');
+ const gridRows=await row.evaluate(e=>['.dashboard-video-timing','.dashboard-video-state','.dashboard-video-detail'].map(x=>getComputedStyle(e.querySelector(x)).gridRowStart));
+ if(gridRows.includes('auto')||new Set(gridRows).size!==1)throw Error('meta grid row '+JSON.stringify(gridRows));
+ const sc=s.y+s.height/2,dc=d.y+d.height/2;
+ if([t,s,d].some(r=>r.y<b.y-1||r.y+r.height>b.y+b.height+1)||Math.abs(sc-dc)>1||sc<t.y-1||sc>t.y+t.height+1||t.x+t.width>s.x+1||s.x+s.width>d.x+1)throw Error('meta overlap/order '+JSON.stringify({t,s,d}));
 }
 if(mode!=='empty'){const first=page.locator('.dashboard-video-proposal').first();await first.focus();if(!await first.evaluate(e=>e===document.activeElement))throw Error('focus missing');const expectShared=mode!=='mixed'&&width<=600;if(await page.locator('.dashboard-proposal-shared-vehicle').count() && await page.locator('.dashboard-proposal-shared-vehicle').isVisible()!==expectShared)throw Error('shared vehicle visibility');}
 await page.screenshot({path:path.join(out,id+'.png'),fullPage:true});report.cases.push({id,passed:true,...checks});
