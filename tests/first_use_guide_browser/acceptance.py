@@ -47,6 +47,7 @@ with sync_playwright() as p:
     page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
     b=panel.bounding_box();assert b and b['x']>=0 and b['y']>=0 and b['x']+b['width']<=page.viewport_size['width']+1
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    assert page.locator('[data-guide-next]').evaluate('(e)=>{const p=e.parentElement,r=e.getBoundingClientRect(),b=p.getBoundingClientRect(),s=getComputedStyle(p);return Math.abs(b.right-r.right-parseFloat(s.paddingRight)-parseFloat(s.borderRightWidth))<2}')
    bounds();page.screenshot(path=str(OUT/f'{role}-{width}-initial.png'),full_page=False)
    page.locator('[data-guide-close]').click();assert not panel.is_visible()
    page.reload();assert not panel.is_visible()
@@ -71,9 +72,9 @@ with sync_playwright() as p:
     if heading=='項目の詳細を見る':
      assert page.locator('[data-guide-picture]').is_visible()
      expect(page.locator('[data-guide-picture] img')).to_have_js_property('complete',True)
-     expect(page.locator('[data-guide-picture] img')).to_have_js_property('naturalWidth',390)
+     expect(page.locator('[data-guide-picture] img')).to_have_js_property('naturalWidth',1098)
      box=page.locator('[data-guide-picture]').bounding_box()
-     assert box and 175 <= box['width'] <= 185 and 225 <= box['height'] <= 235, box
+     assert box and 255 <= box['width'] <= 265 and 340 <= box['height'] <= 355, box
      assert page.locator('[data-guide-next]').is_visible()
      next_box=page.locator('[data-guide-next]').bounding_box()
      assert next_box['y'] + next_box['height'] <= page.viewport_size['height'], next_box

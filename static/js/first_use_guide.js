@@ -475,6 +475,7 @@
   const title=root.querySelector('[data-guide-title]'), text=root.querySelector('[data-guide-text]'), count=root.querySelector('[data-guide-count]');
   const next=root.querySelector('[data-guide-next]');
   const picture=root.querySelector('[data-guide-picture]');
+  const aiPicture=root.querySelector('[data-guide-ai-picture]');
   const name=key(root.dataset.mode,root.dataset.page);
   let storage; try { storage=window.localStorage; } catch (_) { storage=null; }
   const initial=state(storage,name);
@@ -513,6 +514,7 @@
     const s=steps[index];active=s.target;active.classList.add('first-guide-target');
     title.textContent=s.title;text.textContent=s.text;count.textContent=(index+1)+' / '+steps.length;
     if(picture) picture.hidden=s.selector!=='.inspection-item-detail';
+    if(aiPicture) aiPicture.hidden=s.selector!=='.ka7-proposals .ka-reference-detail-button';
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
     active.scrollIntoView({block:'center',behavior:'instant'});position();
   }

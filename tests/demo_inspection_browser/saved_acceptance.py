@@ -141,6 +141,11 @@ try:
        if not sidebar.is_visible():parent.click()
        sidebar.click();page.wait_for_url(lambda u:urlsplit(u).path==urlsplit(target).path);page.wait_for_load_state('networkidle')
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value() in ('','None')
+       # New visitor guidance is a real overlay; dismiss it through its supported
+       # keyboard action before selecting a vehicle (do not bypass pointer checks).
+       if page.locator('#firstGuidePanel').is_visible():
+        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-vehicle-guide.png'),full_page=True)
+        page.keyboard.press('Escape');assert not page.locator('#firstGuidePanel').is_visible()
        # Display clock is fixed to the saved fixture date, so no date/filter mutation is needed.
        page.locator(f'.usage-vehicle-shortcut[data-vehicle-id="{case.vehicle_id}"]').click()
        page.wait_for_url(lambda u:parse_qs(urlsplit(u).query).get('vehicle_record_id')==[str(case.vehicle_id)]);page.wait_for_load_state('networkidle')

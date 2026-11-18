@@ -9,7 +9,7 @@ class GuideIntegrationContract(unittest.TestCase):
   self.assertNotIn('guide/inspection-detail.png',partial)
   self.assertIn('guide/inspection-detail-open.png',partial)
   import hashlib
-  self.assertEqual(hashlib.sha256((ROOT/'static/guide/inspection-detail-open.png').read_bytes()).hexdigest(),'5d04bc03132d4135d88cab903935b329ae6bce79e0b4742223b7aebb4474eb0d')
+  self.assertEqual(hashlib.sha256((ROOT/'static/guide/inspection-detail-open.png').read_bytes()).hexdigest(),'a27219ca3113e1d78314244cf2dd838624f10c2a1e4e2c8f1200a3fd8e177b01')
  def test_operation_notification_keeps_its_own_semantics(self):
   template=(ROOT/'templates/vehicle_checklist_results.html').read_text()
   operation=template.split('id="operation_notify_user_search"',1)[1].split('>',1)[0]
