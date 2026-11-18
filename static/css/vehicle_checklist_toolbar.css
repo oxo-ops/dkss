@@ -28,6 +28,6 @@
  .vehicle-workspace-top .vehicle-toolbar-symbol {display:block;width:22px;height:22px}
  .vehicle-workspace-top .vehicle-toolbar-text {display:none}
  .vehicle-workspace-top .vehicle-target-settings {margin-top:6px}
- .vehicle-workspace-top .vehicle-target-settings:not([open]) {display:none!important}
+ .vehicle-workspace-top.vehicle-toolbar-ready .vehicle-target-settings:not([open]) {display:none!important}
  .vehicle-workspace-top .vehicle-workspace-back {max-width:100%;font-size:12px;white-space:normal}
 }
