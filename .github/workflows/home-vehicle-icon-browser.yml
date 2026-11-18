@@ -1,7 +1,7 @@
 name: Home vehicle icon isolated browser
 on:
   push:
-    branches: ['review/home-vehicle-icon-size-20261119']
+    branches: ['review/home-vehicle-icon-size-20261119', 'review/other-vehicle-icons-20261119']
 permissions:
   contents: read
 jobs:
