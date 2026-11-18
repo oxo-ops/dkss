@@ -6,7 +6,7 @@ let browser,page;const results=[];
 for(const width of [320,390,768,1440]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:true,serviceWorkers:'block'}),blocked=[];await context.addCookies([{name:'dkss_session',value:fixture.cookie,url:base}]);await context.routeWebSocket('**/*',ws=>{blocked.push('WS');ws.close()});await context.route('**/*',r=>{if(new URL(r.request().url()).origin!==base||r.request().method()!=='GET'){blocked.push(r.request().method());return r.abort()}return r.continue()});page=await context.newPage();
  await page.goto(base+'/vehicle/inspection-plans?view=year&month=2026-07');await page.locator('.ip-year-days-scroll').waitFor();
- const scroll=page.locator('.ip-year-days-scroll');await scroll.scrollIntoViewIfNeeded();
+ const scroll=page.locator('.ip-year-days-scroll');await page.locator('[data-year-month-picker]').fill('2026-07');await page.waitForFunction(()=>document.querySelector('input[name=month]').value==='2026-07');await scroll.scrollIntoViewIfNeeded();
  assert.equal(await page.locator('[data-period-title]').textContent(),'2026年度');assert.equal(await page.locator('[data-year-month-picker]').inputValue(),'2026-07');
  assert.equal(await page.locator('#notificationMenu').isVisible(),false);assert.equal(await page.locator('.top-bar-user').isVisible(),false);assert.equal(await page.locator('#sidebarToggle').isVisible(),true);
  if(width<=700){
