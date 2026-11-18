@@ -1,5 +1,5 @@
 (()=>{'use strict';
-const mq=matchMedia('(max-width:767px)');
+const mq=matchMedia('(max-width:768px)');
 function init(){document.querySelectorAll('[data-master-filter]').forEach(button=>{
 const name=button.dataset.masterFilter,panel=document.getElementById(name+'FilterPanel');
 button.hidden=!panel||!mq.matches;if(!panel)return;

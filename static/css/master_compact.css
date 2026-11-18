@@ -2,7 +2,7 @@
 .master-compact-add{font-size:24px}
 .master-filter-toggle[hidden],#driverFilterPanel[hidden],#vehicleFilterPanel[hidden]{display:none!important}
 .master-filter-toggle:focus-visible,.master-compact-add:focus-visible,.master-compact-row>summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
-@media(max-width:767px){
+@media(max-width:768px){
 .mobile-card-list:has(.master-compact-row){gap:0;border-top:1px solid #d9e2ed}
 .mobile-card-list .master-compact-row{padding:0 12px;margin:0;border:0;border-bottom:1px solid #d9e2ed;border-radius:0;box-shadow:none;background:#fff}
 .master-compact-row>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:8px 0;box-sizing:border-box;cursor:pointer;list-style:none}
