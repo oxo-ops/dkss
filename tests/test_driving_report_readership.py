@@ -2,6 +2,8 @@
 from driving_selection_fixture import fresh_person_proof
 from identity_fixture import identity_for
 import json
+import re
+from pathlib import Path
 import unittest
 from datetime import date
 from unittest.mock import patch
@@ -12,6 +14,29 @@ from driving_report_data import payload, version
 from driving_report_insights import periods, driver_keys
 from dkss_app import driving_access as access
 from dkss_app.models import DrivingReportReader
+
+
+def without_builtin_bell_payload(text):
+    bell = (Path(__file__).resolve().parents[1] / 'templates/partials/notification_bell_image.html').read_text(encoding='utf-8')
+    for data_url in set(re.findall(r'data:image/png;base64,[A-Za-z0-9+/=]+', bell)):
+        text = text.replace(data_url, '[built-in notification bell]')
+    return text
+
+
+class BellSentinelControls(unittest.TestCase):
+    def test_real_leak_sentinels_are_not_removed_with_the_bell(self):
+        bell = (Path(__file__).resolve().parents[1] / 'templates/partials/notification_bell_image.html').read_text(encoding='utf-8')
+        self.assertIn('DTG', bell)
+        self.assertNotIn('DTG', without_builtin_bell_payload(bell))
+        for leak in ['<p>DTG</p>', '<a title="DTG" href="/reports/DTG">report</a>',
+                     '<script type="application/json">{"report":"DTG"}</script>',
+                     '<img src="data:image/png;base64,AAADTGAA">',
+                     '<a href="data:text/plain,DTG">report</a>']:
+            with self.subTest(leak=leak):
+                cleaned = without_builtin_bell_payload(bell + leak)
+                self.assertIn(leak, cleaned)
+                with self.assertRaises(AssertionError):
+                    self.assertNotIn('DTG', cleaned)
 
 
 class DrivingReadershipTests(unittest.TestCase):
@@ -40,6 +65,9 @@ class DrivingReadershipTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         text=response.get_data(as_text=True)
         self.assertIn('自分の運転実績',text);self.assertIn('実績が0件であることを意味しません',text)
+        # Ignore only the fixed decorative bell bytes, never response data or attributes.
+        # Its base64 PNG happens to contain the report sentinel "DTG".
+        text = without_builtin_bell_payload(text)
         self.assertNotIn('DTG',text)
         self.assertIn('no-store',response.headers['Cache-Control'])
 
