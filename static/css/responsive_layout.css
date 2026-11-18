@@ -234,4 +234,4 @@
 
 /* Purpose choices reuse the existing shared-demo role action. */
 .public-demo-purpose-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
-.public-demo-purpose-actions .btn { min-height: 44px; max-width: 100%; }
+body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !important; height: auto; max-width: 100%; }

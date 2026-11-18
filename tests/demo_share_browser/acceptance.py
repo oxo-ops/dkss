@@ -50,7 +50,7 @@ try:
      if method=='POST':
       assert u.path=='/demo/role';n=int(self.headers.get('Content-Length','0'));assert 0<n<8192
       assert self.headers.get('Content-Type','').startswith('application/x-www-form-urlencoded')
-      data=parse_qs(self.rfile.read(n).decode(),keep_blank_values=True);assert set(data)=={'role','csrf_token'} and data['role']==['manager'] and len(data['csrf_token'])==1
+      data=parse_qs(self.rfile.read(n).decode(),keep_blank_values=True);assert set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==['manager'] and len(data['csrf_token'])==1
       data={k:v[0] for k,v in data.items()};report['posts'].append('role-only')
      client=c.app.test_client(use_cookies=False)
      with request_lock:
