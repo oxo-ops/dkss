@@ -15,12 +15,41 @@
     let current = null, vehicle = null, initial = '', pending = null, data = null, selected = new Set();
     const args = planner ? JSON.parse(planner.dataset.planArgs || '{}') : {};
     const filters = planner?.querySelector('[data-plan-filters]');
+    const filterPanel = planner?.querySelector('[data-plan-filter-panel]');
+
     const node = (tag, text, cls) => {
         const el = document.createElement(tag);
         if (text !== undefined) el.textContent = text;
         if (cls) el.className = cls;
         return el;
     };
+    let filterDialog=null,viewDialog=null;
+    const viewSwitch=planner?.querySelector('.ip-view-switch');
+    function syncFilterPresentation(){
+        if(!filterPanel)return;
+        const mobile=window.matchMedia('(max-width:700px)').matches;
+        if(mobile){
+            if(!filterDialog){
+                filterDialog=node('dialog',undefined,'ip-filter-dialog');filterDialog.id='inspection-plan-filter-dialog';filterDialog.setAttribute('aria-labelledby','ip-filter-dialog-title');
+                const header=node('div',undefined,'ip-filter-dialog-heading'),title=node('h2','絞り込み');title.id='ip-filter-dialog-title';
+                const close=node('button','×');close.type='button';close.setAttribute('aria-label','絞り込みを閉じる');close.addEventListener('click',()=>filterDialog.close());header.append(title,close);filterDialog.append(header);
+                filterDialog.addEventListener('close',()=>planner.querySelector('[data-plan-filter-toggle]').setAttribute('aria-expanded','false'));planner.append(filterDialog);
+            }
+            filterPanel.open=true;filterDialog.append(filterPanel);
+            if(!viewDialog){viewDialog=node('dialog',undefined,'ip-filter-dialog ip-view-dialog');viewDialog.setAttribute('aria-label','表示形式');const close=node('button','×');close.type='button';close.setAttribute('aria-label','表示形式を閉じる');close.addEventListener('click',()=>viewDialog.close());viewDialog.append(close);viewDialog.addEventListener('close',()=>planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','false'));planner.append(viewDialog);}
+            viewDialog.append(viewSwitch);
+        }else{
+            if(filterDialog?.open)filterDialog.close();if(viewDialog?.open)viewDialog.close();
+            planner.querySelector('.card-title-row').after(viewSwitch);
+            planner.querySelector('[data-plan-active-filter]').after(filterPanel);filterPanel.open=true;
+        }
+    }
+    function openFilterPanel(search=false){
+        syncFilterPresentation();
+        if(window.matchMedia('(max-width:700px)').matches){filterDialog.showModal();planner.querySelector('[data-plan-filter-toggle]').setAttribute('aria-expanded','true');}
+        if(search)filters.elements.search.focus();
+    }
+    if(filterPanel){syncFilterPresentation();window.matchMedia('(max-width:700px)').addEventListener('change',syncFilterPresentation);}
     function error(root, selector, message = '') {
         const el = root.querySelector(selector);
         el.textContent = message; el.hidden = !message;
@@ -228,6 +257,7 @@
         }).catch(() => { planner.querySelector('[data-alert-check-status]').textContent = '／確認できませんでした'; });
     }
     let view = ['year','calendar'].includes(args.view) ? args.view : 'month', kind = args.kind || '', state = args.state || '';
+    if(window.matchMedia('(max-width:700px)').matches&&!new URLSearchParams(location.search).has('view'))view='calendar';
     const periodControl=planner.querySelector('[data-plan-period]'),periodHome=planner.querySelector('[data-period-home]');
     const monthInput=filters.elements.month;
     monthInput.addEventListener('click',()=>{try{monthInput.showPicker?.();}catch(_){}});
@@ -326,6 +356,8 @@
     document.querySelector('[data-events-close]')?.addEventListener('click',()=>document.querySelector('#inspection-plan-events').close());
     function calendarEvent(entry,compact=false) {
         const v=data.vehicles.find(v=>v.id===entry.p.vehicle_record_id);
+        const small=compact&&window.matchMedia('(max-width:700px)').matches;
+        const shortNumber=String(v.number).trim().match(/(?:^|\s)([0-9０-９・･-]+)$/)?.[1]||v.number;
         if(entry.invoice || entry.p.invoice_summary) {
             const fact=entry.invoice || {summary:entry.p.invoice_summary,source_url:entry.p.record_url,sources:entry.p.invoice_sources};
             const a=invoiceLink(fact);
@@ -333,6 +365,8 @@
             a.replaceChildren(node('span',compact?'実施':'実施済み','ip-cal-event-type'),
                 node(compact?'span':'strong',v.number+(compact?' '+content:'')));
             if(!compact)a.append(node('span',content));
+            if(small&&view==='calendar'){a.classList.add('ip-month-event-lines');a.replaceChildren(node('span',shortNumber),node('span','整備'));}
+            if(small&&view==='year'){a.classList.add('ip-year-event-lines');a.replaceChildren(node('span',shortNumber+' 実施','ip-year-event-heading'),node('span',content,'ip-year-event-detail'));}
             a.title=v.number+' ／ '+fact.summary+' ／ 請求書原本を開く';
             a.setAttribute('aria-label',a.title);
             a.classList.add('ip-cal-event');a.dataset.event='actual';
@@ -343,6 +377,8 @@
         const due=entry.type==='expiry'?deadlineState(entry.p):'';if(due)button.dataset.due=due;
         if(compact){button.classList.add('ip-cal-event-compact');button.append(node('span',deadlineLabels[due]||(entry.type==='booking'?'予約':entry.type==='actual'?'実施':entry.type==='previous_expiry'?'旧満了':'満了'),'ip-cal-event-type'),node('span',v.number+' '+shortKinds[entry.p.kind]));}
         else button.append(node('span',eventLabels[entry.type],'ip-cal-event-type'),node('strong',v.number),node('span',labels[entry.p.kind]+' · '+(entry.p.status==='completed'?'実施済み':states[entry.p.display_state])));
+        if(small&&view==='calendar'){button.classList.add('ip-month-event-lines');button.replaceChildren(node('span',shortNumber),node('span',shortKinds[entry.p.kind]));}
+        if(small&&view==='year'){button.classList.add('ip-year-event-lines');button.replaceChildren(node('span',shortNumber+' '+(deadlineLabels[due]||states[entry.p.display_state]||eventLabels[entry.type]),'ip-year-event-heading'),node('span',labels[entry.p.kind]+(entry.p.factory?' '+entry.p.factory:''),'ip-year-event-detail'));}
         if(!compact&&due)button.append(node('span',deadlineLabels[due],'ip-deadline-label'));
         if(!compact&&entry.type==='booking'&&entry.p.factory)button.append(node('small',entry.p.factory));
         button.setAttribute('aria-label',entry.day+' '+eventLabels[entry.type]+' '+v.number+' '+labels[entry.p.kind]+(due?' '+deadlineLabels[due]:''));
@@ -378,7 +414,7 @@
         months.forEach(mon=>{const cell=node('div',undefined,'ip-year-day-cell');rows.filter(p=>p.planned_month===mon&&!p.reservation_date&&p.status!=='completed').forEach(p=>{const v=data.vehicles.find(v=>v.id===p.vehicle_record_id),button=node('button',v.number+' '+shortKinds[p.kind],'ip-chip');button.type='button';button.setAttribute('aria-label',mon+' 日付未定 '+v.number+' '+labels[p.kind]);button.addEventListener('click',()=>edit(p,v));cell.append(button);});grid.append(cell);});
         scroll.append(grid);root.append(scroll);scroll.scrollLeft=previousLeft;scroll.scrollTop=previousTop;
         const key=months.join(',');
-        if(yearFocusKey!==key){yearFocusKey=key;requestAnimationFrame(()=>{if(view!=='year'||!scroll.isConnected)return;const current=grid.querySelector('.ip-year-month-head.is-current');scroll.scrollLeft=current?Math.max(0,current.offsetLeft-grid.offsetLeft-44):0;});}
+        if(yearFocusKey!==key){yearFocusKey=key;requestAnimationFrame(()=>{if(view!=='year'||!scroll.isConnected)return;const current=grid.querySelector('.ip-year-month-head.is-current');scroll.scrollLeft=current?Math.max(0,current.offsetLeft-grid.offsetLeft-grid.querySelector('.ip-year-head').offsetWidth):0;});}
     }
     function drawCalendar(rows) {
         const root=planner.querySelector('[data-plan-calendar]');root.replaceChildren();
@@ -427,11 +463,17 @@
         const flow=mobile||available<300;
         grid.dataset.flowLayout=String(flow&&!mobile);
         grid.style.height=flow?'auto':available+'px';
+        if(mobile){
+            const viewport=window.DkssViewport?.height() ?? Math.min(window.innerHeight,window.visualViewport?.height||window.innerHeight);
+            const top=Math.max(0,grid.getBoundingClientRect().top);
+            grid.style.setProperty('--ip-mobile-calendar-height',Math.max(280,viewport-top-12)+'px');
+        }
         for(const cell of grid.querySelectorAll('[data-date]')) {
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();
             const head=cell.querySelector('.ip-cal-day-head');
-            const available=mobile?3:Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
-            const limit=entries.length>available?Math.max(0,available-1):available;
+            const room=Math.max(0,cell.clientHeight-head.offsetHeight-2);
+            const available=mobile?Math.max(0,Math.floor(room/30)):Math.max(0,Math.floor((cell.clientHeight-head.offsetHeight-8)/22));
+            const limit=entries.length>available?(mobile?Math.max(0,Math.floor((room-24)/30)):Math.max(0,available-1)):available;
             entries.slice(0,limit).forEach(entry=>items.append(calendarEvent(entry,true)));
             if(entries.length>limit){const more=node('button','＋'+(entries.length-limit)+'件','ip-cal-more');more.type='button';more.setAttribute('aria-label',cell.dataset.date+'の予定をすべて表示');more.addEventListener('click',()=>openEntries(cell.dataset.date+' の予定・実績',entries));items.append(more);}
         }
@@ -476,7 +518,7 @@
         planner.dataset.view=view;
         periodHome.append(periodControl);
         const selectedMonth=filters.elements.month.value;
-        planner.querySelector('[data-period-title]').textContent=view==='year'?monthYear()+'年度':Number(selectedMonth.slice(0,4))+'年'+Number(selectedMonth.slice(5))+'月';
+        planner.querySelector('[data-period-title]').textContent=view==='year'?monthYear()+'年度':(view==='calendar'?'':Number(selectedMonth.slice(0,4))+'年')+Number(selectedMonth.slice(5))+'月';
         periodControl.querySelector('[data-period="-1"]').setAttribute('aria-label',view==='year'?'前の年度':'前の月');
         periodControl.querySelector('[data-period="1"]').setAttribute('aria-label',view==='year'?'次の年度':'次の月');
         const period=periodRows(), rows=visiblePlans();
@@ -488,7 +530,10 @@
         if(!state||state==='completed')invoiceRows.forEach(f=>visibleIds.add(f.vehicle_record_id));
         const vehicles=data.vehicles.filter(v=>(!focus||v.id===focus)&&(!search||norm(v.number+' '+v.chassis_number).includes(search))&&(!state||visibleIds.has(v.id)));
         selected=new Set([...selected].filter(id=>vehicles.some(v=>v.id===id)));
-        planner.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(view===b.dataset.view)));
+        planner.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(view===b.dataset.view)));planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-label','表示形式：'+({month:'一覧',calendar:'月',year:'年間'}[view])+'。変更');
+        const filterSummary=planner.querySelector('[data-plan-filter-summary]');
+        if(filterSummary){const active=[filters.elements.office.selectedOptions[0]?.textContent,filters.elements.search.value,kind?labels[kind]:'',state?states[state]:''].filter(Boolean);filterSummary.textContent='絞り込み：'+(active.join('・')||'すべて');filterSummary.title=filterSummary.textContent;const activeLine=planner.querySelector('[data-plan-active-filter]');activeLine.textContent=active.join('・');activeLine.title=activeLine.textContent;const count=Number(!!kind)+Number(!!state)+Number(!!filters.elements.search.value)+Number(!!focus);const badge=planner.querySelector('[data-plan-filter-count]');badge.textContent=String(count);badge.hidden=!count;}
+
         planner.querySelectorAll('[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(kind===b.dataset.kind)));
         const focusButton=planner.querySelector('[data-plan-focus]');focusButton.hidden=!focus;focusButton.textContent='対象車両の絞込を解除 ×';
         const counts=planner.querySelector('[data-plan-states]');counts.replaceChildren();
@@ -577,7 +622,7 @@
         planner.querySelector('[data-empty-action]').hidden=!!(rows.length||((!state||state==='completed')&&invoiceRows.length))||data.needs_office||view==='year';
         planner.querySelector('[data-empty-add]').hidden=!data.can_edit||!data.vehicles.length;
         const filtered=!!(kind||state||filters.elements.search.value||focus);
-        planner.querySelector('[data-clear-filters]').hidden=!filtered;
+        planner.querySelector('[data-clear-filters]').hidden=!filtered;planner.querySelector('[data-plan-clear-mobile]').hidden=!filtered;
         planner.querySelector('[data-empty-message]').textContent=filtered?'この条件に該当する点検はありません。':'予定を追加するか、基準未設定の車両を確認してください。';
         const url=new URL(location.href);url.search='';
         const office=filters.elements.office.value;url.searchParams.set('scope',office==='__company'?'company':'office');if(office&&office!=='__company')url.searchParams.set('office',office);
@@ -588,7 +633,7 @@
         const exportURL=new URL('/vehicle/inspection-plans/export.xlsx',location.origin);
         exportURL.search=url.search;
         exportURL.searchParams.set('year',monthYear());
-        exportLink.href=exportURL.pathname+exportURL.search;
+        exportLink.href=exportURL.pathname+exportURL.search;planner.querySelector('[data-plan-export-mobile]').href=exportLink.href;
 
         requestAnimationFrame(fitLayout);
     }
@@ -608,7 +653,7 @@
     monthInput.addEventListener('change',()=>{if(monthInput.checkValidity()){selected.clear();safeLoad();}});
     planner.querySelector('[data-plan-focus]').addEventListener('click',()=>{focus=null;safeLoad();});
     planner.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;selected.clear();draw();}));
-    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();}));
+    planner.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;selected.clear();draw();if(viewDialog?.open)viewDialog.close();}));
     planner.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{
         const parts=monthInput.value.split('-').map(Number),n=parts[0]*12+parts[1]-1+Number(b.dataset.period)*(view==='year'?12:1);
         if(n<2000*12||n>2098*12+11)return;monthInput.value=Math.floor(n/12)+'-'+String(n%12+1).padStart(2,'0');selected.clear();safeLoad();
@@ -658,6 +703,10 @@
         refreshNewTargets();
     });
     planner.querySelector('[data-clear-filters]').addEventListener('click',()=>{kind='';state='';focus=null;filters.elements.search.value='';selected.clear();safeLoad();});
+    planner.querySelector('[data-plan-search-toggle]').addEventListener('click',()=>openFilterPanel(true));
+    planner.querySelector('[data-plan-view-toggle]').addEventListener('click',()=>{syncFilterPresentation();viewDialog.showModal();planner.querySelector('[data-plan-view-toggle]').setAttribute('aria-expanded','true');});
+    planner.querySelector('[data-plan-filter-toggle]').addEventListener('click',()=>openFilterPanel());
+    planner.querySelector('[data-plan-clear-mobile]').addEventListener('click',()=>planner.querySelector('[data-clear-filters]').click());
     planner.querySelector('[data-empty-add]').addEventListener('click',()=>newPlan());
     planner.querySelector('[data-plan-add]').addEventListener('click',()=>newPlan());
     newDialog.querySelectorAll('[data-new-close]').forEach(b=>b.addEventListener('click',()=>newDialog.close()));

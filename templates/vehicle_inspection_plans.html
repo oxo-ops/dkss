@@ -1,21 +1,28 @@
 {% extends "base.html" %}
 {% block title %}点検計画{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inspection_calendar_views.css', v='20261118-calendar-month-3') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/inspection_calendar_views.css', v='20261119-plan-controls-1') }}">{% endblock %}
 {% block content %}
 <section class="card inspection-plans" data-inspection-planner data-plan-args="{{ plan_args|tojson|forceescape }}">
-    <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><a class="btn btn-outline" data-plan-export href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a><button type="button" class="btn btn-outline" data-plan-add hidden>＋ 予定を追加</button></div></div>
+    <div class="card-title-row"><h2>点検計画</h2><div class="ip-top-actions"><a class="btn btn-outline" data-plan-export href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a><button type="button" class="btn btn-outline" data-plan-view-toggle aria-label="表示形式を選択" title="表示形式" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v10M12 7v10M16 7v10"/></svg></button><button type="button" class="btn btn-outline" data-plan-filter-toggle aria-label="点検計画の絞り込み" title="絞り込み" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 11h18M7 15h3M14 15h3"/></svg><span data-plan-filter-count hidden></span></button><button type="button" class="btn btn-outline" data-plan-search-toggle aria-label="車両を検索" title="車両を検索"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg></button><button type="button" class="btn btn-outline" data-plan-add hidden aria-label="予定を追加" title="予定を追加"><svg class="ip-add-icon" aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="16" height="16" rx="2"/><path d="M3 9h16M7 2v4M15 2v4"/><circle cx="18" cy="18" r="5" fill="white"/><path d="M18 15v6M15 18h6"/></svg><span class="ip-add-plus" aria-hidden="true">＋</span><span class="ip-add-label"> 予定を追加</span></button></div></div>
+    <div class="ip-segment ip-view-switch" role="group" aria-label="表示形式"><button type="button" data-view="month" aria-pressed="true">一覧</button><button type="button" data-view="calendar" aria-pressed="false" aria-label="月カレンダー">月</button><button type="button" data-view="year" aria-pressed="false" aria-label="年間表">年間</button></div>
+    <p class="ip-active-filter" data-plan-active-filter></p>
+    <details class="ip-mobile-filters" data-plan-filter-panel open><summary data-plan-filter-summary>絞り込み</summary>
     <form class="ip-filters" id="inspection-plan-filters" data-plan-filters>
         <label>営業所<select name="office"><option value="">営業所を選択</option></select></label>
         <label>車両検索<input name="search" type="search" placeholder="登録番号・車台番号" autocomplete="off"></label>
         <button type="button" class="ip-focus" data-plan-focus hidden></button>
 
-        <div class="ip-segment ip-view-switch" role="group" aria-label="表示形式"><button type="button" data-view="month" aria-pressed="true">一覧</button><button type="button" data-view="calendar" aria-pressed="false" aria-label="月カレンダー">月</button><button type="button" data-view="year" aria-pressed="false" aria-label="年間表">年間</button></div>
+
     </form>
     <div class="ip-filter-options">
     <div class="ip-segment ip-kinds" role="group" aria-label="点検種別"><button type="button" data-kind="" aria-pressed="true">すべて</button><button type="button" data-kind="3month" aria-pressed="false">3か月点検</button><button type="button" data-kind="12month" aria-pressed="false">12か月点検</button><button type="button" data-kind="vehicle_inspection" aria-pressed="false">車検</button><button type="button" data-kind="annual_unconfirmed" aria-pressed="false">区分未確認</button><button type="button" data-kind="ad_hoc" aria-pressed="false">突発修理</button></div>
     <div class="ip-states" role="group" aria-label="実施状況" data-plan-states></div>
     </div>
-    <p role="status" data-plan-status>読み込み中…</p><p class="ip-error" data-planner-error role="alert" hidden></p>
+    <p role="status" data-plan-status>読み込み中…</p>
+    <a class="btn btn-outline" data-plan-export-mobile href="{{ url_for('vehicle_inspection_plans_excel', q=request.args.get('q', ''), **plan_args) }}">Excel出力</a>
+    <button type="button" class="btn btn-outline" data-plan-clear-mobile>絞り込みを解除</button>
+    </details>
+    <p class="ip-error" data-planner-error role="alert" hidden></p>
     <div class="ip-bulk" data-plan-bulk hidden>
         <strong data-plan-selected>0台選択</strong><button type="button" class="btn btn-outline" data-plan-generate>選択車両の候補を予定に登録</button>
         <label>調整する月<select data-plan-bulk-month></select></label><label>予約日<input type="date" data-plan-bulk-date></label><label>実施先<input maxlength="200" data-plan-bulk-factory></label><button type="button" class="btn btn-outline" data-plan-bulk-apply>選択車両の予定を変更</button>
