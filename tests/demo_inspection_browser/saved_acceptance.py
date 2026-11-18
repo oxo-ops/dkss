@@ -128,7 +128,9 @@ try:
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-home.png'),full_page=True)
        # Actual sidebar -> daily checklist -> vehicle choice, without a direct target goto.
        sidebar=page.locator('a[href="/vehicle/checklists"]')
-       if not sidebar.is_visible():page.locator('#sidebarToggle').click()
+       parent=page.locator('[data-menu-key="vehicle"] > .sidebar-parent')
+       if page.locator('#sidebarToggle').get_attribute('aria-expanded')!='true':page.locator('#sidebarToggle').click()
+       if not sidebar.is_visible():parent.click()
        sidebar.click();page.wait_for_url(lambda u:urlsplit(u).path==urlsplit(target).path);page.wait_for_load_state('networkidle')
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value() in ('','None')
        # Display clock is fixed to the saved fixture date, so no date/filter mutation is needed.
