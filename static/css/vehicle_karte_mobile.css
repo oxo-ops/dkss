@@ -109,3 +109,11 @@
   .ka-reference-drawer :is(.ka-reference-comment,.ka-reference-detail,.ka-drawer-heading) { min-width: 0; overflow-wrap: anywhere; }
  }
 }
+@media (max-width: 640px) {
+ @container karte-content (max-width: 280px) {
+  body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-proposals { padding: 4px; }
+  body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel > header { flex-direction: column; align-items: stretch; }
+  body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-panel > header a { white-space: normal; }
+  body.vehicle-list-ppt .ka3-shell .karte-costs.karte-analysis.ka3-page.ka7-page .ka7-cost-breakdown > div { display: flex; flex-direction: column; align-items: flex-start; }
+ }
+}
