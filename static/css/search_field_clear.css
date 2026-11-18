@@ -9,3 +9,12 @@ body .main-content :is(.driver-master-filter-form,.vehicle-master-filter-form,.p
 
 /* The patrol query is a direct flex item, unlike labelled filter fields. */
 .patrol-search-box>.query-clear-field{flex:1 1 240px;width:auto;max-width:100%}
+
+/* Keep wrapped query and status usable instead of shrinking the text field. */
+body .main-content form.patrol-search-box{display:grid;grid-template-columns:minmax(180px,1fr) minmax(140px,260px) auto;gap:12px;max-width:100%;box-sizing:border-box}
+body .main-content .patrol-search-box>.query-clear-field{width:100%;min-width:0;max-width:100%}
+body .main-content .patrol-search-box>select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+@media(max-width:768px){
+body .main-content form.patrol-search-box{grid-template-columns:minmax(0,1fr) auto}
+body .main-content .patrol-search-box>.query-clear-field{grid-column:1/-1}
+}
