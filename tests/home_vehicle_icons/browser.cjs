@@ -12,7 +12,7 @@ for(const width of [390,1316])for(const dpr of [1,2,3,4]){
  const sources=await page.locator('.after').evaluateAll(xs=>xs.map(i=>({src:new URL(i.currentSrc).pathname,w:i.getBoundingClientRect().width,h:i.getBoundingClientRect().height})));
  const expected=dpr===1?96:dpr===2?192:384;
  assert.equal(sources[0].src,'/static/icons/truck-display-'+expected+'.png');
- ['trailer','tractor','crane','flatbed','car'].forEach((n,i)=>assert.equal(sources[i+1].src,'/static/icons/'+n+'.png'));
+ ['trailer','tractor','crane','flatbed','car'].forEach((n,i)=>assert.equal(sources[i+1].src,'/static/icons/'+n+'-display-'+expected+'.png'));
  assert(sources.every(s=>s.w===43&&s.h===43));assert.equal(external,0);
  await page.screenshot({path:path.join(out,width+'-dpr'+dpr+'.png')});
  cases.push({width,dpr,sources,passed:true});await context.close();

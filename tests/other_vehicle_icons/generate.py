@@ -14,6 +14,7 @@ for row,name in enumerate(names):
   meta=PngImagePlugin.PngInfo();meta.add_text('SourceSHA256',sha)
   target=assets/f'{name}-display-{size}.png';im.save(target,format='PNG',optimize=True,pnginfo=meta)
   assert target.stat().st_size<len(raw)
+  assert (repo/'static/icons'/target.name).read_bytes()==target.read_bytes(), 'committed derivative differs from reproducible output'
   variants[size]={'bytes':target.stat().st_size,'dimensions':im.size}
  errors=[]
  def fit(im,n):
