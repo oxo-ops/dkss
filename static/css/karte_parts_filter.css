@@ -1,0 +1,9 @@
+@media (max-width:767px){
+.karte-parts .karte-parts-filter{margin:0 0 8px;min-width:0;}
+.karte-parts .karte-parts-filter>summary{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 8px;box-sizing:border-box;cursor:pointer;list-style:none;color:#334155;}
+.karte-parts .karte-parts-filter>summary::-webkit-details-marker{display:none;}
+.karte-parts .karte-parts-filter>summary svg{flex:none;}
+.karte-parts .karte-parts-filter>summary span{min-width:0;overflow-wrap:anywhere;}
+.karte-parts .karte-parts-filter>summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px;}
+.karte-parts .karte-parts-filter>.kp-filters{margin-top:8px;}
+}
