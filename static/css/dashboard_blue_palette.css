@@ -70,3 +70,41 @@
   background: linear-gradient(var(--dkss-surface), #eff3f7);
   box-shadow: inset 0 1px 0 var(--dkss-surface), 0 2px 4px #34475b0c;
 }
+
+/* Fixed-color decorative accents; semantic status palettes remain untouched. */
+.dashboard-page.dashboard-design-v2 .dashboard-vehicles-section > .dashboard-other-checklists {
+  background: linear-gradient(100deg, #eaf4fa, #e6effa);
+}
+.dashboard-page.dashboard-design-v2 .dashboard-vehicles-section > .dashboard-other-checklists > summary {
+  color: #426b95;
+}
+.dashboard-design-v2 :is(.dashboard-analysis-progress-bar, .dashboard-my-checklist-progress-bar) {
+  color: #638bb4;
+  accent-color: #638bb4;
+}
+.dashboard-design-v2 :is(.dashboard-analysis-progress-bar, .dashboard-my-checklist-progress-bar)::-webkit-progress-value {
+  background: #638bb4;
+}
+.dashboard-design-v2 :is(.dashboard-analysis-progress-bar, .dashboard-my-checklist-progress-bar)::-moz-progress-bar {
+  background: #638bb4;
+}
+.dashboard-design-v2 .dashboard-analysis-important {
+  border-left-color: #638bb4;
+  background: #edf3f9;
+}
+.dashboard-design-v2 a.dashboard-analysis-important:hover { background: #e2edf7; }
+/* First series is darker blue; retain second blue and third teal for distinction. */
+.dashboard-design-v2 .office-trend-row:first-of-type progress {
+  color: #376ca3;
+  accent-color: #376ca3;
+}
+.dashboard-design-v2 .office-trend-row:first-of-type progress::-webkit-progress-value { background: #376ca3; }
+.dashboard-design-v2 .office-trend-row:first-of-type progress::-moz-progress-bar { background: #376ca3; }
+.dashboard-design-v2 .dashboard-category-table tbody tr:first-child .dashboard-category-bar {
+  color: #517eac;
+  accent-color: #517eac;
+}
+.dashboard-design-v2 .dashboard-category-table tbody tr:first-child .dashboard-category-bar::-webkit-progress-value {
+  background: linear-gradient(#779fc7, #517eac);
+}
+.dashboard-design-v2 .dashboard-category-table tbody tr:first-child .dashboard-category-bar::-moz-progress-bar { background: #517eac; }
