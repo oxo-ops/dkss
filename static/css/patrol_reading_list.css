@@ -1,0 +1,21 @@
+/* Patrol-specific blue palette; retain the existing slanted ::after tab shape. */
+body:has(.safety-list-breadcrumb) .tabs .tab {--patrol-tab-bg:#edf4ff;--patrol-tab-border:#cfdef2;color:#536b90}
+body:has(.safety-list-breadcrumb) .tabs .tab.active {--patrol-tab-bg:#e4efff;--patrol-tab-border:#b8d2f5;color:#145ac8;box-shadow:none}
+@media(max-width:768px){
+ body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-card {background:#f2f7ff;border-color:#d5e3f5;color:#193c67}
+ body:has(.safety-list-breadcrumb) .pointouts-list-toolbar>.pointouts-pagination {display:none!important}
+ body:has(.safety-list-breadcrumb) .pointouts-pagination-bottom {display:flex!important;justify-content:center;background:#fff;margin-top:0;padding:14px 8px;border:1px solid #d5e3f5;border-top:0;border-radius:0 0 12px 12px}
+ body:has(.safety-list-breadcrumb) .safety-results-mobile-list {background:#fff;border:1px solid #d5e3f5;border-bottom:0}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-card {display:block;padding:0;background:#fff;border-bottom:1px solid #d5e3f5}
+ body:has(.safety-list-breadcrumb) .patrol-record-link {display:flex;flex-direction:column;gap:8px;padding:12px;color:#193454;text-decoration:none;min-width:0;overflow-wrap:anywhere}
+ body:has(.safety-list-breadcrumb) .patrol-record-link:focus-visible {outline:3px solid #1762ce;outline-offset:-3px}
+ body:has(.safety-list-breadcrumb) .patrol-record-link:hover {background:#f5f9ff}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-head {min-height:32px}
+ body:has(.safety-list-breadcrumb) .patrol-record-body {display:contents}
+ body:has(.safety-list-breadcrumb) .mobile-card-content {order:1;padding:0;margin:0;border:0;font-size:15px;line-height:1.65;white-space:normal;color:#152f51}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-grid {order:2;color:#607797}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-grid-wide {order:3;margin:0;padding:0;border:0}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-grid-wide .thumb {max-width:100%;object-fit:cover;border-radius:8px}
+ body:has(.safety-list-breadcrumb) .status-badge {background:#e4f0ff;color:#174c98;border-color:#c9def7}
+ body:has(.safety-list-breadcrumb) .safety-result-mobile-actions {padding:0 12px 12px;position:relative;display:flex;gap:8px}
+}

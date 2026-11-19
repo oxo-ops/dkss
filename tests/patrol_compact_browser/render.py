@@ -17,15 +17,16 @@ class Pages(CompactDemoTests):
  def test_pages(self):
   self.enter();m=self.models;out=Path(os.environ['HTML_OUT']);out.mkdir(parents=True,exist_ok=True)
   u=m.User.query.filter_by(company_code='AONAGI',username='checker').one()
-  for i,status in enumerate(['Good','none','承認待ち','差し戻し','承認済み']):
+  for i,status in enumerate(['Good','none','承認待ち','差し戻し','承認済み','none']):
    self.db.session.add(m.PatrolResult(company_code='AONAGI',created_by_username=u.username,created_by_user_id=u.id,created_by_identity=u.account_identity,created_by_name='Test checker',date='2026-11-18',office='test',category='Good' if status=='Good' else '指摘',target_type='user',target_user='Test checker',target_username=u.username,target_user_id=u.id,target_identity=u.account_identity,content=('通路の荷物と歩行者動線を確認。負傷なし。'+('長い本文を省略せず確認します。'*25 if i==1 else '')),approval_status=status,countermeasure='' if status=='none' else '通路を整理しました',files_json=json.dumps(['synthetic.png'] if i%2==0 else [])))
   self.db.session.commit()
   rows=[]
   for role,username in [('manager','admin'),('driver','checker')]:
    self.login(username)
    with self.client.session_transaction() as s:s['demo_role_selected']=True
-   r=self.client.get('/pointouts');self.assertEqual(r.status_code,200);self.assertIn('patrol-row-extra',r.text)
+   r=self.client.get('/pointouts?page_size=5');self.assertEqual(r.status_code,200);self.assertIn('patrol-record-link',r.text)
    (out/f'{role}.html').write_text(r.text)
+   paged=self.client.get('/pointouts?page_size=5&page=2');self.assertEqual(paged.status_code,200);(out/f'{role}-page2.html').write_text(paged.text)
    for p in m.PatrolResult.query.filter_by(company_code='AONAGI').all():
     detail=self.client.get(f'/pointouts/{p.id}');self.assertEqual(detail.status_code,200);(out/f'{role}-detail-{p.id}.html').write_text(detail.text)
    for variant,query,expected in [('filtered','keyword=通路&category=Good',1),('empty','keyword=NO_MATCH_42&category=Good',0)]:
