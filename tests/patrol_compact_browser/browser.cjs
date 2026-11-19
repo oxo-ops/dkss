@@ -34,6 +34,7 @@ assert(await cards.evaluateAll(es=>es.every(e=>e.scrollWidth<=e.clientWidth+1)),
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'page overflow');
 for(const card of await cards.all()){assert(await card.locator('.mobile-card-content').isVisible());assert.equal(await card.locator('summary').count(),0);assert.equal(await card.locator('.safety-result-mobile-detail').count(),0);assert((await card.locator('.patrol-record-link').boundingBox()).height>=44);}
 assert.equal(await page.locator('.tabs .tab').allTextContents().then(xs=>xs.map(x=>x.trim()).join('|')),'ユーザー|納入先');
+assert.equal(await page.locator('.tabs .tab.active').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(228, 239, 255)','selected tab blue');
 assert((await page.locator('.tabs .tab').first().evaluate(e=>getComputedStyle(e,'::after').transform))!=='none','slanted tab retained');
 await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-list.png'),fullPage:true});
 assert.equal(await page.locator('.pointouts-list-toolbar .pointouts-pagination').isVisible(),false);
