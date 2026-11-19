@@ -46,6 +46,18 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
  const rects=await controls.evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width&&getComputedStyle(e).display!=='none').map(e=>{const r=e.getBoundingClientRect();return {label:e.getAttribute('aria-label'),x:r.x,y:r.y,w:r.width,h:r.height}}));
  if(width<768){for(const r of rects){assert(r.w>=44&&r.h>=44,JSON.stringify({name,width,r}));assert(r.x>=0&&r.x+r.w<=width+1,JSON.stringify({name,width,r}));}for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){let a=rects[i],b=rects[j];assert(a.x+a.w<=b.x+1||b.x+b.w<=a.x+1||a.y+a.h<=b.y+1||b.y+b.h<=a.y+1,'header overlap');}}
  if(name==='inspection_driver_input'){if(width<768){assert(await page.locator('.vehicle-search-action').isVisible());assert.equal(await page.locator('.vehicle-workspace-top [data-vehicle-open-details="vehicle-target-settings"]').isVisible(),false);}assert.equal(await page.locator('#error-summary').count(),0,'real fixture approval response must not generate an error');await page.evaluate(()=>showCommonError('表示位置の確認用エラー','',false));const e=await page.locator('#error-summary').boundingBox(),h=await bar.boundingBox(),m=await page.locator('#sidebarToggle').boundingBox();assert(e.y>=h.y+h.height-1,'error must stay below account header');if(m)assert(e.y>=m.y+m.height-1,'error must not collide with menu');await page.screenshot({path:path.join(out,`inspection-error-${width}.png`),fullPage:false});await page.evaluate(()=>clearCommonErrors());}
+ if(name==='inspection_driver_input'){
+  await page.locator('[data-guide-open]').click();
+  await page.locator('[data-guide-next]').click();
+  await page.waitForTimeout(650);
+  assert.equal(await page.locator('[data-guide-title]').innerText(),'項目の詳細を見る');
+  const panel=await page.locator('#firstGuidePanel').boundingBox(),target=await page.locator('.inspection-item-detail.first-guide-target').boundingBox();
+  assert(panel && target,'same inspection item highlighted');
+  assert(panel.y+panel.height<=target.y+1 || panel.y>=target.y+target.height-1,'guide must not cover highlighted item');
+  assert(await page.locator('[data-guide-picture]').isVisible(),'instruction image retained');
+  await page.screenshot({path:path.join(out,`inspection-item-guide-${width}.png`)});
+  await page.locator('[data-guide-close]').click(); await page.evaluate(()=>window.scrollTo(0,0));
+ }
  const crumb=page.locator('.page-breadcrumb').first();if(await crumb.isVisible()&&width<=768){assert.equal(await crumb.evaluate(e=>getComputedStyle(e).paddingTop),'0px');const c=await crumb.boundingBox(),h=await bar.boundingBox();assert(c.y>=h.y+h.height-1,'breadcrumb under header');}
  await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});
  if(width<768 && ['dashboard','driving_reports','pointouts','vehicle_karte','inspection_driver_input'].includes(name)){
