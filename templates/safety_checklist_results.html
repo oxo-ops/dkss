@@ -3,6 +3,7 @@
 {% block title %}チェックリスト結果一覧{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_two_column_list.css', v='20261120-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_actions.css', v='20261119-heading-2') }}">
 {% endblock %}
 
@@ -141,67 +142,22 @@
 
 </table></div>
 
-<div class="safety-results-mobile-list">
+<div class="safety-results-mobile-list safety-result-two-column-list">
+    <div class="safety-result-list-labels" aria-hidden="true"><span>実施日・実施者</span><span>対象・状態</span></div>
     {% for period in checklist_periods %}
         {% set period_is_current = loop.first %}
+        <div class="safety-result-list-version">{{ '現行版' if period_is_current else '旧版' }} · {{ period.start_date.strftime("%Y/%m/%d") }}{% if period.start_date != period.end_date %}〜{{ period.end_date.strftime("%Y/%m/%d") }}{% endif %}</div>
         {% for result in period.results %}
         <article class="safety-result-mobile-card">
 
-            <div class="safety-result-mobile-head">
-                <div class="safety-result-mobile-head-main">
-                    <strong class="safety-result-mobile-head-title">実施者</strong>
-                    <span class="checklist-version-label">
-                        {% if period_is_current %}
-                            現行版
-                        {% else %}
-                            旧版
-                        {% endif %}
-                    </span>
-                </div>
-                <span class="checklist-version-period">
-                    {% if period_is_current %}
-                        使用開始 {{ period.start_date.strftime("%Y/%m/%d") }}
-                    {% elif period.start_date == period.end_date %}
-                        使用日 {{ period.start_date.strftime("%Y/%m/%d") }}
-                    {% else %}
-                        使用期間
-                        {{ period.start_date.strftime("%Y/%m/%d") }}
-                        ～ {{ period.end_date.strftime("%Y/%m/%d") }}
-                    {% endif %}
-                </span>
-            </div>
-
-            <div class="safety-result-mobile-grid">
-
-                <div>
-                    <span class="safety-result-mobile-label">実施者</span>
+            <div class="safety-result-list-columns">
+                <div class="safety-result-list-execution">
+                    <time>{{ result.checked_date or "-" }}</time>
                     <strong>{{ result.checked_by }}</strong>
                 </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">実施日</span>
-                    <strong>{{ result.checked_date or "-" }}</strong>
-                </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">対象区分</span>
-                    <strong>
-                        {% if result.target_type == "user" %}
-                            ユーザー
-                        {% elif result.target_type == "vehicle" %}
-                            車両
-                        {% elif result.target_type == "office" %}
-                            営業所
-                        {% else %}
-                            指定なし
-                        {% endif %}
-                    </strong>
-                </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">対象</span>
-                    <strong>
-                        {% if result.target_type == "user" %}
+                <div class="safety-result-list-target">
+                    <small>{{ {"user":"ユーザー","vehicle":"車両","office":"営業所"}.get(result.target_type,"指定なし") }}</small>
+                    <strong>                        {% if result.target_type == "user" %}
                             {{ result.target_user }}
                         {% elif result.target_type == "vehicle" %}
                             {{ result.target_vehicle }}
@@ -210,12 +166,7 @@
                         {% else %}
                             -
                         {% endif %}
-                    </strong>
-                </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">状態</span>
-
+</strong>
                     {% if result.status == "承認済み" %}
                         <span class="status-badge status-approved">承認済み</span>
                     {% elif result.status == "点検完了" %}
@@ -225,15 +176,10 @@
                     {% else %}
                         <span class="status-badge status-waiting">承認待ち</span>
                     {% endif %}
-                </div>
 
-                <div>
-                    <span class="safety-result-mobile-label">承認日</span>
-                    <strong>{{ result.approved_date or "-" }}</strong>
+                    {% if result.approved_date %}<small>承認 {{ result.approved_date }}</small>{% endif %}
                 </div>
-
             </div>
-
             <a
                 href="/safety/checklist-results/{{ result.index }}"
                 class="btn safety-result-mobile-detail"

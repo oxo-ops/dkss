@@ -16,7 +16,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <input type="hidden" name="delete_token" value="{{ delete_token }}">
 <label><input type="checkbox" name="confirm_delete" value="yes" required> 削除する資料と登録データを確認しました。削除します。</label>
-<p><button type="submit" class="btn btn-outline">資料と由来データを削除</button></p>
+<p><button type="submit" class="btn btn-outline btn-delete">資料と由来データを削除</button></p>
 </form>
 {% endif %}
 <a class="btn btn-outline" href="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}">書類へ戻る</a>

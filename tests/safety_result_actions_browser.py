@@ -11,7 +11,7 @@ with sync_playwright() as p:
  for width in [320,390,501,768,1024,1440]:
   for manage in [False,True]:
    content=Contract().render(manage)
-   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','entry_add_icon.css','responsive_layout.css','safety_result_actions.css'])
+   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','entry_add_icon.css','responsive_layout.css','common_action_buttons.css','safety_result_actions.css','safety_result_two_column_list.css'])
    html='<meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8">'+css+'<body data-responsive-shell>'+content+'</body>'+ '<script>'+ (ROOT/'static/js/safety_checklist_results.js').read_text()+'</script>'
    page=browser.new_page(viewport={'width':width,'height':900})
    requests=[]

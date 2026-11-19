@@ -17,6 +17,13 @@ const filter=page.locator('.patrol-filter-disclosure');
 const form=filter.locator('form');
 if(width<=768){
 assert(!(await form.isVisible()),'mobile filter must start collapsed');
+const tabsBox=await page.locator('.tabs').boundingBox(), toolbarBox=await page.locator('.pointouts-list-toolbar').boundingBox(), summaryBox=await filter.locator('summary').boundingBox(), listBox=await list.boundingBox();
+assert(Math.abs(tabsBox.y+tabsBox.height-toolbarBox.y)<3,'tabs joined to toolbar');
+assert(Math.abs(toolbarBox.y+toolbarBox.height-listBox.y)<3,'toolbar joined to records');
+assert(summaryBox.width>=44&&summaryBox.height>=44,'filter touch area');
+assert(Math.abs(summaryBox.y+summaryBox.height/2-toolbarBox.y-toolbarBox.height/2)<3,'filter shares toolbar row');
+assert(!(await page.locator('.safety-list-breadcrumb').isVisible()),'mobile duplicate breadcrumb removed');
+assert.equal(await page.locator('.safety-results-new-button').evaluate(e=>getComputedStyle(e).position),'fixed');
 const totalBox=await page.locator('.pointouts-total').boundingBox(), sizeBox=await page.locator('.pointouts-page-size-form').boundingBox();
 assert(Math.abs((totalBox.y+totalBox.height/2)-(sizeBox.y+sizeBox.height/2))<2,'count and page size must share a row');
 await filter.locator('summary').click();

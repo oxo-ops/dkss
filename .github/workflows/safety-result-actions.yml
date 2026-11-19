@@ -1,7 +1,7 @@
 name: Safety result action design
 on:
   push:
-    branches: [validation/pitch-ready-ui, review/safety-results-heading, validation/safety-result-actions-20261119, validation/post-live-polish-20261119]
+    branches: [validation/experience-followups, fix/safety-results-two-column-list,validation/pitch-ready-ui, review/safety-results-heading, validation/safety-result-actions-20261119, validation/post-live-polish-20261119]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,6 +18,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python tests/test_safety_result_action_contract.py
       - run: python tests/safety_result_actions_browser.py
+      - run: python tests/safety_result_two_column_browser.py
       - uses: actions/upload-artifact@v7
         if: always()
         with:
