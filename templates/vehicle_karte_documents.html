@@ -7,7 +7,7 @@
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 
-{% macro document_url(document=none, page=1, kind=document_filters.kind) -%}
+{% macro document_url(document=('closed' if request.args.get('document') == 'closed' else none), page=1, kind=document_filters.kind) -%}
 {{ url_for(
     'vehicle_karte_documents',
     vehicle_record_id=vehicle.id,
@@ -82,6 +82,9 @@
                 action="{{ url_for('vehicle_karte_documents', vehicle_record_id=vehicle.id) }}"
                 class="kd-filters"
             >
+                {% if request.args.get('document') == 'closed' %}
+                <input type="hidden" name="document" value="closed">
+                {% endif %}
                 <input
                     type="search"
                     name="q"
