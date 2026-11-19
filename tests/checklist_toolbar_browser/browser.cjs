@@ -11,7 +11,7 @@ for(const width of [320,390,768,1440])for(const count of [0,8]){
  assert.match(await page.locator('#vehicle_workspace_date').getAttribute('aria-label'),/2026年11月19日/);
  assert.equal(await page.locator('.vehicle-excel-action').getAttribute('href'),'/vehicle/checklist-results/7/excel');
  const excel=page.locator('.vehicle-excel-action');assert.equal(await excel.getAttribute('aria-label'),'Excel出力');assert(await excel.locator('svg').isVisible());
- const excelStyle=await excel.evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return {color:s.color,bg:s.backgroundColor,width:r.width,height:r.height};});assert.equal(excelStyle.color,'rgb(35, 117, 75)');assert(excelStyle.width>=44 && excelStyle.height>=44);
+ const excelStyle=await excel.evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return {color:s.color,bg:s.backgroundColor,width:r.width,height:r.height};});assert.equal(excelStyle.color,'rgb(35, 117, 75)');assert.equal(excelStyle.width,44);assert.equal(excelStyle.height,44);assert.equal(await excel.locator('.vehicle-toolbar-text').isVisible(),false);
  await excel.focus();assert.equal(await excel.evaluate(el=>getComputedStyle(el).outlineStyle),'solid');await page.locator('#vehicle_workspace_date').focus();
  const old=page.locator('[data-vehicle-open-details="vehicle-target-settings"]');assert.equal(await old.count(),1);assert.equal(await old.isVisible(),false);assert.equal(await page.locator('.header-actions [data-vehicle-open-details="vehicle-target-settings"]').count(),1);
  const button=page.locator('.vehicle-search-action');assert(await button.isVisible());await button.click();assert.equal(await page.locator('#vehicle-target-settings').getAttribute('open'),'');
@@ -22,5 +22,6 @@ for(const width of [320,390,768,1440])for(const count of [0,8]){
  await page.screenshot({path:path.join(process.argv[3],width+'-'+count+'.png'),fullPage:true});
  results.push({width,count,japaneseDate:true,excelUnchanged:true,searchToggle:true,defectMeaningPreserved:true,...geom});await context.close();
 }fs.writeFileSync(path.join(process.argv[3],'results.json'),JSON.stringify(results,null,2));await browser.close();})().catch(e=>{console.error(e);process.exit(1)});
+
 
 
