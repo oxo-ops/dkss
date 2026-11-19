@@ -38,7 +38,7 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
  }
  if(name.includes('settings_')){assert(await page.locator('.settings-user-card').isVisible());for(const selector of ['.settings-notification-card','.settings-password-card','form[action="/logout"]'])assert.equal(await page.locator(selector).count(),name.startsWith('demo_')?0:1);}
  const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert.equal(await avatar.isVisible(),!(name==='driving_reports'&&width<768));assert.equal(await bar.locator('.top-bar-user-name').isVisible(),(name==='driving_reports'?width>768:width>767));
- if(width<768){const heading=bar.locator('[data-mobile-page-title]');assert(await heading.isVisible());const hb=await heading.boundingBox();assert(hb.x>=64-1,'title leaves menu breathing room');assert(hb.width>0);assert.equal(await bar.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');if(name==='driving_reports'){assert.equal(await bar.locator('.notification-menu').isVisible(),false);assert(await bar.locator('[data-guide-open]').isVisible());}}
+ if(width<768){const heading=page.locator('.main-content > [data-mobile-page-title]');assert(await heading.isVisible());const hb=await heading.boundingBox();assert(hb.x>=0,'title inside viewport');assert(hb.width>0);assert.equal(await bar.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');if(name==='driving_reports'){assert.equal(await bar.locator('.notification-menu').isVisible(),false);assert(await bar.locator('[data-guide-open]').isVisible());}}
  else assert.equal(await bar.locator('[data-mobile-page-title]').isVisible(),false);
  const help=bar.locator('#firstUseGuide'),bell=bar.locator('.notification-menu');if(await help.count()){assert(await help.evaluate((e)=>{let n=e.nextElementSibling;while(n&&['SCRIPT','LINK','STYLE'].includes(n.tagName))n=n.nextElementSibling;return n?.classList.contains('notification-menu');}),'help directly before notification');}
  if(name==='checklist_result_detail'){const launcher=page.locator('[data-guide-open]');assert(await launcher.isVisible());await launcher.click();const panel=page.locator('#firstGuidePanel');assert(await panel.isVisible());assert.equal(await panel.locator('[data-guide-title]').innerText(),'点検した対象と日付を確認する');await page.screenshot({path:path.join(out,`safety-detail-guide-${width}.png`)});await panel.locator('[data-guide-next]').click();assert.equal(await panel.locator('[data-guide-title]').innerText(),'点検の内容を見る');await panel.locator('[data-guide-close]').click();}
@@ -48,6 +48,16 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
  if(name==='inspection_driver_input'){if(width<768){assert(await page.locator('.vehicle-search-action').isVisible());assert.equal(await page.locator('.vehicle-workspace-top [data-vehicle-open-details="vehicle-target-settings"]').isVisible(),false);}assert.equal(await page.locator('#error-summary').count(),0,'real fixture approval response must not generate an error');await page.evaluate(()=>showCommonError('表示位置の確認用エラー','',false));const e=await page.locator('#error-summary').boundingBox(),h=await bar.boundingBox(),m=await page.locator('#sidebarToggle').boundingBox();assert(e.y>=h.y+h.height-1,'error must stay below account header');if(m)assert(e.y>=m.y+m.height-1,'error must not collide with menu');await page.screenshot({path:path.join(out,`inspection-error-${width}.png`),fullPage:false});await page.evaluate(()=>clearCommonErrors());}
  const crumb=page.locator('.page-breadcrumb').first();if(await crumb.isVisible()&&width<=768){assert.equal(await crumb.evaluate(e=>getComputedStyle(e).paddingTop),'0px');const c=await crumb.boundingBox(),h=await bar.boundingBox();assert(c.y>=h.y+h.height-1,'breadcrumb under header');}
  await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});
+ if(width<768 && ['dashboard','driving_reports','pointouts','vehicle_karte','inspection_driver_input'].includes(name)){
+  const title=page.locator('.main-content > [data-mobile-page-title]'),before=await title.boundingBox();
+  await page.evaluate(()=>window.scrollBy(0,500)); await page.waitForTimeout(100);
+  const after=await title.boundingBox(),scroll=await page.evaluate(()=>window.scrollY);
+  assert(scroll>0,'page scroll available'); assert(after.y<before.y-20,'title scrolls with content');
+  const menu=await page.locator('#sidebarToggle').boundingBox();assert(menu.y>=0&&menu.y<60,'menu stays visible');
+  assert.equal(await title.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+  await page.screenshot({path:path.join(out,`scroll-title-${name}-${width}.png`)});
+  await page.evaluate(()=>window.scrollTo(0,0));
+ }
  if(name==='driving_reports'&&width<768){const filter=page.locator('.driving-extra-filters > summary');assert(await filter.locator('.driving-toolbar-icon').isVisible());assert.equal(await filter.locator('.driving-toolbar-label').isVisible(),false);await filter.click();assert(await page.locator('.driving-extra-filters input[name="start"]').isVisible());await filter.click();for(const control of [filter,page.locator('.driving-export-menu > summary')]){const r=await control.boundingBox();assert(r.width>=44&&r.height>=44);}}
  if(name.startsWith('vehicle_karte')){
  const trigger=page.locator('.karte-mobile-search-trigger'),input=page.locator('#karte_vehicle_search');
@@ -61,5 +71,6 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
  report.push({name,width,passed:true,rects});await context.close();}
  assert.equal(report.length,52);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
 }catch(e){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({error:String(e),report,blocked},null,2));if(current&&!current.isClosed())await current.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});
+
 
 

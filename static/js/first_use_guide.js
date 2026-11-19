@@ -24,7 +24,7 @@
         {
             "selector": ".dashboard-attention-preview a.dashboard-video-proposal, .dashboard-attention-table td:last-child a",
             "title": "AIの整備提案を見る",
-            "text": "「詳細」から提案の理由と対応を確認します。"
+            "text": "提案の行を押すと、理由と対応を確認できます。"
         },
         {
             "selector": ".dashboard-trend-tabs",
@@ -478,6 +478,13 @@
     return {block:rect.bottom-rect.top>bottom-top?'start':'center',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
   }
 
+  function coachmarkMaxHeight(rect, viewport) {
+    const edge=12, gap=12;
+    const above=rect.top-(viewport.top+edge)-gap;
+    const below=(viewport.top+viewport.height-edge)-rect.bottom-gap;
+    const available=Math.max(above,below);
+    return available>=144 ? Math.min(viewport.height-24,available) : viewport.height-24;
+  }
   function coachmarkPlacement(rect, viewport, width, height) {
     const gap=12, edge=12, leftEdge=viewport.left+edge, rightEdge=viewport.left+viewport.width-edge;
     const topEdge=viewport.top+edge, bottomEdge=viewport.top+viewport.height-edge;
@@ -490,7 +497,7 @@
     const arrow=Math.max(20,Math.min(width-20,targetCenter-left));
     return {left,top,side,arrow};
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord,revealOptions,coachmarkPlacement};
+  if (typeof module !== 'undefined' && module.exports) module.exports={key,state,candidates,revealRecord,revealOptions,coachmarkPlacement,coachmarkMaxHeight};
   if (typeof document === 'undefined') return;
   const root=document.getElementById('firstUseGuide');
   if (!root) return;
@@ -530,7 +537,7 @@
     // Convert once, preserving target/scroll behavior under CSS layout zoom.
     const before=panel.getBoundingClientRect();
     const scale=panel.offsetWidth>0 && before.width>0 ? before.width/panel.offsetWidth : 1;
-    panel.style.maxHeight=Math.max(80,viewport.height-24)/scale+'px';
+    panel.style.maxHeight=Math.max(80,coachmarkMaxHeight(active.getBoundingClientRect(),viewport))/scale+'px';
     panel.style.width=Math.min(330,viewport.width-24)/scale+'px';
     const bounds=panel.getBoundingClientRect();
     const p=coachmarkPlacement(active.getBoundingClientRect(),viewport,bounds.width,bounds.height);
@@ -586,4 +593,5 @@
     else afterLayout();
   }else startInitialGuide();
 })();
+
 
