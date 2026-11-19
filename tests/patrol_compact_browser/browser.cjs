@@ -19,6 +19,7 @@ if(width<=768){
 assert(!(await form.isVisible()),'mobile filter must start collapsed');
 await filter.locator('summary').click();
 assert(await form.isVisible());
+await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-filter.png'),fullPage:true});
 await form.locator('[name=keyword]').fill('通路');
 await form.locator('[name=category]').selectOption('Good');
 await filter.locator('summary').click();
