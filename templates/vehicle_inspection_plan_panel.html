@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inspection_status_panel.css', v='20261119-1') }}">
 <dialog class="inspection-plan-panel" id="inspection-plan-panel" aria-labelledby="inspection-plan-title">
     <div class="ip-heading"><h2 id="inspection-plan-title">点検スケジュール</h2><button type="button" data-plan-close aria-label="閉じる">×</button></div>
     <div class="ip-body">
@@ -6,8 +7,8 @@
         <div class="ip-vehicle"><strong data-plan-vehicle-label></strong><span data-plan-office-label></span></div>
         <section class="ip-actual" aria-label="点検の実施状況">
             <h4>実施状況</h4><p data-plan-current-status></p><p data-plan-last></p><p data-plan-evidence></p>
-            <a data-plan-record-link hidden target="_blank" rel="noopener">点検記録の原本を開く ↗</a>
-            <a data-plan-maintenance-link hidden>同じ原本の整備案件を開く</a>
+            <a class="ip-resource-action" data-plan-record-link hidden target="_blank" rel="noopener">点検記録の原本を開く ↗</a>
+            <a class="ip-resource-action" data-plan-maintenance-link hidden>同じ原本の整備案件を開く</a>
             <button type="button" class="btn btn-outline" data-execution-toggle hidden>実施済みを登録</button>
             <form id="inspection-execution-form" hidden>
                 <p class="help-text">請求書・点検簿が未受領でも、実際に点検した日を先に登録できます。</p>
@@ -30,7 +31,7 @@
             <label>メモ（任意）<textarea name="note" rows="3" maxlength="1000"></textarea></label>
             <p class="help-text">予約日は、整備工場と調整済みの日程を記録します。</p>
             <p class="ip-error" data-plan-error role="alert" hidden></p>
-            <a data-plan-annual href="{{ url_for('vehicle_inspection_plans') }}">営業所・会社の年間計画を開く →</a>
+            <a class="ip-resource-action" data-plan-annual href="{{ url_for('vehicle_inspection_plans') }}">営業所・会社の年間計画を開く →</a>
             <div class="ip-footer"><button type="button" class="btn btn-outline" data-plan-cancel-record hidden>予定を取り消す</button><button type="button" class="btn btn-outline" data-plan-close>キャンセル</button><button type="submit" class="btn btn-outline" data-plan-save>保存</button></div>
         </form>
     </div>
