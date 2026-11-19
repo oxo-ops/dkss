@@ -711,30 +711,27 @@ def main():
                         report['cases'].append(f'Browser {width}: periodic {score} badge/counts/source details and actual list/back navigation; no generation POST')
                     elif args.case == 'invoice':
                         invoice_phase = f'width:{width}/history'
-                        # History opens this invoice's original PDF, not its
-                        # maintenance-detail page. Follow that real rendered link.
+                        # The approved history flow opens the existing detail first,
+                        # never an unexpected original-PDF navigation. Original byte
+                        # and native download acceptance remain below.
                         page.goto(ORIGIN + paths[0], wait_until='networkidle')
                         source_link = page.locator('.vehicle-history-record-link:visible, .vehicle-history-mobile-content a:visible')
                         expect(source_link).to_have_count(1)
-                        expect(source_link).to_have_attribute('href', invoice_source_path)
-                        source_url = urljoin(ORIGIN, source_link.get_attribute('href'))
-                        invoice_phase = f'width:{width}/history-original'
-                        pdf.begin(page, source_url, original_hash)
+                        detail_path = f'/vehicle/karte/{case.vehicle.id}/maintenance/{invoice_record.id}#maintenance_detail_panel'
+                        expect(source_link).to_have_attribute('href', detail_path)
                         navigation_count = len(report['invoice_source_navigations'])
-                        with page.expect_response(lambda response: response.url == source_url and
-                                response.request.is_navigation_request()) as opened:
-                            source_link.click(no_wait_after=True)
-                        require(opened.value.status == 200, 'History original source did not open')
-                        expect(page).to_have_url(source_url)
-                        require(len(report['invoice_source_navigations']) == navigation_count + 1,
-                                'History click did not make one original-source navigation')
-                        navigation = report['invoice_source_navigations'][-1]
-                        require(navigation['url'] == source_url and navigation['mimetype'] == 'application/pdf' and
-                                navigation['resource_type'] == 'document' and navigation['source_sha256'] == original_hash,
-                                'History navigation reached a different original source')
-                        page.wait_for_url(source_url, wait_until='networkidle')
-                        pdf.finish(page, opened.value)
-                        pdf.end()
+                        invoice_phase = f'width:{width}/history-detail'
+                        invoice_preview_scope = dict(id=invoice_phase, url=ORIGIN + detail_path,
+                            page=page, frame=page.main_frame)
+                        source_link.click()
+                        expect(page).to_have_url(ORIGIN + detail_path)
+                        page.wait_for_load_state('networkidle')
+                        expect(page.locator('#maintenance_detail_panel')).to_contain_text('タイヤ交換（読取訂正）')
+                        expect(page.locator('.km-detail-panel .km-file-card[download]')).to_have_attribute('href', invoice_source_path)
+                        require(len(report['invoice_source_navigations']) == navigation_count,
+                                'History click unexpectedly navigated to an original PDF')
+                        accept_invoice_preview(width, 'history-detail')
+                        invoice_preview_scope = None
                         invoice_phase = f'width:{width}/history-back'
                         page.go_back(wait_until='networkidle')
                         expect(page).to_have_url(ORIGIN + paths[0])
