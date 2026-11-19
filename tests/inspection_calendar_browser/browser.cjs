@@ -39,7 +39,11 @@ if(width<=700){
  lastStage='search-dialog';const beforeSearch=p.url();await p.locator('[data-plan-search-toggle]').click();await p.locator('.ip-search-dialog[open]').waitFor();const search=p.locator('.ip-search-dialog input[name=search]');assert(await search.evaluate(e=>e===document.activeElement));assert.equal(await p.locator('input[name=search]').count(),1);await search.fill('101');await p.locator('.ip-search-result').first().waitFor();assert.equal(await p.locator('.ip-filter-dialog[open]').count(),0);await p.screenshot({path:out+`/search-${width}-${mon}.png`});await p.getByRole('button',{name:'検索を閉じる',exact:true}).click();assert.equal(p.url(),beforeSearch);assert.equal(await p.locator('input[name=search]').inputValue(),'');
  }
 }
-if(width<=700){await p.goto(base+'/vehicle/inspection-plans');await p.waitForSelector('.ip-cal-day');assert.equal(await p.locator('[data-inspection-planner]').getAttribute('data-view'),'calendar');await p.locator('[data-plan-view-toggle]').click();await p.locator('button[data-view="month"]').click();await p.waitForSelector('.ip-month-table tbody tr');assert.equal(await p.locator('.ip-grid-scroll').evaluate(e=>getComputedStyle(e).maxHeight),'none');await p.screenshot({path:out+`/list-${width}.png`});}
+if(width<=700){await p.goto(base+'/vehicle/inspection-plans');await p.waitForSelector('.ip-cal-day');assert.equal(await p.locator('[data-inspection-planner]').getAttribute('data-view'),'calendar');await p.locator('[data-plan-view-toggle]').click();await p.locator('button[data-view="month"]').click();await p.waitForSelector('.ip-month-table tbody tr');assert.equal(await p.locator('.ip-grid-scroll').evaluate(e=>getComputedStyle(e).maxHeight),'none');await p.screenshot({path:out+`/list-${width}.png`});
+const listGeometry=await p.evaluate(()=>{const body=document.querySelector('.ip-month-table tbody'),row=body.querySelector('tr');for(let i=0;i<12;i++){const copy=row.cloneNode(true);copy.dataset.layoutProbe='true';body.append(copy);}const scroll=document.querySelector('.ip-grid-scroll');return {height:scroll.clientHeight,scrollHeight:scroll.scrollHeight,overflow:getComputedStyle(scroll).overflow,maxHeight:getComputedStyle(scroll).maxHeight,viewport:innerHeight,rows:body.children.length};});
+assert.equal(listGeometry.maxHeight,'none',JSON.stringify(listGeometry));assert(listGeometry.height>=listGeometry.scrollHeight-2,JSON.stringify(listGeometry));
+await p.screenshot({path:out+`/list-many-${width}.png`});results.push({width,listGeometry});await p.locator('[data-layout-probe]').evaluateAll(es=>es.forEach(e=>e.remove()));
+}
 if(width<=700){
  lastStage='condition-only-dialog';await p.locator('[data-plan-filter-toggle]').click();
  assert.equal(await p.locator('.ip-filter-dialog input[name=search]').isVisible(),false);
@@ -52,7 +56,7 @@ if(width<=700){
  const rect=await pop.boundingBox(),trigger=await toggle.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width);assert(rect.y>=trigger.y+trigger.height-1);
  await p.screenshot({path:out+`/formats-${width}.png`});await p.keyboard.press('Escape');assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
  await toggle.click();await p.locator('button[data-view=calendar]').click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);assert(await toggle.evaluate(e=>e===document.activeElement));
- await toggle.click();await p.locator('.mobile-page-title:visible, h2:visible').filter({hasText:'点検計画'}).first().click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
+ await toggle.click();await p.locator('[data-period-title]').click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
  await p.locator('[data-plan-search-toggle]').click();const input=p.locator('.ip-search-dialog input');const focus=await input.evaluate(e=>({outline:getComputedStyle(e).outlineColor,shadow:getComputedStyle(e).boxShadow}));assert.notEqual(focus.outline,'rgb(139, 92, 246)');assert.equal(focus.shadow,'none');await p.screenshot({path:out+`/search-focus-${width}.png`});await p.keyboard.press('Escape');
 }
 assert.deepEqual(errors,[]);assert.deepEqual(forbidden,[]);await c.close();lastPage=null;}
