@@ -3,12 +3,9 @@
 
 {% block title %}車両カルテ・整備・修理{% endblock %}
 
-{% block extra_css %}
+{% block page_styles %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/karte_maintenance_filter.css', v='20261119-1') }}">
-{% endblock %}
-{% block extra_js %}
-{{ super() }}
 <script defer src="{{ url_for('static', filename='js/karte_maintenance_filter.js', v='20261119-1') }}"></script>
 {% endblock %}
 
