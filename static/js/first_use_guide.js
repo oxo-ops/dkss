@@ -580,6 +580,9 @@
   // If the user operates the real UI, get out of the way. Never trigger that UI ourselves.
   document.addEventListener('click',e=>{if(!panel.hidden&&!root.contains(e.target)) {if(resumable)pauseForOperation(e.target);else close(false);}},true);
   new MutationObserver(()=>{if(!panel.hidden && active && !visible(active)) close(false);}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
+  // Images/fonts may finish after show(); reposition when the rendered card grows.
+  // Keep the target visible and the action row inside the viewport on PC too.
+  if(typeof ResizeObserver!=='undefined') new ResizeObserver(position).observe(panel);
   window.addEventListener('resize',position);window.addEventListener('scroll',position,{passive:true});
   if(window.visualViewport){window.visualViewport.addEventListener('resize',position);window.visualViewport.addEventListener('scroll',position,{passive:true});}
   function startInitialGuide(){
