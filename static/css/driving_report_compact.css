@@ -29,7 +29,7 @@
  .driving-page.driving-designed #report-list .driving-report-table td[data-label="確認・対応"]::before{display:none}
  .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"]{display:flex;justify-content:flex-end;padding-top:2px;padding-bottom:4px}
  .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"]::before{display:none}
- .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"] a{min-height:44px;box-sizing:border-box;padding:6px 10px;font-size:13px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"] a{display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;box-sizing:border-box;padding:6px 10px!important;font-size:13px}
  .driving-page.driving-designed #report-list .driving-report-table td[data-label="原本"]{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;padding-top:0}
  .driving-page.driving-designed #report-list .driving-report-table td[data-label="原本"] a{display:inline-flex;align-items:center;min-height:44px}
  .driving-page.driving-designed #report-list .driving-actions{margin-top:8px;font-size:12px}
