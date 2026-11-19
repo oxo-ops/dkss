@@ -96,7 +96,7 @@
                     const p = item.priority_preview;
                     copy.append(node("p", "priority-preview-evidence", `根拠：${p.evidence_status}${p.missing_conditions.length ? ` / 確認事項 ${p.missing_conditions.length}件` : ""}`));
                 }
-                const action = node("a", "ko-proposal-detail", "詳細 ›");
+                const action = node("a", "ko-proposal-detail", "");
                 action.setAttribute("aria-label", `詳細：${target}の提案と対応を確認`);
                 action.href = url.href;
                 if (priority) row.append(priority);

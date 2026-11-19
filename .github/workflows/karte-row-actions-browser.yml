@@ -1,0 +1,30 @@
+name: Karte Overview Row Actions Browser
+on:
+  push:
+    branches: [fix/karte-overview-row-actions]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install -r requirements.txt playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - run: |
+          node --test tests/vehicle_karte_overview_js.cjs
+          mkdir -p "$RUNNER_TEMP/karte-rows/home" "$RUNNER_TEMP/karte-rows/tmp" "$RUNNER_TEMP/karte-rows/qa"
+          git rev-parse HEAD > "$RUNNER_TEMP/karte-rows/qa/head.txt"
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/karte-rows/home" LANG=C.UTF-8 PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" TMPDIR="$RUNNER_TEMP/karte-rows/tmp" DKSS_VALIDATION_TMP="$RUNNER_TEMP/karte-rows/tmp" DKSS_BROWSER_ACCEPTANCE_ISOLATED=1 PYTHONPATH="$GITHUB_WORKSPACE/tests/history_presentation_browser/guard" PRODUCT_REPO="$GITHUB_WORKSPACE" ARTIFACTS="$RUNNER_TEMP/karte-rows/qa" python tests/karte_row_actions_browser/acceptance.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: karte-row-actions
+          path: ${{ runner.temp }}/karte-rows/qa
