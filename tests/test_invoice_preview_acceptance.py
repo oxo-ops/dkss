@@ -184,7 +184,19 @@ class PreviewAcceptance(unittest.TestCase):
         expected = Counter(BASELINE['require_condition_hash_counts'])
         self.assertEqual(sum(expected.values()), 51)
         self.assertEqual(BASELINE['source_blob'], '7b1ef09ca54fb545c44fb85bf78bfd68f36637b2')
-        self.assertFalse(expected - conditions)
+        # Approved #520 intentionally replaces only direct-PDF history navigation
+        # with existing detail-first navigation. Keep every other original guard,
+        # byte/download proof and bridge unchanged.
+        replaced_history_navigation = Counter({
+            'ce47ca3750e2d4a1c22ba177965f4416836b674e1367c24995ba79b2021d360c': 1,
+            '4f63bafb36bfd88bf4dccefdd935a6f1410088a94ded795fcbb7c56e9786b36d': 1,
+            'dcf38e7e96920ae650ed89a3fc411f6d54d537897533461bc4f29ea42c23e069': 1,
+        })
+        self.assertFalse((expected - replaced_history_navigation) - conditions)
+        self.assertIn("expect(source_link).to_have_attribute('href', detail_path)", TEXT)
+        self.assertIn("expect(page).to_have_url(ORIGIN + detail_path)", TEXT)
+        self.assertIn("require(len(report['invoice_source_navigations']) == navigation_count,", TEXT)
+        self.assertIn("accept_invoice_preview(width, 'maintenance-record')", TEXT)
         for name in ('bridge', 'get', 'snapshot'):
             self.assertEqual(digest(ast.dump(NODES[name])), BASELINE['function_ast_sha256'][name], name)
         start = TEXT.index("                        original_response = get(download_href)")

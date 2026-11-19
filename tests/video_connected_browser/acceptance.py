@@ -720,7 +720,9 @@ def main():
                         detail_path = f'/vehicle/karte/{case.vehicle.id}/maintenance/{invoice_record.id}#maintenance_detail_panel'
                         expect(source_link).to_have_attribute('href', detail_path)
                         navigation_count = len(report['invoice_source_navigations'])
-                        invoice_phase = f'width:{width}/history-detail'
+                        # Both entry routes reach the same exact maintenance record and
+                        # reuse the unchanged record-preview proof scope.
+                        invoice_phase = f'width:{width}/maintenance-record'
                         invoice_preview_scope = dict(id=invoice_phase, url=ORIGIN + detail_path,
                             page=page, frame=page.main_frame)
                         source_link.click()
@@ -730,7 +732,7 @@ def main():
                         expect(page.locator('.km-detail-panel .km-file-card[download]')).to_have_attribute('href', invoice_source_path)
                         require(len(report['invoice_source_navigations']) == navigation_count,
                                 'History click unexpectedly navigated to an original PDF')
-                        accept_invoice_preview(width, 'history-detail')
+                        accept_invoice_preview(width, 'maintenance-record')
                         invoice_preview_scope = None
                         invoice_phase = f'width:{width}/history-back'
                         page.go_back(wait_until='networkidle')
@@ -800,7 +802,7 @@ def main():
                             download_result.update(saved_file_sha256=hashlib.sha256(saved_bytes).hexdigest(),
                                 saved_file_byte_length=len(saved_bytes))
                         receiver.assert_complete()
-                        report['cases'].append(f'Browser {width}: rendered history -> exact original PDF GET/hash -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
+                        report['cases'].append(f'Browser {width}: rendered history -> exact maintenance detail/preview (no PDF navigation) -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
                         invoice_phase = f'width:{width}/connected-views'
                         for number, path in enumerate(paths):
                             page.goto(ORIGIN + path, wait_until='networkidle')
