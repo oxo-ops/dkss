@@ -1,0 +1,11 @@
+.karte-history-filter-disclosure{display:contents}
+.karte-history-filter-disclosure>summary{display:none}
+@media(max-width:768px){
+ .vehicle-karte-history-panel .karte-history-filter-disclosure{display:block;flex:0 0 auto;margin-left:auto}
+ .vehicle-karte-history-panel .karte-history-filter-disclosure>summary{display:flex;min-height:44px;min-width:44px;align-items:center;justify-content:center;gap:4px;list-style:none;cursor:pointer;color:#245c9a;border-radius:8px}
+ .karte-history-filter-disclosure>summary::-webkit-details-marker{display:none}
+ .karte-history-filter-disclosure>summary:focus-visible{outline:2px solid #176db4;outline-offset:2px}
+ .vehicle-karte-history-panel .karte-history-filter-disclosure[open]{flex-basis:100%}
+ .karte-history-filter-disclosure[open]>summary{width:max-content;margin-left:auto}
+ .history-filter-active{font-size:11px;white-space:nowrap}
+}

@@ -5,6 +5,8 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_history.css', v='20261118-compact-history-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_history_filter_disclosure.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/karte_history_filter_disclosure.js', v='20261119-1') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -35,6 +37,11 @@
             記録されている点検・整備・日報を時系列で表示します。
         </p>
 
+        <details class="karte-history-filter-disclosure" open>
+            <summary aria-label="履歴の絞り込み条件を開閉" title="絞り込み条件">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>
+                {% if selected_event_type or selected_status or selected_start_date or selected_end_date %}<span class="history-filter-active">条件あり</span>{% endif %}
+            </summary>
         <form
             method="get"
             action="{{ url_for('vehicle_karte_history', vehicle_record_id=vehicle.id) }}"
@@ -88,6 +95,7 @@
                 絞り込み
             </button>
         </form>
+        </details>
 
         <span class="vehicle-karte-history-count">
             {{ history_page.total }}件
