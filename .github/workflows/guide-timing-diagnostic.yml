@@ -1,0 +1,28 @@
+name: Isolated Guide Timing Diagnostic
+on:
+  push:
+    branches: [validation/guide-timing-diagnostic-20261119, validation/post-live-polish-20261119]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install jinja2 playwright==1.62.0
+          "$RUNNER_TEMP/venv/bin/python" -m playwright install --with-deps chromium
+      - run: |
+          env -i PATH="$RUNNER_TEMP/venv/bin:/usr/bin:/bin" HOME="$HOME" "$RUNNER_TEMP/venv/bin/python" tests/guide_timing_diagnostic.py "$RUNNER_TEMP/guide-diagnostic"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: guide-timing-diagnostic
+          path: ${{ runner.temp }}/guide-diagnostic
