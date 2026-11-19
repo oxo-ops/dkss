@@ -5,6 +5,9 @@ on:
     paths:
       - 'dkss_app/**'
       - 'templates/base.html'
+      - 'templates/login.html'
+      - 'templates/demo_entry_conflict.html'
+      - 'tests/test_demo_entry_conflict_message.py'
       - 'static/js/public_demo_share.js'
       - 'requirements.txt'
       - 'tests/test_demo_session_recovery.py'

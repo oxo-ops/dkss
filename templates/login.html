@@ -4,9 +4,13 @@
 ログイン
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ordinary_entry.css', v='20261119-1') }}">
+{% endblock %}
+
 {% block content %}
 
-<h2>ログイン</h2>
+<h2 class="ordinary-login-heading">ログイン</h2>
 
 <form
     method="post"
