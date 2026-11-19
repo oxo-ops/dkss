@@ -9,3 +9,12 @@
  .karte-history-filter-disclosure[open]>summary{width:max-content;margin-left:auto}
  .history-filter-active{font-size:11px;white-space:nowrap}
 }
+@media(max-width:768px){
+ .vehicle-karte-history-panel .vehicle-karte-history-heading{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px}
+ .vehicle-karte-history-heading>h3{grid-column:1;margin:0}
+ .vehicle-karte-history-heading>p{display:none}
+ .vehicle-karte-history-heading>.karte-history-filter-disclosure{grid-column:2;margin:0}
+ .vehicle-karte-history-heading>.karte-history-filter-disclosure[open]{grid-column:1/-1;grid-row:2}
+ .vehicle-karte-history-heading>.vehicle-karte-history-count{grid-column:3;grid-row:1;margin:0}
+ .vehicle-karte-history-heading>:is(.vehicle-history-categories,.vehicle-history-category-help){grid-column:1/-1}
+}
