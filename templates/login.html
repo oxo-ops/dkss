@@ -5,11 +5,7 @@
 {% endblock %}
 
 {% block page_styles %}
-<style>
-@media (max-width: 900px) {
-    .ordinary-login-heading { padding-left: 56px; min-height: 44px; display: flex; align-items: center; }
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ordinary_entry.css', v='20261119-1') }}">
 {% endblock %}
 
 {% block content %}

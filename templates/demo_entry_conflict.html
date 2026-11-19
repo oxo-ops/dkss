@@ -4,14 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>通常利用を継続しています | ALSEON</title>
-    <style>
-        body { margin: 0; background: #f4f6fc; color: #203553; font: 16px/1.7 system-ui, sans-serif; }
-        main { box-sizing: border-box; max-width: 34rem; margin: 10vh auto; padding: 24px; }
-        h1 { font-size: 1.35rem; line-height: 1.5; }
-        a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid #c5d2eb; border-radius: 8px; background: white; color: #244b8a; text-decoration: none; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ordinary_entry.css', v='20261119-1') }}">
 </head>
-<body>
+<body class="ordinary-entry-conflict">
     <main>
         <h1>通常利用を継続しています</h1>
         <p>このブラウザは通常利用でログイン中、またはログイン手続き中です。</p>
