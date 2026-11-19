@@ -8,6 +8,8 @@ class Tests(unittest.TestCase):
   self.app=Flask(__name__);self.app.secret_key='isolated';self.app.config.update(PUBLIC_DEMO_CANDIDATE=True,PUBLIC_DEMO_SHARED_COMPANY=True,PUBLIC_DEMO_COMPANY='AONAGI')
   self.app.add_url_rule('/history','vehicle_karte_history',lambda:'')
   self.app.add_url_rule('/safety','checklist_result_detail',lambda:'')
+  self.app.add_url_rule('/patrols','pointouts',lambda:'')
+  self.app.add_url_rule('/patrol/11','pointout_detail',lambda:'',methods=['GET','POST'])
  def mark(self):session.update(aonagi_readonly_demo=True,company_code='AONAGI')
  def plan(self,**kw):
   args=dict(value='港南車両サービス（架空）',company='AONAGI',vehicle_id=649,plan_id=8,event_id=8);args.update(kw);return m.plan_factory(**args)
@@ -41,4 +43,54 @@ class Tests(unittest.TestCase):
    self.mark();self.assertEqual(render_template_string('{{ f(a.label) }}',a=original,f=lambda s:self.approval(value=s)),'管理者確認');self.assertEqual(original,before)
    self.assertEqual(render_template_string('{{ f(v) }}',v='<img src=x onerror=alert(1)>',f=lambda s:self.approval(value=s)),'&lt;img src=x onerror=alert(1)&gt;')
 
+
+ def test_patrol_exact_read_only_display(self):
+  for endpoint in ['/patrols','/patrol/11']:
+   with self.app.test_request_context(endpoint):
+    self.mark()
+    for rid,raw in m._PATROL_CONTENT.items():
+     for role in ['driver','admin']:
+      session['role']=role
+      self.assertEqual(m.patrol_content(raw,company='AONAGI',result_id=rid),raw.removeprefix('【体験用・架空】'))
+     for company,other_id,value in [('OTHER',rid,raw),('AONAGI',99,raw),('AONAGI',rid,raw+'変更'),('AONAGI',rid,'別の【体験用・架空】本文')]:
+      self.assertEqual(m.patrol_content(value,company=company,result_id=other_id),value)
+    for key,value in [('PUBLIC_DEMO_CANDIDATE',False),('PUBLIC_DEMO_SHARED_COMPANY',False),('PUBLIC_DEMO_COMPANY','OTHER')]:
+     before=self.app.config[key];self.app.config[key]=value
+     self.assertEqual(m.patrol_content(raw,company='AONAGI',result_id=rid),raw)
+     self.app.config[key]=before
+    session.pop('aonagi_readonly_demo')
+    self.assertEqual(m.patrol_content(raw,company='AONAGI',result_id=rid),raw)
+  raw=m._PATROL_CONTENT[11]
+  for path,method in [('/history','GET'),('/patrol/11','POST')]:
+   with self.app.test_request_context(path,method=method):
+    self.mark();self.assertEqual(m.patrol_content(raw,company='AONAGI',result_id=11),raw)
+  self.assertEqual(m.patrol_content(raw,company='AONAGI',result_id=11),raw)
+ def test_patrol_raw_field_preserved(self):
+  tree=ast.parse((ROOT/'dkss_app/checklist_common.py').read_text())
+  fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='patrol_result_to_dict')
+  result_dict=next(n for n in ast.walk(fn) if isinstance(n,ast.Dict))
+  fields={k.value:v for k,v in zip(result_dict.keys,result_dict.values)}
+  self.assertEqual(ast.unparse(fields['content']),'result.content')
+  self.assertIn('patrol_content',ast.unparse(fields['display_content']))
+  for name,key in [('pointouts.html','item'),('pointout_detail.html','result')]:
+   source=(ROOT/'templates'/name).read_text()
+   self.assertIn('data-value="{{ '+key+'.display_content|default('+key+'.content) }}"',source)
+   self.assertNotIn('data-value="{{ '+key+'.content }}"',source)
+
+ def test_safety_criteria_only_exact_verified_sample(self):
+  raw='2＝確認できている、1＝一部改善が必要、0＝未実施。架空の機能確認用評価。'
+  def call(**kw):
+   args=dict(value=raw,company='AONAGI',checklist_id=13,result_id=17);args.update(kw);return m.safety_criteria(**args)
+  with self.app.test_request_context('/safety'):
+   self.mark()
+   self.assertEqual(call(),'2＝確認できている、1＝一部改善が必要、0＝未実施。')
+   for kw in [dict(company='OTHER'),dict(checklist_id=14),dict(result_id=16),dict(value=raw+'別文'),dict(value='法令の評価基準')]:
+    self.assertEqual(call(**kw),kw.get('value',raw))
+   session.pop('aonagi_readonly_demo');self.assertEqual(call(),raw)
+  with self.app.test_request_context('/patrols'):
+   self.mark();self.assertEqual(call(),raw)
+  self.assertEqual(call(),raw)
 if __name__=='__main__':unittest.main()
+
+
+

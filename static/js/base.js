@@ -1690,6 +1690,13 @@ function clearCommonErrors() {
 
 
 function showCommonError(message, targetId = "", moveFocus = true) {
+    // Keep the shared navigation above errors; modal errors remain in their modal.
+    function placeSummary(container, node) {
+        const toolbar = container.matches("main")
+            ? container.querySelector(":scope > .top-bar") : null;
+        if (toolbar) toolbar.insertAdjacentElement("afterend", node);
+        else container.prepend(node);
+    }
     let summary = document.getElementById("error-summary");
 
     if (!summary) {
@@ -1711,7 +1718,7 @@ function showCommonError(message, targetId = "", moveFocus = true) {
 
         const main = document.querySelector("main");
         if (main) {
-            main.prepend(summary);
+            placeSummary(main, summary);
         } else {
             document.body.prepend(summary);
         }
@@ -1727,7 +1734,7 @@ function showCommonError(message, targetId = "", moveFocus = true) {
         || document.body;
 
     if (summary.parentElement !== summaryContainer) {
-        summaryContainer.prepend(summary);
+        placeSummary(summaryContainer, summary);
     }
 
     const list = summary.querySelector("ul");
@@ -3116,3 +3123,4 @@ document.addEventListener("change", function (event) {
         });
     });
 })();
+
