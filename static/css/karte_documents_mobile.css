@@ -1,0 +1,21 @@
+/* Compact mobile reading list; original metadata remains in the document detail. */
+.kd-date-short{display:none}
+@media (max-width:767px) {
+ .kd-date-full{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+ .kd-date-short{display:inline}
+ .vehicle-karte-documents .kd-document-table{min-width:0;width:100%;table-layout:fixed}
+ .vehicle-karte-documents .kd-document-table :is(th,td){padding:5px 4px;font-size:12px;line-height:1.35}
+ .vehicle-karte-documents .kd-document-table :is(th,td):nth-child(5),
+ .vehicle-karte-documents .kd-document-table :is(th,td):nth-child(6),
+ .vehicle-karte-documents .kd-document-table :is(th,td):nth-child(7){display:none}
+ .vehicle-karte-documents .kd-document-table th:nth-child(1){width:28px}
+ .vehicle-karte-documents .kd-document-table th:nth-child(2){width:48px}
+ .vehicle-karte-documents .kd-document-table th:nth-child(3){width:62px}
+ .vehicle-karte-documents .kd-document-table th:nth-child(4){width:auto}
+ .vehicle-karte-documents .kd-document-table th:nth-child(8){width:44px}
+ .vehicle-karte-documents .kd-filename{align-items:center;min-height:44px;gap:4px}
+ .vehicle-karte-documents .kd-filename span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .vehicle-karte-documents .kd-filename .kd-file-icon{flex:0 0 18px;width:18px;height:22px}
+ .vehicle-karte-documents .kd-download{display:inline-flex;width:40px;height:44px;align-items:center;justify-content:center}
+ .vehicle-karte-documents .kd-document-table input[type=checkbox]{width:20px;height:20px}
+}

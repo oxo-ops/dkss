@@ -3,6 +3,7 @@
 {% block title %}車両カルテ・書類{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_documents_mobile.css', v='20261119-1') }}">
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}
 
@@ -156,7 +157,7 @@
                                     aria-label="{{ document.filename }}を選択"
                                 >
                             </td>
-                            <td title="登録日">{{ document.date_label }}</td>
+                            <td title="{{ document.date_label }}"><span class="kd-date-full">{{ document.date_label }}</span><span class="kd-date-short" aria-hidden="true">{{ document.date_label[5:10].replace('-', '/') if document.date_label and document.date_label|length >= 10 and document.date_label[4:5] in ['-', '/'] else document.date_label }}</span></td>
                             <td>
                                 <span class="kd-kind" data-kind="{{ document.kind }}">
                                     {{ document.kind_label }}
@@ -307,6 +308,7 @@
                     ('資料種別', selected_document.kind_label),
                     ('登録日', selected_document.date_label),
                     ('登録者', selected_document.uploader_label),
+                    ('登録日時', selected_document.registered_label),
                     ('関連内容', selected_document.related_content),
                     ('備考', selected_document.notes)
                 ] %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "vehicle_karte_date.html" import karte_date %}
 
 {% block title %}車両カルテ・整備・修理{% endblock %}
 
@@ -239,8 +240,8 @@
                             class="{% if is_selected %}km-selected-record {% endif %}{% if record.id in imported_record_ids %}km-new-record{% endif %}"
                         >
                             <td class="km-record-date">
-                                <span>{{ (record.entry_date or '—')|replace('-', '/') }}</span>
-                                <small>{{ (record.completion_date or '—')|replace('-', '/') }}</small>
+                                <span>{{ karte_date(record.entry_date, slash=true) }}</span>
+                                <small{% if not record.completion_date or record.completion_date == record.entry_date %} class="karte-date-duplicate"{% endif %}>{{ karte_date(record.completion_date, slash=true) }}</small>
                             </td>
                             <td>
                                 <span

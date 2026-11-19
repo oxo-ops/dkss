@@ -1,0 +1,43 @@
+name: History Detail Browser Acceptance
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ['dkss_app/vehicle_karte.py', 'tests/test_vehicle_history_categories.py', 'tests/history_detail_browser/**', '.github/workflows/history-detail-browser.yml']
+permissions:
+  contents: read
+concurrency:
+  group: history-detail-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  isolated-detail:
+    if: (github.event.pull_request.head.ref == 'validation/history-detail-link-20261119' || github.event.pull_request.head.ref == 'validation/karte-session-integrated-20261119') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/venv/bin/python" -m playwright install --with-deps chromium
+      - name: Synthetic route and native browser tests, no credentials
+        run: |
+          mkdir -p "$RUNNER_TEMP/history-detail/tmp" "$RUNNER_TEMP/history-detail/artifacts"
+          for command in '-m unittest test_vehicle_history_categories -v' 'tests/history_detail_browser/acceptance.py'; do
+            env -i PATH="$RUNNER_TEMP/venv/bin:/usr/bin:/bin" HOME="$HOME" PYTHONDONTWRITEBYTECODE=1 \
+              PYTHONPATH="$PWD/tests/history_presentation_browser/guard:$PWD:$PWD/tests" \
+              DKSS_VALIDATION_TMP="$RUNNER_TEMP/history-detail/tmp" TMPDIR="$RUNNER_TEMP/history-detail/tmp" \
+              DKSS_BROWSER_ACCEPTANCE_ISOLATED=1 DATABASE_URL='sqlite:///:memory:' SECRET_KEY=synthetic-only \
+              "$RUNNER_TEMP/venv/bin/python" $command $([ "$command" = 'tests/history_detail_browser/acceptance.py' ] && echo "$RUNNER_TEMP/history-detail/artifacts")
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: history-detail-acceptance
+          path: ${{ runner.temp }}/history-detail/artifacts
+

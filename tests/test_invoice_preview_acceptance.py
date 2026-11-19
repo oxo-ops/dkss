@@ -68,6 +68,22 @@ class PreviewAcceptance(unittest.TestCase):
         values[0][-1].pop('failure')
         self.assertEqual(self.evaluate(values)['terminal_event'], 'requestfinished')
 
+    def test_history_preview_is_a_distinct_exact_visit(self):
+        events, observation, kwargs = fixture()
+        phase = 'width:1440/history-detail'
+        observation.update(stage='history-detail', phase=phase, scope_id=phase)
+        kwargs.update(phase=phase, scope_id=phase)
+        for event in events:
+            event.update(phase=phase, preview_scope_id=phase)
+        self.evaluate((events, observation, kwargs))
+        # A second visit's events cannot be reused or accumulated as proof.
+        duplicate = deepcopy(events)
+        with self.assertRaises(AssertionError):
+            self.evaluate((events + duplicate, observation, kwargs))
+        events[0]['preview_scope_id'] = 'width:1440/maintenance-record'
+        with self.assertRaises(AssertionError):
+            self.evaluate((events, observation, kwargs))
+
     def test_every_request_event_rejects_wrong_identity_frame_phase_url_method_type(self):
         mutations = {
             'request_id': 999, 'url': 'http://elsewhere/source', 'method': 'POST',
@@ -184,7 +200,19 @@ class PreviewAcceptance(unittest.TestCase):
         expected = Counter(BASELINE['require_condition_hash_counts'])
         self.assertEqual(sum(expected.values()), 51)
         self.assertEqual(BASELINE['source_blob'], '7b1ef09ca54fb545c44fb85bf78bfd68f36637b2')
-        self.assertFalse(expected - conditions)
+        # Approved #520 intentionally replaces only direct-PDF history navigation
+        # with existing detail-first navigation. Keep every other original guard,
+        # byte/download proof and bridge unchanged.
+        replaced_history_navigation = Counter({
+            'ce47ca3750e2d4a1c22ba177965f4416836b674e1367c24995ba79b2021d360c': 1,
+            '4f63bafb36bfd88bf4dccefdd935a6f1410088a94ded795fcbb7c56e9786b36d': 1,
+            'dcf38e7e96920ae650ed89a3fc411f6d54d537897533461bc4f29ea42c23e069': 1,
+        })
+        self.assertFalse((expected - replaced_history_navigation) - conditions)
+        self.assertIn("expect(source_link).to_have_attribute('href', detail_path)", TEXT)
+        self.assertIn("expect(page).to_have_url(ORIGIN + detail_path)", TEXT)
+        self.assertIn("require(len(report['invoice_source_navigations']) == navigation_count,", TEXT)
+        self.assertIn("accept_invoice_preview(width, 'maintenance-record')", TEXT)
         for name in ('bridge', 'get', 'snapshot'):
             self.assertEqual(digest(ast.dump(NODES[name])), BASELINE['function_ast_sha256'][name], name)
         start = TEXT.index("                        original_response = get(download_href)")
@@ -430,7 +458,7 @@ class RootViewport(unittest.TestCase):
 
 RECORDED = [{'paper': {'left': 40, 'top': 274.703125, 'right': 350, 'bottom': 713.703125, 'width': 310, 'height': 439}, 'clip': {'left': 26, 'top': 262.703125, 'right': 364, 'bottom': -883}, 'region': {'left': 0, 'top': 0, 'right': 310, 'bottom': -1157.703125}, 'clipping': [{'x': True, 'y': True, 'left': 26, 'top': 262.703125, 'right': 364, 'bottom': 642.703125}, {'x': True, 'y': True, 'left': 26, 'top': 153.703125, 'right': 364, 'bottom': 671.703125}, {'x': True, 'y': True, 'left': 13, 'top': -394.484375, 'right': 377, 'bottom': 766.515625}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': -883}], 'viewport': {'width': 390, 'height': 780}, 'unobscured': False, 'raster': {'width': 310, 'height': 439}, 'scroll': {'top': 0, 'left': 0, 'width': 338, 'height': 380, 'extent_width': 338, 'extent_height': 463, 'overflow_y': 'auto'}, 'stable_samples': 7, 'stable_ms': 300, 'edge': 'top'}, {'paper': {'left': 40, 'top': 191.703125, 'right': 350, 'bottom': 630.703125, 'width': 310, 'height': 439}, 'clip': {'left': 26, 'top': 262.703125, 'right': 364, 'bottom': -883}, 'region': {'left': 0, 'top': 71, 'right': 310, 'bottom': -1074.703125}, 'clipping': [{'x': True, 'y': True, 'left': 26, 'top': 262.703125, 'right': 364, 'bottom': 642.703125}, {'x': True, 'y': True, 'left': 26, 'top': 153.703125, 'right': 364, 'bottom': 671.703125}, {'x': True, 'y': True, 'left': 13, 'top': -394.484375, 'right': 377, 'bottom': 766.515625}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': 780}, {'x': True, 'y': True, 'left': 0, 'top': -1663, 'right': 390, 'bottom': -883}], 'viewport': {'width': 390, 'height': 780}, 'unobscured': False, 'raster': {'width': 310, 'height': 439}, 'scroll': {'top': 83, 'left': 0, 'width': 338, 'height': 380, 'extent_width': 338, 'extent_height': 463, 'overflow_y': 'auto'}, 'stable_samples': 7, 'stable_ms': 300, 'edge': 'bottom'}]
 
-UNCHANGED_FUNCTION_HASHES = {'verified_preview_fetch': '361ef8cfefa4b8df8feea7aa5c008e8779e8f82db5231508dff3232051aa17f0', 'observe_invoice_source': 'ec5cfd5d1104c2dc8d657ec5eb1bdc4a53e201c6d09edc1beae07d8475e49b2e', 'record_failed_request': '7e738421df561c99cac0c9eeaf3636ff1c103de1a1cb55e5c9cd820dc1e3292d', 'accept_invoice_preview': '232002f99f57d640a38521b59717edcfd45f2ba5cd89bed6f5083d9e58e88b7a', 'settled_invoice_preview': '0d1ccf4bff73259cad4c9e7990a4f13b7c7815386fa0d7a295eb8f306b764e41', 'observe_invoice_preview': 'd5e5e2d3ec20609273c3bdce56e0de0961fd7a2141d7e098c5211920be58012f', 'bridge': 'd79e7c27baf7b9cde62f72e1b04c5996f8d6289fee8530f148169fbea3752916', 'get': '3bd4e1449ad02e2ae13d05a4282060675db7e9c2edc8301171aa385963407c3d', 'snapshot': '960dd3cdf7a16c7f9e64e34e6dac50d2d07076af37d8b4f5ee6519f1d65e71d0'}
+UNCHANGED_FUNCTION_HASHES = {'verified_preview_fetch': '802fae7a7b59c55a1d01b22c68e997abf1d3e28e6a6215c2f4bb24c7920be6f0', 'observe_invoice_source': 'ec5cfd5d1104c2dc8d657ec5eb1bdc4a53e201c6d09edc1beae07d8475e49b2e', 'record_failed_request': '7e738421df561c99cac0c9eeaf3636ff1c103de1a1cb55e5c9cd820dc1e3292d', 'accept_invoice_preview': '232002f99f57d640a38521b59717edcfd45f2ba5cd89bed6f5083d9e58e88b7a', 'settled_invoice_preview': '0d1ccf4bff73259cad4c9e7990a4f13b7c7815386fa0d7a295eb8f306b764e41', 'observe_invoice_preview': 'd5e5e2d3ec20609273c3bdce56e0de0961fd7a2141d7e098c5211920be58012f', 'bridge': 'd79e7c27baf7b9cde62f72e1b04c5996f8d6289fee8530f148169fbea3752916', 'get': '3bd4e1449ad02e2ae13d05a4282060675db7e9c2edc8301171aa385963407c3d', 'snapshot': '960dd3cdf7a16c7f9e64e34e6dac50d2d07076af37d8b4f5ee6519f1d65e71d0'}
 
 
 if __name__ == '__main__':

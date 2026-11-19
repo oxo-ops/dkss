@@ -181,7 +181,7 @@ def verified_preview_fetch(events, observation, *, source_url, source_hash, page
     The caller separately ties any failure entry to the same Request object.
     """
     require(observation.get('width') in (1440, 390, 320) and
-            observation.get('stage') in ('maintenance-tab', 'maintenance-record') and
+            observation.get('stage') in ('history-detail', 'maintenance-tab', 'maintenance-record') and
             phase == f'width:{observation["width"]}/{observation["stage"]}' and
             scope_id == phase and observation.get('phase') == phase and observation.get('scope_id') == scope_id and
             observation.get('url') == page_url, 'Preview scope or page differs')
@@ -711,30 +711,29 @@ def main():
                         report['cases'].append(f'Browser {width}: periodic {score} badge/counts/source details and actual list/back navigation; no generation POST')
                     elif args.case == 'invoice':
                         invoice_phase = f'width:{width}/history'
-                        # History opens this invoice's original PDF, not its
-                        # maintenance-detail page. Follow that real rendered link.
+                        # The approved history flow opens the existing detail first,
+                        # never an unexpected original-PDF navigation. Original byte
+                        # and native download acceptance remain below.
                         page.goto(ORIGIN + paths[0], wait_until='networkidle')
                         source_link = page.locator('.vehicle-history-record-link:visible, .vehicle-history-mobile-content a:visible')
                         expect(source_link).to_have_count(1)
-                        expect(source_link).to_have_attribute('href', invoice_source_path)
-                        source_url = urljoin(ORIGIN, source_link.get_attribute('href'))
-                        invoice_phase = f'width:{width}/history-original'
-                        pdf.begin(page, source_url, original_hash)
+                        detail_path = f'/vehicle/karte/{case.vehicle.id}/maintenance/{invoice_record.id}#maintenance_detail_panel'
+                        expect(source_link).to_have_attribute('href', detail_path)
                         navigation_count = len(report['invoice_source_navigations'])
-                        with page.expect_response(lambda response: response.url == source_url and
-                                response.request.is_navigation_request()) as opened:
-                            source_link.click(no_wait_after=True)
-                        require(opened.value.status == 200, 'History original source did not open')
-                        expect(page).to_have_url(source_url)
-                        require(len(report['invoice_source_navigations']) == navigation_count + 1,
-                                'History click did not make one original-source navigation')
-                        navigation = report['invoice_source_navigations'][-1]
-                        require(navigation['url'] == source_url and navigation['mimetype'] == 'application/pdf' and
-                                navigation['resource_type'] == 'document' and navigation['source_sha256'] == original_hash,
-                                'History navigation reached a different original source')
-                        page.wait_for_url(source_url, wait_until='networkidle')
-                        pdf.finish(page, opened.value)
-                        pdf.end()
+                        # Use a distinct visit identity so the later direct-tab visit
+                        # cannot share or reuse this request sequence.
+                        invoice_phase = f'width:{width}/history-detail'
+                        invoice_preview_scope = dict(id=invoice_phase, url=ORIGIN + detail_path,
+                            page=page, frame=page.main_frame)
+                        source_link.click()
+                        expect(page).to_have_url(ORIGIN + detail_path)
+                        page.wait_for_load_state('networkidle')
+                        expect(page.locator('#maintenance_detail_panel')).to_contain_text('タイヤ交換（読取訂正）')
+                        expect(page.locator('.km-detail-panel .km-file-card[download]')).to_have_attribute('href', invoice_source_path)
+                        require(len(report['invoice_source_navigations']) == navigation_count,
+                                'History click unexpectedly navigated to an original PDF')
+                        accept_invoice_preview(width, 'history-detail')
+                        invoice_preview_scope = None
                         invoice_phase = f'width:{width}/history-back'
                         page.go_back(wait_until='networkidle')
                         expect(page).to_have_url(ORIGIN + paths[0])
@@ -803,7 +802,7 @@ def main():
                             download_result.update(saved_file_sha256=hashlib.sha256(saved_bytes).hexdigest(),
                                 saved_file_byte_length=len(saved_bytes))
                         receiver.assert_complete()
-                        report['cases'].append(f'Browser {width}: rendered history -> exact original PDF GET/hash -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
+                        report['cases'].append(f'Browser {width}: rendered history -> exact maintenance detail/preview (no PDF navigation) -> Back -> maintenance tab -> same record -> preserved original download/hash; native PDF viewer rendering not covered')
                         invoice_phase = f'width:{width}/connected-views'
                         for number, path in enumerate(paths):
                             page.goto(ORIGIN + path, wait_until='networkidle')
@@ -896,9 +895,13 @@ def main():
                     report['cases'].append(f'Browser connected normal screens, width {width}, navigation and saved records')
                 if args.case == 'invoice':
                     require(len(report['invoice_preview_observations']) ==
-                            len(report['verified_invoice_preview_fetches']) == 6 and
+                            len(report['verified_invoice_preview_fetches']) == 9 and
                             not report['invoice_preview_console_errors'],
-                            'All six invoice previews must finish visibly without console errors')
+                            'All nine invoice previews must finish visibly without console errors')
+                    require({(entry['width'], entry['stage']) for entry in report['invoice_preview_observations']} ==
+                            {(width, stage) for width in (1440, 390, 320)
+                             for stage in ('history-detail', 'maintenance-tab', 'maintenance-record')},
+                            'Each width and distinct invoice entry route must be covered exactly once')
                 require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser request or script failure')
                 require(snapshot() == before, 'Browser GET changed protected saved data')
                 report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)

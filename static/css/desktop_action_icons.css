@@ -1,0 +1,19 @@
+/* Reuse existing mobile action artwork on desktop; leave fields and permissions intact. */
+@media(min-width:768px){
+ body[data-page-endpoint="driving_reports"] .driving-toolbar-icon{display:block;width:22px;height:22px;flex:none}
+ body[data-page-endpoint="driving_reports"] .driving-toolbar-label{display:none}
+ body[data-page-endpoint="driving_reports"] :is(.driving-extra-filters,.driving-export-menu)>summary,
+ body[data-page-endpoint="driving_reports"] .driving-toolbar-actions>a[aria-label="日報を取り込む"]{width:44px;height:44px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box;list-style:none}
+ body[data-page-endpoint="driving_reports"] :is(.driving-extra-filters,.driving-export-menu)>summary::-webkit-details-marker{display:none}
+}
+@media(min-width:701px){
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add]{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border-radius:50%!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add][hidden]{display:none!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-label,
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-icon{display:none!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-plus{display:inline!important;font-size:26px;line-height:1}
+}
+/* The requested creation glyph is + on both sizes; preserve the mobile placement. */
+body[data-responsive-shell] .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-icon,
+body[data-responsive-shell] .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-label{display:none!important}
+body[data-responsive-shell] .main-content .inspection-plans[data-inspection-planner] .ip-top-actions [data-plan-add] .ip-add-plus{display:inline!important;font-size:26px!important;line-height:1!important}
