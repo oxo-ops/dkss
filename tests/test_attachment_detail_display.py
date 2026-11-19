@@ -34,3 +34,12 @@ class AttachmentDetailTests(AttachmentThumbnailTests):
 
     def test_invalid_size_keeps_original(self):
         self.assertEqual(self.get(size=999,follow_redirects=True).data,self.original)
+
+    def test_portrait_keeps_declared_display_width_without_cropping(self):
+        image=Image.new('RGB',(1600,2400),'navy')
+        image.save(self.path,format='JPEG')
+        for size in (640,1280):
+            with Image.open(BytesIO(self.get(size=size).data)) as rendered:
+                self.assertEqual(rendered.size,(size,size*3//2))
+        with Image.open(self.path) as original:
+            self.assertEqual(original.size,(1600,2400))

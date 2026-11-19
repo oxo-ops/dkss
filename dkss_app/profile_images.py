@@ -127,7 +127,7 @@ def display_detail(filename):
     size = request.args.get("display", type=int)
     if size not in DETAIL_SIZES or Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         return None
-    return _display(filename, size, False)
+    return _display(filename, size, False, width_only=True)
 
 
 def _encode(read, size, crop, *, lossless=False, width_only=False):
@@ -150,7 +150,7 @@ def _encode(read, size, crop, *, lossless=False, width_only=False):
         return output.getvalue()
 
 
-def _display(filename, size, crop):
+def _display(filename, size, crop, *, width_only=False):
     company, username = session.get("company_code"), session.get("username")
     if not company or not username:
         return None
@@ -161,14 +161,15 @@ def _display(filename, size, crop):
             return None
         revision, read = source
         images = cache()
-        key = (company, filename, username, session.get("account_identity"), revision, size, crop)
+        key = (company, filename, username, session.get("account_identity"), revision, size, crop, width_only)
         data = images.get(key)
         if data is None:
             # Bound simultaneous decodes; cache hits do not wait for conversions.
             with images.conversions:
                 data = images.get(key)
                 if data is None:
-                    data = _encode(read, size, crop)
+                    data = (_encode(read, size, crop, width_only=True) if width_only
+                            else _encode(read, size, crop))
                     if data is None:
                         return None
                     images.put(key, data)
