@@ -245,6 +245,8 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-responsive-shell] .top-bar > .notification-menu {margin:0;flex:0 0 44px;}
  body[data-responsive-shell] .notification-bell {width:44px;height:44px;min-width:44px;min-height:44px;box-sizing:border-box;}
  body[data-responsive-shell] .top-bar-user {padding-inline:0;width:44px;min-width:44px;height:44px;box-sizing:border-box;justify-content:center;}
+ body[data-responsive-shell] .top-bar-user-name {display:none!important;}
+ body[data-responsive-shell] .top-bar-user-menu {flex:0 0 44px;}
 }
 /* Driving results share the compact plan workspace convention on phones only. */
 @media screen and (max-width:767px) {
