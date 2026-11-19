@@ -3,6 +3,13 @@
  const title=document.querySelector('[data-mobile-page-title]');
  if(!title)return;
  const bar=title.closest('.top-bar');
+ const anchor=document.createComment('mobile page title original position');
+ title.before(anchor);
+ const mobile=window.matchMedia('(max-width:767px)');
+ function placeTitle(){
+  if(mobile.matches)bar.before(title);
+  else anchor.after(title);
+ }
  const normal=s=>String(s||'').replace(/\s+/g,' ').trim();
  const driving=bar.querySelector('.driving-page-title');
  if(driving){
@@ -17,4 +24,7 @@
    !bar.contains(e)&&!e.closest('dialog,[role="dialog"],.modal-bg,[hidden]')&&normal(e.textContent)===expected);
   if(original)original.classList.add('mobile-title-source');
  }
+ placeTitle();
+ mobile.addEventListener('change',placeTitle);
 })();
+

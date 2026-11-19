@@ -1,7 +1,7 @@
 name: Plan Filter Dropdown Browser
 on:
   push:
-    branches: [validation/plan-filter-dropdown-20261119, validation/release-integrated-20261119]
+    branches: [validation/plan-filter-dropdown-20261119, validation/release-integrated-20261119, validation/checklist-excel-green-20261119, validation/ui-polish-integrated-20261119]
 permissions:
   contents: read
 jobs:

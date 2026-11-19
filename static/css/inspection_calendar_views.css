@@ -398,3 +398,16 @@ body:has([data-inspection-planner]) .main-content > .top-bar :is(.notification-m
 }
 
 @media(max-width:700px){body[data-responsive-shell].ip-mobile-workspace .main-content .inspection-plans .ip-view-popover .ip-view-switch>button[data-view]{display:flex!important;align-items:center!important;justify-content:flex-start!important;box-sizing:border-box!important;width:100%!important;min-width:0!important}}
+
+/* Compact mobile view menu: override the older segmented selector, not desktop. */
+body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover {width:min(168px,calc(100vw - 16px));padding:4px;border-radius:12px;}
+body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover .ip-view-switch {width:100%!important;min-width:0!important;max-width:none!important;margin:0!important;gap:0!important;align-items:stretch;}
+body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover .ip-view-switch button[data-view] {box-sizing:border-box;display:grid!important;grid-template-columns:20px 1fr;align-items:center;width:100%!important;height:44px!important;min-height:44px!important;padding:0 10px!important;margin:0!important;font-size:15px!important;line-height:20px!important;text-align:left!important;background:transparent!important;color:#173653!important;box-shadow:none!important;border:0!important;border-radius:7px!important;}
+body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover .ip-view-switch button[data-view]::before {width:20px;margin:0!important;}
+body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover .ip-view-switch button[data-view][aria-pressed=true] {background:#e5effa!important;color:#173653!important;box-shadow:none!important;}
+
+/* The 180px auxiliary-details limit must not clip the agenda itself.
+   Desktop .ip-grid-scroll retains its existing viewport-fit limit. */
+body .main-content .inspection-plans[data-inspection-planner] > details[data-plan-vehicle-table][open] {
+ max-height:none;overflow:visible;
+}

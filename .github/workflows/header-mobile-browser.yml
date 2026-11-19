@@ -1,7 +1,7 @@
 name: Mobile Header Search Browser
 on:
   push:
-    branches: [validation/header-mobile-search-20261119, validation/release-integrated-20261119, validation/header-guide-followup-20261119]
+    branches: [validation/mobile-title-flow-20261119, validation/header-mobile-search-20261119, validation/release-integrated-20261119, validation/header-guide-followup-20261119, validation/ui-polish-integrated-20261119]
 permissions:
   contents: read
 jobs:
@@ -22,6 +22,7 @@ jobs:
       - run: |
           npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
           "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: node tests/dashboard-copy.cjs && node tests/guide_reveal_geometry.cjs && node tests/guide-no-overlap.cjs
       - run: bash tests/header_mobile_browser/run.sh
         env:
           PRODUCT_REPO: ${{ github.workspace }}
@@ -35,3 +36,4 @@ jobs:
           path: |
             ${{ runner.temp }}/header-ui/*.png
             ${{ runner.temp }}/header-ui/*.json
+
