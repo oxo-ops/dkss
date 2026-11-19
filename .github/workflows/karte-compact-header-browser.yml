@@ -1,7 +1,7 @@
 name: Karte Compact Header Browser
 on:
   push:
-    branches: [validation/karte-session-integrated-20261119, review/karte-compact-header-20261119]
+    branches: [validation/demo-final-polish-20261119, fix/karte-mobile-reading, validation/karte-session-integrated-20261119, review/karte-compact-header-20261119]
 permissions:
   contents: read
 jobs:
