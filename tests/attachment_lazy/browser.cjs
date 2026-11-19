@@ -7,9 +7,14 @@ const js=fs.readFileSync(path.join(repo,'static/js/vehicle_checklist_results.js'
 const fn=js.slice(js.indexOf('    function renderFiles('),js.indexOf('    document.querySelectorAll(".js-vehicle-defect-files")'));
 assert(fn.includes('img.loading = "lazy"'));assert(fn.includes('img.decoding = "async"'));
 const template=fs.readFileSync(path.join(repo,'templates/pointout_detail.html'),'utf8');
-const links=[...template.matchAll(/<a href="([^"]+)"\s+target="_blank" rel="noopener" aria-label="画像の原本を開く"><img\s+src="([^"]+)"\s+class="detail-image" loading="lazy" decoding="async" alt="添付画像"\s*><\/a>/g)];
+const links=[...template.matchAll(/<a href="([^"]+)"\s+target="_blank" rel="noopener" aria-label="画像の原本を開く"><img\s+src="([^"]+)"\s+srcset="([^"]+)"\s+sizes="([^"]+)"\s+class="detail-image" loading="lazy" decoding="async" alt="添付画像"\s*><\/a>/g)];
 assert.equal(links.length,3);
-for(const link of links){assert.equal(link[1],link[2]);assert(link[1].includes("url_for('uploaded_file', folder='uploads', filename=file)"));}
+for(const link of links){
+ assert(link[1].includes("url_for('uploaded_file', folder='uploads', filename=file)"));
+ assert(link[2].includes("url_for('uploaded_file', folder='uploads', filename=file, display=1280)"));
+ assert(link[3].includes('display=640')&&link[3].includes('640w')&&link[3].includes('display=1280')&&link[3].includes('1280w'));
+ assert.equal(link[4],'(max-width: 768px) calc(100vw - 48px), 800px');
+}
 assert(!template.includes('preview='));
 const requests=[],external=[],cases=[];
 const png=Buffer.from('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','base64');
@@ -57,7 +62,8 @@ const server=http.createServer((req,res)=>{
   const page=await context.newPage();await page.goto(origin+'/detail');
   const img=page.locator('.detail-image').first();await img.scrollIntoViewIfNeeded();
   await img.evaluate(e=>e.decode());
-  assert.equal(await img.getAttribute('src'),'/files/uploads/avatar.jpg');
+  assert.equal(await img.getAttribute('src'),'/files/uploads/avatar.jpg?display=1280');
+  assert(/display=(640|1280)$/.test(await img.evaluate(e=>e.currentSrc)));
   const box=await img.boundingBox();assert(box.width>60&&box.x>=0&&box.x+box.width<=width+1);
   const ratio=await img.evaluate(e=>({n:e.naturalWidth/e.naturalHeight,r:e.getBoundingClientRect().width/e.getBoundingClientRect().height}));
   assert(Math.abs(ratio.n-ratio.r)<.02,'image aspect ratio changed');

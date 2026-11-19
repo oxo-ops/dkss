@@ -117,7 +117,9 @@
                 {% if ext in ['png','jpg','jpeg','gif','webp'] %}
 
                     <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
-                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }}"
+                        srcset="{{ url_for('uploaded_file', folder='uploads', filename=file, display=640) }} 640w, {{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }} 1280w"
+                        sizes="(max-width: 768px) calc(100vw - 48px), 800px"
                         class="detail-image" loading="lazy" decoding="async" alt="添付画像"
                     ></a>
 
@@ -218,7 +220,9 @@
                     <div class="attachment-box">
                         {% if ext in ['png','jpg','jpeg','gif','webp'] %}
                             <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
-                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }}"
+                        srcset="{{ url_for('uploaded_file', folder='uploads', filename=file, display=640) }} 640w, {{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }} 1280w"
+                        sizes="(max-width: 768px) calc(100vw - 48px), 800px"
                         class="detail-image" loading="lazy" decoding="async" alt="添付画像"
                     ></a>
 
@@ -349,7 +353,9 @@
                                             <div class="attachment-box">
                                                 {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
                                                     <a href="{{ url_for('uploaded_file', folder='uploads', filename=file) }}" target="_blank" rel="noopener" aria-label="画像の原本を開く"><img
-                        src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
+                        src="{{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }}"
+                        srcset="{{ url_for('uploaded_file', folder='uploads', filename=file, display=640) }} 640w, {{ url_for('uploaded_file', folder='uploads', filename=file, display=1280) }} 1280w"
+                        sizes="(max-width: 768px) calc(100vw - 48px), 800px"
                         class="detail-image" loading="lazy" decoding="async" alt="添付画像"
                     ></a>
                                                 {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
