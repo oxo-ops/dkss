@@ -28,7 +28,13 @@ class Pages(CompactDemoTests):
    (out/f'{role}.html').write_text(r.text)
    for p in m.PatrolResult.query.filter_by(company_code='AONAGI').all():
     detail=self.client.get(f'/pointouts/{p.id}');self.assertEqual(detail.status_code,200);(out/f'{role}-detail-{p.id}.html').write_text(detail.text)
-   rows.append({'role':role,'count':m.PatrolResult.query.filter_by(company_code='AONAGI').count()})
+   for variant,query,expected in [('filtered','keyword=通路&category=Good',1),('empty','keyword=NO_MATCH_42&category=Good',0)]:
+    filtered=self.client.get('/pointouts?type=user&page_size=8&'+query)
+    self.assertEqual(filtered.status_code,200)
+    self.assertEqual(filtered.text.count('<article class="safety-result-mobile-card">'),expected)
+    self.assertIn('value="Good"',filtered.text)
+    (out/f'{role}-{variant}.html').write_text(filtered.text)
+   rows.append({'role':role,'count':m.PatrolResult.query.filter_by(company_code='AONAGI').count(),'real_filtered_get':True,'empty_get':True})
   (out/'routes.json').write_text(json.dumps(rows))
 if __name__=='__main__':
  r=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([Pages('test_pages')]))
