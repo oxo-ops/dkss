@@ -299,3 +299,16 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-responsive-shell].sidebar-collapsed .sidebar-nav {padding:18px 10px;}
  body[data-responsive-shell].sidebar-collapsed .sidebar-nav .menu-item {justify-content:center!important;padding:0!important;gap:0!important;}
 }
+
+/* The planner hides the shared account bar and owns four 44px top actions.
+   Reserve that capsule width so the scrolling title cannot cover its hit areas. */
+@media screen and (max-width:700px) {
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title {
+  max-inline-size:calc(100% - 184px);
+ }
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title [data-mobile-title-text] {
+  display:block; min-width:0; max-width:100%; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+ }
+}
+

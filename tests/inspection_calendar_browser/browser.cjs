@@ -7,6 +7,24 @@ let browser,lastPage,lastWidth,lastStage='start';
 for(const width of [320,390,768,1440]){const c=await browser.newContext({viewport:{width,height:width===320?568:width===390?740:900},serviceWorkers:'block'});await c.addCookies([{name:'dkss_session',value:fixture.cookie,url:base}]);let forbidden=[];await c.routeWebSocket('**/*',ws=>{forbidden.push('WEBSOCKET');ws.close();});await c.route('**/*',r=>{const q=r.request();if(new URL(q.url()).origin!==base||q.method()!=='GET'){forbidden.push(q.method());return r.abort()}return r.continue()});const p=await c.newPage(),errors=[];lastPage=p;lastWidth=width;p.on('pageerror',e=>errors.push(e.message));
 for(const month of [new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit'}).format(new Date()),'2024-02','2026-02']){
 await p.goto(base+'/vehicle/inspection-plans?view=year&month='+month);await p.waitForSelector('.ip-year-day-cell');await p.evaluate(async()=>{await document.fonts.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))});
+if(width<=700){
+ const title=p.locator('.main-content > [data-mobile-page-title]');
+ assert(await title.isVisible(),'planner scrolling title stays visible');
+ const label=title.locator('[data-mobile-title-text]'),original=await label.textContent();
+ for(const text of [original,'点検計画・営業所別の年間予定を確認する']){
+  await label.evaluate((e,text)=>e.textContent=text,text);
+  const hit=await p.locator('.ip-top-actions').evaluate(e=>[...e.querySelectorAll('[data-plan-view-toggle],[data-plan-filter-toggle],[data-plan-search-toggle],[data-guide-open]')].filter(b=>b.getBoundingClientRect().width).map(b=>{
+   const r=b.getBoundingClientRect(),t=document.querySelector('.main-content > [data-mobile-page-title]').getBoundingClientRect();
+   return {name:b.getAttribute('aria-label'),width:r.width,height:r.height,separate:t.right<=r.left+1||r.right<=t.left+1||t.bottom<=r.top+1||r.bottom<=t.top+1,hit:[.25,.5,.75].every(f=>{const n=document.elementFromPoint(r.left+r.width*f,r.top+r.height/2);return n===b||b.contains(n);})};
+  }));
+  assert(hit.length>=4,JSON.stringify(hit));
+  for(const item of hit){assert(item.separate,'title box must not overlap action '+JSON.stringify(item));assert(item.hit,'real action hit area must remain reachable '+JSON.stringify(item));assert(item.width>=44&&item.height>=44);}
+ }
+ await label.evaluate((e,text)=>e.textContent=text,original);
+ await p.screenshot({path:out+`/planner-title-actions-${width}-${month}.png`});
+}
+
+
 const result=await p.evaluate(()=>{const root=document.querySelector('.ip-year-days-scroll'),grid=root.firstElementChild,heads=[...grid.querySelectorAll('.ip-year-month-head')],current=heads.find(h=>h.dataset.month===document.querySelector('[data-year-month-picker]').value);return {months:heads.map(h=>h.dataset.month),bad:[...grid.querySelectorAll('[data-date]')].filter(x=>{let [y,m,d]=x.dataset.date.split('-').map(Number);return new Date(y,m,0).getDate()<d}).length,feb29:!!grid.querySelector('[data-date="2024-02-29"]'),nonleap:!!grid.querySelector('[data-date="2026-02-29"]'),left:root.scrollLeft,currentX:current?current.getBoundingClientRect().left-root.getBoundingClientRect().left:null,currentRight:current?current.getBoundingClientRect().right-root.getBoundingClientRect().left:null,selectedMonth:current?.dataset.month,picker:document.querySelector('[data-year-month-picker]').value,clientWidth:root.clientWidth,stickyWidth:grid.querySelector(".ip-year-day-label").getBoundingClientRect().width,expectedLeft:current?Math.min(Math.max(0,current.offsetLeft-grid.offsetLeft-grid.querySelector('.ip-year-head').offsetWidth),Math.max(0,root.scrollWidth-root.clientWidth)):0,overflow:document.documentElement.scrollWidth>innerWidth+1}});
 assert.equal(result.months.length,12);assert(result.months[0].endsWith('-04'));assert(result.months[11].endsWith('-03'));assert.equal(result.bad,0);assert.equal(result.nonleap,false);if(month==='2024-02')assert(result.feb29);assert(!result.overflow);assert(result.selectedMonth,'selected month header is missing');assert.equal(result.selectedMonth,result.picker);if(result.currentX!==null){assert(Math.abs(result.left-result.expectedLeft)<=2,JSON.stringify(result));assert(result.currentX>=result.stickyWidth-2&&result.currentRight<=result.clientWidth+2,JSON.stringify(result));}
 lastStage='year-snap-and-filter';
