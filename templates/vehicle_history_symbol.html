@@ -22,6 +22,6 @@
                                         {% endif %}
                                     </svg>
 
-                                    <span class="vehicle-history-kind-label">{% if kind in ["日常点検", "点検予定"] %}<span class="history-kind-unit">{{ kind[:2] }}</span><wbr><span class="history-kind-unit">{{ kind[2:] }}</span>{% else %}{{ kind }}{% endif %}</span>
+                                    <span class="vehicle-history-kind-label">{% if kind in ["日常点検", "点検予定"] %}<span class="history-kind-unit">{{ kind }}</span>{% else %}{{ kind }}{% endif %}</span>
                                 </span>
 {%- endmacro %}

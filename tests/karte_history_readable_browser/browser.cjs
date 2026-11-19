@@ -8,9 +8,10 @@ const url='https://fixture.invalid/'+name;await page.goto(url);
 const root=page.locator(name==='fixture'?'#vehicle-karte-overview':'.vehicle-karte-history-table');
 for(const kind of ['日常点検','点検予定']){
  const label=root.locator(`[data-kind="${kind}"] .vehicle-history-kind-label`).first();assert(await label.isVisible());
- assert.deepEqual(await label.locator('.history-kind-unit').allTextContents(),[kind.slice(0,2),kind.slice(2)]);
+ assert.deepEqual(await label.locator('.history-kind-unit').allTextContents(),[kind]);
  const bounds=await label.locator('.history-kind-unit').evaluateAll(es=>es.map(e=>({h:e.getBoundingClientRect().height,line:parseFloat(getComputedStyle(e).lineHeight),wrap:getComputedStyle(e).whiteSpace})));
  for(const b of bounds){assert.equal(b.wrap,'nowrap');assert(b.h<=b.line+2);}
+ const box=await label.boundingBox(),cell=await label.locator('xpath=..').boundingBox();assert(box.x>=cell.x-1&&box.x+box.width<=cell.x+cell.width+1,'four character label stays inside category');
  assert.equal(await label.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
 }
 const selector=name==='fixture'?'.ko-history-link':'.vehicle-history-mobile-content a';

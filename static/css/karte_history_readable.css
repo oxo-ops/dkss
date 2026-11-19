@@ -7,3 +7,8 @@ body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:ho
 #vehicle-karte-overview a.ko-history-link:hover { text-decoration:underline; }
 body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:focus-visible,
 #vehicle-karte-overview a.ko-history-link:focus-visible { outline:2px solid #2563eb; outline-offset:2px; text-decoration:underline; }
+/* Latest user correction: four characters stay together, never 3+1 or 2+2. */
+@media(max-width:700px){
+ #vehicle-karte-overview .ko-timeline li{grid-template-columns:52px 82px minmax(0,1fr)}
+}
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-kind > .vehicle-history-kind-label{padding-left:0;padding-right:0}
