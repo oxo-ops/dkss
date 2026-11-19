@@ -181,7 +181,7 @@ def verified_preview_fetch(events, observation, *, source_url, source_hash, page
     The caller separately ties any failure entry to the same Request object.
     """
     require(observation.get('width') in (1440, 390, 320) and
-            observation.get('stage') in ('maintenance-tab', 'maintenance-record') and
+            observation.get('stage') in ('history-detail', 'maintenance-tab', 'maintenance-record') and
             phase == f'width:{observation["width"]}/{observation["stage"]}' and
             scope_id == phase and observation.get('phase') == phase and observation.get('scope_id') == scope_id and
             observation.get('url') == page_url, 'Preview scope or page differs')
@@ -720,9 +720,9 @@ def main():
                         detail_path = f'/vehicle/karte/{case.vehicle.id}/maintenance/{invoice_record.id}#maintenance_detail_panel'
                         expect(source_link).to_have_attribute('href', detail_path)
                         navigation_count = len(report['invoice_source_navigations'])
-                        # Both entry routes reach the same exact maintenance record and
-                        # reuse the unchanged record-preview proof scope.
-                        invoice_phase = f'width:{width}/maintenance-record'
+                        # Use a distinct visit identity so the later direct-tab visit
+                        # cannot share or reuse this request sequence.
+                        invoice_phase = f'width:{width}/history-detail'
                         invoice_preview_scope = dict(id=invoice_phase, url=ORIGIN + detail_path,
                             page=page, frame=page.main_frame)
                         source_link.click()
@@ -732,7 +732,7 @@ def main():
                         expect(page.locator('.km-detail-panel .km-file-card[download]')).to_have_attribute('href', invoice_source_path)
                         require(len(report['invoice_source_navigations']) == navigation_count,
                                 'History click unexpectedly navigated to an original PDF')
-                        accept_invoice_preview(width, 'maintenance-record')
+                        accept_invoice_preview(width, 'history-detail')
                         invoice_preview_scope = None
                         invoice_phase = f'width:{width}/history-back'
                         page.go_back(wait_until='networkidle')
