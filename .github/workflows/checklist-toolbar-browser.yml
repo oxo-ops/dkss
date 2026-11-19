@@ -1,7 +1,7 @@
 name: Checklist Toolbar Browser
 on:
   push:
-    branches: [validation/checklist-toolbar-20261119, 'validation/header-guide-followup-20261119']
+    branches: [validation/checklist-toolbar-20261119, 'validation/header-guide-followup-20261119', 'validation/checklist-excel-green-20261119']
 permissions:
   contents: read
 jobs:

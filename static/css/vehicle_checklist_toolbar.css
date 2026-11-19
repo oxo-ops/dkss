@@ -40,3 +40,9 @@
 .vehicle-workspace-top.vehicle-toolbar-ready [data-vehicle-open-details="vehicle-target-settings"] {display:none!important;}
 
 
+
+/* Match the green spreadsheet file cue in the vehicle document screen. */
+.vehicle-workspace-top a.vehicle-excel-action {display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#23754b!important;background:#f2faf5!important;border-color:#b9d8c5!important;}
+.vehicle-workspace-top a.vehicle-excel-action:hover {color:#185535!important;background:#e6f4ec!important;border-color:#91bea3!important;}
+.vehicle-workspace-top a.vehicle-excel-action:focus-visible {outline:2px solid #23754b;outline-offset:2px;}
+.vehicle-workspace-top .vehicle-excel-action .vehicle-toolbar-symbol {display:block;width:22px;height:22px;flex:none;}
