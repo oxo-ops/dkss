@@ -85,8 +85,9 @@ try:
        replacement={k:v for k,v in current[name].items() if k in ('name','domain','path','expires','httpOnly','secure','sameSite')};replacement['value']=aged;ctx.add_cookies([replacement]);requests.clear()
        page.reload(wait_until='networkidle')
        assert page.locator('.public-demo-notice').is_visible();assert all(r['path']!='/login' for r in requests)
-       assert any(r['path']==target and r['location']=='/demo' for r in requests)
-       assert any(r['path']=='/demo' and r['status']==302 for r in requests)
+       assert any(r['path']==target and r['location']==target for r in requests)
+       assert urlsplit(page.url).path==target
+       assert not any(r['path']=='/demo' for r in requests)
        after={c['name']:c for c in ctx.cookies()};assert serializer.loads(after[name]['value'])['demo_role']=='driver'
        assert snap()==before
        page.screenshot(path=str(out/f'{width}-{role}-recovered.png'),full_page=True)
