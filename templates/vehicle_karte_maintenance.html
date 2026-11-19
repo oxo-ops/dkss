@@ -3,6 +3,12 @@
 
 {% block title %}車両カルテ・整備・修理{% endblock %}
 
+{% block page_styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_maintenance_filter.css', v='20261119-1') }}">
+<script defer src="{{ url_for('static', filename='js/karte_maintenance_filter.js', v='20261119-1') }}"></script>
+{% endblock %}
+
 {% block content %}
 {% include "vehicle_karte_header.html" %}
 {% include "vehicle_karte_tabs.html" %}

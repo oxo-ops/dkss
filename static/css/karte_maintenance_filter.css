@@ -1,0 +1,9 @@
+@media (max-width:767px){
+.karte-maintenance .karte-maintenance-filter{margin:0 0 8px;min-width:0;}
+.karte-maintenance .karte-maintenance-filter>summary{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 8px;box-sizing:border-box;cursor:pointer;list-style:none;color:#334155;}
+.karte-maintenance .karte-maintenance-filter>summary::-webkit-details-marker{display:none;}
+.karte-maintenance .karte-maintenance-filter>summary svg{flex:none;}
+.karte-maintenance .karte-maintenance-filter>summary span{min-width:0;overflow-wrap:anywhere;}
+.karte-maintenance .karte-maintenance-filter>summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px;}
+.karte-maintenance .karte-maintenance-filter>.km-filters{margin-top:8px;}
+}
