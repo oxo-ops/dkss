@@ -24,7 +24,7 @@ jobs:
           "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
       - run: |
           mkdir -p "$RUNNER_TEMP/create-ui/home" "$RUNNER_TEMP/create-ui/tmp" "$RUNNER_TEMP/create-ui/html" "$RUNNER_TEMP/create-ui/qa"
-          env -i PATH="$PATH" HOME="$RUNNER_TEMP/create-ui/home" LANG=C.UTF-8 TMPDIR="$RUNNER_TEMP/create-ui/tmp" DKSS_VALIDATION_TMP="$RUNNER_TEMP/create-ui/tmp" DKSS_BROWSER_ACCEPTANCE_ISOLATED=1 PYTHONPATH="$GITHUB_WORKSPACE/tests/history_presentation_browser/guard" PRODUCT_REPO="$GITHUB_WORKSPACE" HTML_OUT="$RUNNER_TEMP/create-ui/html" python tests/header_mobile_browser/render_pages.py
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/create-ui/home" LANG=C.UTF-8 TMPDIR="$RUNNER_TEMP/create-ui/tmp" DKSS_VALIDATION_TMP="$RUNNER_TEMP/create-ui/tmp" DKSS_BROWSER_ACCEPTANCE_ISOLATED=1 PYTHONPATH="$GITHUB_WORKSPACE/tests/history_presentation_browser/guard" PRODUCT_REPO="$GITHUB_WORKSPACE" HTML_OUT="$RUNNER_TEMP/create-ui/html" python tests/karte_parts_filter_browser/render.py
           env -i PATH="$PATH" HOME="$HOME" LANG=C.UTF-8 PRODUCT_REPO="$GITHUB_WORKSPACE" HTML_OUT="$RUNNER_TEMP/create-ui/html" ARTIFACTS="$RUNNER_TEMP/create-ui/qa" PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" node tests/karte_parts_filter_browser/browser.cjs
       - uses: actions/upload-artifact@v7
         if: always()
