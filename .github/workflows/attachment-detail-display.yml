@@ -33,6 +33,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/attachment-detail/html"
           env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/attachment-detail/html" python tests/attachment_detail_browser/render.py 2>&1 | tee "$RUNNER_TEMP/attachment-detail/route.log"
           env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/attachment-detail/html" ARTIFACTS="$RUNNER_TEMP/attachment-detail" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_detail_browser/browser.cjs
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/attachment-detail/html" ARTIFACTS="$RUNNER_TEMP/attachment-detail/legacy-lazy" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_lazy/browser.cjs
           git rev-parse HEAD > "$RUNNER_TEMP/attachment-detail/head.txt"
       - uses: actions/upload-artifact@v7
         if: always()
