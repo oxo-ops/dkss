@@ -45,6 +45,6 @@
 @layer alseon-actions {
  @media(min-width:769px) {
   body .main-content .pointouts-table .action-buttons > :is(a,form) {flex:0 0 auto;}
-  body .main-content .pointouts-table .action-buttons :is(a,button).btn-small {white-space:nowrap!important;min-width:60px!important;padding-inline:6px!important;gap:4px!important;}
+  body[data-responsive-shell] .main-content .pointouts-table .action-buttons :is(a,button).btn-small {white-space:nowrap!important;min-width:60px!important;padding-inline:6px!important;gap:4px!important;}
  }
 }
