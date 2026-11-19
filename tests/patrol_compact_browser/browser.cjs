@@ -6,11 +6,11 @@ for(const width of [320,390,768,1316])for(const role of ['driver','manager'])for
 const c=await browser.newContext({viewport:{width,height:900},serviceWorkers:'block'});await c.routeWebSocket('**/*',s=>{blocked.push('WS');s.close()});page=await c.newPage();
 await page.addInitScript(()=>localStorage.setItem('dkss:first-guide:v1:demo:pointouts','1'));
 await c.route('**/*',route=>{const r=route.request(),u=new URL(r.url());if(r.method()!=='GET'){posts++;return route.abort()}if(u.origin!=='https://fixture.invalid'){blocked.push(u.origin);return route.abort()}
-if(u.pathname==='/pointouts')return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(html,role+(u.searchParams.get('keyword')==='NO_MATCH_42'?'-empty':u.searchParams.get('category')==='Good'&&u.searchParams.get('keyword')?'-filtered':'')+'.html'),'utf8')});
+if(u.pathname==='/pointouts')return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(html,role+(u.searchParams.get('page')==='2'?'-page2':u.searchParams.get('keyword')==='NO_MATCH_42'?'-empty':u.searchParams.get('category')==='Good'&&u.searchParams.get('keyword')?'-filtered':'')+'.html'),'utf8')});
 const id=u.pathname.match(/^\/pointouts\/(\d+)$/);if(id)return route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(html,role+'-detail-'+id[1]+'.html'),'utf8')});
 if(u.pathname.includes('synthetic.png'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90"><rect width="120" height="90" fill="#b6ccde"/><path d="M10 70L50 20L90 70Z" fill="#405d70"/></svg>'});
 const f=path.resolve(repo,'.'+u.pathname);if(u.pathname.startsWith('/static/')&&f.startsWith(repo+'/static/')&&fs.existsSync(f))return route.fulfill({path:f});return route.fulfill({status:404,body:'fixture offline'});});
-await page.goto('https://fixture.invalid/pointouts');await page.evaluate(()=>document.fonts.ready);if(await page.locator('#firstGuidePanel').isVisible())await page.keyboard.press('Escape');
+await page.goto('https://fixture.invalid/pointouts?page_size=5');await page.evaluate(()=>document.fonts.ready);if(await page.locator('#firstGuidePanel').isVisible())await page.keyboard.press('Escape');
 if(scale===2)await page.evaluate(()=>{const v=[...document.querySelectorAll('.safety-results-mobile-list *')].map(e=>[e,parseFloat(getComputedStyle(e).fontSize)]);for(const[e,n]of v)e.style.fontSize=n*2+'px'});
 const list=page.locator('.safety-results-mobile-list'),cards=list.locator('.safety-result-mobile-card');assert.equal(await cards.count(),5);assert.equal(await list.isVisible(),width<=768);
 const filter=page.locator('.patrol-filter-disclosure');
@@ -32,12 +32,20 @@ assert.equal(await form.locator('[name=category]').inputValue(),'Good');
 await filter.locator('summary').click();
 assert(await cards.evaluateAll(es=>es.every(e=>e.scrollWidth<=e.clientWidth+1)),'list internal overflow');
 assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'page overflow');
-for(const card of await cards.all()){assert(!(await card.locator('.mobile-card-content').isVisible()));const summary=card.locator('summary');assert((await summary.boundingBox()).height>=44);assert((await card.locator('.safety-result-mobile-detail').boundingBox()).height>=44);}
+for(const card of await cards.all()){assert(await card.locator('.mobile-card-content').isVisible());assert.equal(await card.locator('summary').count(),0);assert.equal(await card.locator('.safety-result-mobile-detail').count(),0);assert((await card.locator('.patrol-record-link').boundingBox()).height>=44);}
+assert.equal(await page.locator('.tabs .tab').allTextContents().then(xs=>xs.map(x=>x.trim()).join('|')),'ユーザー|納入先');
+assert.equal(await page.locator('.tabs .tab.active').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(228, 239, 255)','selected tab blue');
+assert((await page.locator('.tabs .tab').first().evaluate(e=>getComputedStyle(e,'::after').transform))!=='none','slanted tab retained');
 await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-list.png'),fullPage:true});
-const card=cards.nth(1),summary=card.locator('summary');await summary.click();assert(await card.locator('.mobile-card-content').isVisible());assert((await card.locator('.mobile-card-content').innerText()).includes('負傷なし'));assert(await card.evaluate(e=>e.scrollWidth<=e.clientWidth+1));
-await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-open.png'),fullPage:true});await summary.press('Enter');assert(!(await card.locator('.mobile-card-content').isVisible()));
-const first=cards.first();await first.locator('summary').click();const image=first.locator('img');await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());assert(await image.evaluate(e=>e.naturalWidth>0));await first.locator('summary').click();
-await first.locator('.safety-result-mobile-detail').click();await page.waitForURL(/\/pointouts\/\d+$/);assert((await page.locator('body').innerText()).includes('安全パトロール詳細'));await page.goBack();await list.waitFor({state:'visible'});
+assert.equal(await page.locator('.pointouts-list-toolbar .pointouts-pagination').isVisible(),false);
+const bottom=page.locator('.pointouts-pagination-bottom');assert(await bottom.isVisible());
+await bottom.getByRole('link',{name:'次のページ',exact:true}).click();await page.waitForURL(u=>u.searchParams.get('page')==='2');assert.equal(await cards.count(),1);await page.goBack();await list.waitFor({state:'visible'});
+assert.equal(await cards.locator('.safety-result-mobile-actions').count(),5,'existing owner/manager permissions');
+assert.equal(await cards.locator('.btn-edit').first().evaluate(e=>getComputedStyle(e).color),'rgb(31, 93, 165)');
+assert.equal(await cards.locator('.btn-delete').first().evaluate(e=>getComputedStyle(e).color),'rgb(179, 60, 84)');
+const first=cards.first(),image=list.locator('img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());assert(await image.evaluate(e=>e.naturalWidth>0));
+await first.locator('.patrol-record-link').click();await page.waitForURL(/\/pointouts\/\d+$/);assert((await page.locator('body').innerText()).includes('安全パトロール詳細'));await page.goBack();await list.waitFor({state:'visible'});
+await cards.nth(1).locator('.patrol-record-link').press('Enter');await page.waitForURL(/\/pointouts\/\d+$/);await page.goBack();await list.waitFor({state:'visible'});
 }else{assert(await form.isVisible(),'PC form stays available');await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-pc.png'),fullPage:true});}
 // Exercise original GET submission, retained conditions, zero results and full reset.
 if(width<=768)await filter.locator('summary').click();

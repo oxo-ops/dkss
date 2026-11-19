@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
 <script defer src="{{ url_for('static', filename='js/patrol_filter_disclosure.js', v='20261119-1') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/patrol_reading_list.css', v='20261119-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -62,7 +63,7 @@
             <circle cx="12" cy="8" r="4"></circle>
             <path d="M4 21v-2a8 8 0 0 1 16 0v2"></path>
         </svg>
-        ユーザーに関する記録
+        ユーザー
     </a>
 
     <a
@@ -82,7 +83,7 @@
             <rect x="4" y="3" width="16" height="18" rx="2"></rect>
             <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"></path>
         </svg>
-        納入先に関する記録
+        納入先
     </a>
 </div>
 
@@ -452,6 +453,7 @@
 <div class="safety-results-mobile-list">
     {% for item in patrol_results %}
         <article class="safety-result-mobile-card">
+            <a class="patrol-record-link" href="/pointouts/{{ item.index }}" aria-label="{{ item.date }} {{ item.delivery_place if view_type == 'delivery_place' else item.target_user }}の安全記録を開く">
 
             <div class="safety-result-mobile-head">
                 <div class="safety-result-mobile-head-main">
@@ -484,16 +486,6 @@
                     </span>
                 {% endif %}
             </div>
-
-            <a
-                href="/pointouts/{{ item.index }}"
-                class="btn safety-result-mobile-detail"
-            >
-                <span>詳細を見る</span>
-                <span class="safety-result-mobile-detail-arrow">
-                    ›
-                </span>
-            </a>
 
             <div class="safety-result-mobile-grid">
 
@@ -541,7 +533,13 @@
             </div>
 
 
-            <details class="patrol-row-extra"><summary>内容・添付{% if item.can_manage %}・操作{% endif %}</summary><div class="patrol-row-extra-body">
+            <div class="patrol-record-body">
+            {% if item.content %}
+            <div
+                class="mobile-card-content mention-display"
+                data-value="{{ item.display_content|default(item.content) }}"
+            ></div>
+            {% endif %}
                 <div class="safety-result-mobile-grid-wide">
                     <span class="safety-result-mobile-label">
                         添付
@@ -559,13 +557,10 @@
                         <strong>なし</strong>
                     {% endif %}
                 </div>
-            {% if item.content %}
-            <div
-                class="mobile-card-content mention-display"
-                data-value="{{ item.display_content|default(item.content) }}"
-            ></div>
-            {% endif %}
 
+
+            </div>
+            </a>
             {% if item.can_manage %}
             <div class="safety-result-mobile-actions">
 
@@ -598,7 +593,7 @@
             </div>
             {% endif %}
 
-            </div></details>
+
         </article>
     {% else %}
         <div class="mobile-list-card">
@@ -621,6 +616,10 @@
             'pointouts',
             type=view_type,
             keyword=keyword,
+                    office=office_filter,
+                    status=status_filter,
+                    date_from=date_from,
+                    date_to=date_to,
             category=request.args.get('category'),
             mine=request.args.get('mine'),
             pending=request.args.get('pending'),
@@ -655,6 +654,10 @@
                     'pointouts',
                     type=view_type,
                     keyword=keyword,
+                    office=office_filter,
+                    status=status_filter,
+                    date_from=date_from,
+                    date_to=date_to,
                     category=request.args.get('category'),
                     mine=request.args.get('mine'),
                     pending=request.args.get('pending'),
@@ -683,6 +686,10 @@
             'pointouts',
             type=view_type,
             keyword=keyword,
+                    office=office_filter,
+                    status=status_filter,
+                    date_from=date_from,
+                    date_to=date_to,
             category=request.args.get('category'),
             mine=request.args.get('mine'),
             pending=request.args.get('pending'),
