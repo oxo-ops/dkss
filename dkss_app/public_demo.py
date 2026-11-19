@@ -4,7 +4,7 @@ Production activation is intentionally prohibited pending deployment review.
 """
 import os
 import time
-from flask import abort, current_app, g, redirect, request, session, url_for
+from flask import abort, current_app, g, redirect, render_template, request, session, url_for
 from urllib.parse import urlencode
 
 MARKER = 'aonagi_readonly_demo'
@@ -115,7 +115,7 @@ def install(app):
             if request.args.get('vehicle_saved') not in (None, 'complete'):
                 abort(400)
             if not is_demo() and (session.get('username') or any(key.startswith('mfa_') for key in session)):
-                abort(409)
+                return render_template('demo_entry_conflict.html'), 409
             # Never turn a retired, invalid or partial demo cookie into a fresh identity.
             if not is_demo() and any(key in session for key in (MARKER, 'public_demo_token', 'demo_epoch')):
                 abort(410)
@@ -153,7 +153,7 @@ def install(app):
                 session.clear() if is_demo() else None
                 abort(410)
             if session.get('username') and not is_demo():
-                abort(409)  # Do not replace an ordinary authenticated session.
+                return render_template('demo_entry_conflict.html'), 409  # Keep the ordinary identity.
             user = target_user(force_driver=marked or recovery_target is not None)
             from .public_demo_shared import enabled as shared
             if not shared():

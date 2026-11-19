@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>通常利用を継続しています | ALSEON</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ordinary_entry.css', v='20261119-1') }}">
+</head>
+<body class="ordinary-entry-conflict">
+    <main>
+        <h1>通常利用を継続しています</h1>
+        <p>このブラウザは通常利用でログイン中、またはログイン手続き中です。</p>
+        <p>体験版は別のブラウザやプライベートウィンドウで開いてください。</p>
+        <a href="{{ url_for('login') }}">通常利用へ戻る</a>
+    </main>
+</body>
+</html>

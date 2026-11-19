@@ -1,0 +1,7 @@
+@media (max-width: 900px) {
+    .ordinary-login-heading { padding-left: 56px; min-height: 44px; display: flex; align-items: center; }
+}
+.ordinary-entry-conflict { margin: 0; background: #f4f6fc; color: #203553; font: 16px/1.7 system-ui, sans-serif; }
+.ordinary-entry-conflict main { box-sizing: border-box; max-width: 34rem; margin: 10vh auto; padding: 24px; }
+.ordinary-entry-conflict h1 { font-size: 1.35rem; line-height: 1.5; }
+.ordinary-entry-conflict a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid #c5d2eb; border-radius: 8px; background: white; color: #244b8a; text-decoration: none; }
