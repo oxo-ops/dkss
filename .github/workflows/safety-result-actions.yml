@@ -1,7 +1,7 @@
 name: Safety result action design
 on:
   push:
-    branches: [validation/safety-result-actions-20261119, validation/post-live-polish-20261119]
+    branches: [review/safety-results-heading, validation/safety-result-actions-20261119, validation/post-live-polish-20261119]
   workflow_dispatch:
 permissions:
   contents: read

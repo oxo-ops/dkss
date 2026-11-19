@@ -11,8 +11,8 @@ with sync_playwright() as p:
  for width in [320,390,501,768,1024,1440]:
   for manage in [False,True]:
    content=Contract().render(manage)
-   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','responsive_layout.css','safety_result_actions.css'])
-   html='<meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8">'+css+content+'<script>'+ (ROOT/'static/js/safety_checklist_results.js').read_text()+'</script>'
+   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','entry_add_icon.css','responsive_layout.css','safety_result_actions.css'])
+   html='<meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8">'+css+'<body data-responsive-shell>'+content+'</body>'+ '<script>'+ (ROOT/'static/js/safety_checklist_results.js').read_text()+'</script>'
    page=browser.new_page(viewport={'width':width,'height':900})
    requests=[]
    def route(r):
@@ -20,6 +20,21 @@ with sync_playwright() as p:
     if r.request.url=='https://fixture.invalid/':r.fulfill(body=html,content_type='text/html')
     else:r.fulfill(body='<h1>Destination</h1>',content_type='text/html')
    page.route('**/*',route)
+   page.goto('https://fixture.invalid/')
+   add=page.locator('.safety-results-new-button')
+   assert add.get_attribute('href')=='/safety/checklists/13/new'
+   if width<=768:
+    for title in ['営業所安全確認', '営業所安全確認・長い名前のチェックリスト']:
+     page.locator('.safety-results-title-row h2').evaluate('(e,s)=>e.textContent=s',title)
+     box=add.bounding_box(); heading=page.locator('.safety-results-title-row h2').bounding_box()
+     assert box['width']>=44 and box['height']>=44, box
+     assert abs(box['y']-heading['y'])<=2 and box['x']>=heading['x']+heading['width']-1, (box,heading)
+     assert box['x']+box['width']<=width,box
+     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+     page.screenshot(path=str(OUT/f'heading-{width}-{manage}-{len(title)}.png'),full_page=True)
+    page.locator('.safety-results-title-row h2').evaluate('(e)=>e.textContent="営業所安全確認"')
+   add.focus();page.keyboard.press('Enter')
+   assert page.url=='https://fixture.invalid/safety/checklists/13/new'
    page.goto('https://fixture.invalid/')
    visible='.safety-results-mobile-list' if width<=768 else '.safety-results-table'
    controls=page.locator(visible).locator('a[href*="checklist-results/"],button.btn-delete')
