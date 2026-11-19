@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const src=fs.readFileSync('static/js/vehicle_inspection_plans.js','utf8');
+const block=src.slice(src.indexOf('    let mobileCalendarViewport = null;'),src.indexOf('    function fitCalendar() {'));
+const root={scrollTop:0,parentElement:null},main={scrollTop:0,parentElement:root};let top=260,resize;
+const document={scrollingElement:root,body:{classList:{contains:()=>true}}};
+const window={innerWidth:390,innerHeight:800,scrollY:0,visualViewport:{height:800},addEventListener:(n,f)=>resize=f};
+const ctx=vm.createContext({window,document});vm.runInContext(block+';globalThis.fit=stableMobileCalendarHeight;',ctx);
+const grid={getBoundingClientRect:()=>({top}),parentElement:main};
+assert.equal(ctx.fit(grid),456);
+main.scrollTop=220;top=40;window.visualViewport.height=910;window.innerHeight=910;assert.equal(ctx.fit(grid),456,'browser bars plus main scroll must not enlarge calendar');
+main.scrollTop=0;window.scrollY=300;root.scrollTop=300;top=-40;assert.equal(ctx.fit(grid),456,'window scroll must not be counted twice');
+window.visualViewport.height=400;assert.equal(ctx.fit(grid),456,'keyboard must not collapse calendar');
+window.innerWidth=640;window.innerHeight=600;window.visualViewport.height=600;top=40;window.scrollY=0;root.scrollTop=0;assert.equal(ctx.fit(grid),476,'new width recalculates');
+window.innerHeight=700;window.visualViewport.height=700;resize();assert.equal(ctx.fit(grid),576,'explicit rotation clears baseline');
+console.log('6 stable mobile calendar sizing checks passed');
