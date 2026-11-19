@@ -1,0 +1,12 @@
+/* Preserve category semantics and native links without noisy repeated badges. */
+:is(#vehicle-karte-overview .ko-timeline,.vehicle-karte-history-table) .vehicle-history-kind-label .history-kind-unit { display:inline-block; white-space:nowrap; overflow-wrap:normal; word-break:keep-all; }
+:is(#vehicle-karte-overview .ko-timeline,.vehicle-karte-history-table) .vehicle-history-kind > .vehicle-history-kind-label { background:transparent; color:#34465c; font-weight:500; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a,
+#vehicle-karte-overview a.ko-history-link { color:#253b53; text-decoration:none; font-weight:400; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:hover,
+#vehicle-karte-overview a.ko-history-link:hover { text-decoration:underline; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:focus-visible,
+#vehicle-karte-overview a.ko-history-link:focus-visible { outline:2px solid #2563eb; outline-offset:2px; text-decoration:underline; }
+/* Latest user correction: four characters stay together, never 3+1 or 2+2. */
+#vehicle-karte-overview .ko-timeline li{grid-template-columns:52px 82px minmax(0,1fr)}
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-kind > .vehicle-history-kind-label{padding-left:0;padding-right:0}

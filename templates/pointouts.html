@@ -2,9 +2,10 @@
 
 {% block title %}安全パトロール結果一覧{% endblock %}
 
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261119-patrol-rows-1') }}">
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_filter_compact.css', v='20261119-patrol-space-2') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
+<script defer src="{{ url_for('static', filename='js/patrol_filter_disclosure.js', v='20261119-1') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -85,6 +86,12 @@
     </a>
 </div>
 
+<details class="patrol-filter-disclosure" open>
+<summary aria-label="検索・絞り込み条件を開閉">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+<span>検索・絞り込み</span>
+{% if keyword or office_filter or category_filter or date_from or date_to or status_filter %}<span class="patrol-filter-active">条件あり</span>{% endif %}
+</summary>
 <div class="card tab-content search-card">
     <form method="get" class="search-form pointouts-filter-form">
         <input type="hidden" name="type" value="{{ view_type }}">
@@ -199,6 +206,7 @@
         </div>
     </form>
 </div>
+</details>
 <div
     id="pointouts-list"
     class="pointouts-list-toolbar"

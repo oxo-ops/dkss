@@ -659,6 +659,24 @@
         requestAnimationFrame(fitCalendar);
         if(!entries.length)root.append(node('p',hasActiveFilters()?'この条件に該当する点検はありません。':'この月の日付付きの予定・実績はありません。','ip-cal-empty'));
     }
+    // Mobile browser chrome changes visualViewport.height while scrolling.
+    // Keep the first usable height for this width, and measure the grid in
+    // unscrolled layout coordinates so scrolling cannot grow the month grid.
+    let mobileCalendarViewport = null;
+    function stableMobileCalendarHeight(grid) {
+        const width = window.innerWidth;
+        if (!mobileCalendarViewport || mobileCalendarViewport.width !== width) {
+            mobileCalendarViewport = {width, height: window.DkssViewport?.height()
+                ?? Math.min(window.innerHeight, window.visualViewport?.height || window.innerHeight)};
+        }
+        let top = grid.getBoundingClientRect().top + window.scrollY;
+        for (let parent = grid.parentElement; parent; parent = parent.parentElement) {
+            if (parent !== document.scrollingElement) top += parent.scrollTop;
+        }
+        return Math.max(280, mobileCalendarViewport.height - Math.max(0, top) - 12
+            - (document.body.classList.contains('ip-mobile-workspace') ? 72 : 0));
+    }
+    window.addEventListener('orientationchange', () => { mobileCalendarViewport = null; });
     function fitCalendar() {
         if(view!=='calendar')return;
         const grid=planner.querySelector('.ip-cal-grid');if(!grid)return;
@@ -668,9 +686,7 @@
         grid.dataset.flowLayout=String(flow&&!mobile);
         grid.style.height=flow?'auto':available+'px';
         if(mobile){
-            const viewport=window.DkssViewport?.height() ?? Math.min(window.innerHeight,window.visualViewport?.height||window.innerHeight);
-            const top=Math.max(0,grid.getBoundingClientRect().top);
-            grid.style.setProperty('--ip-mobile-calendar-height',Math.max(280,viewport-top-12-(document.body.classList.contains('ip-mobile-workspace')?72:0))+'px');
+            grid.style.setProperty('--ip-mobile-calendar-height',stableMobileCalendarHeight(grid)+'px');
         }
         for(const cell of grid.querySelectorAll('[data-date]')) {
             const entries=calendarDays.get(cell)||[],items=cell.querySelector('.ip-cal-items');items.replaceChildren();

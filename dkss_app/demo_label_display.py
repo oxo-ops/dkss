@@ -55,3 +55,23 @@ def safety_criteria(value, *, company, checklist_id, result_id):
         return '2＝確認できている、1＝一部改善が必要、0＝未実施。'
     return value
 
+
+
+# Read-only aliases for four verified legacy sample notifications. Match the
+# complete stored body before touching either the summary or expanded display.
+_NOTIFICATION_LABELS = {
+    259: ("【体験用・架空】照合の実施者と確認タイミングを具体化してください。荷札と伝票のどこを確認するかを追記し、再提出してください。", "【体験用・架空】"),
+    262: ("点検日：2026-11-10\n判断：判定保留\n理由：【体験用・架空】11月10日の入力は正常例ですが、画面に別日11月16日の未解消不具合も表示されています。別日の対応状況を確認するため、この例では判断保留とします。実車の運行許可ではありません。", "【体験用・架空】"),
+    264: ("点検日：2026-11-09\n判断：運行不可\n理由：【体験用・架空】左前輪の空気圧低下について原因確認と整備後の再確認が完了していないため、この記録では運行不可とする。対応完了後に再判断する。実車への指示ではありません。", "【体験用・架空】"),
+    282: ("点検日：2026-11-17\n判断：運行不可\n理由：【架空・通し検証 QA-20261117-103】始動時異音の原因確認と整備後の再確認が未完了という想定のため、練習上は運行不可。実車への指示ではありません。通知から管理者が内容を確認し、手動で判断する流れの確認です。", "【架空・通し検証 QA-20261117-103】"),
+}
+
+
+def notification_text(value, *, raw, company, notification_id):
+    sample = _NOTIFICATION_LABELS.get(notification_id)
+    if (sample and raw == sample[0] and has_request_context()
+            and request.method == 'GET'
+            and any(_in_demo(company, endpoint) for endpoint in
+                    ('notifications', 'notification_recent', 'notification_detail'))):
+        return value.replace(sample[1], '', 1)
+    return value

@@ -1,0 +1,5 @@
+# Mobile karte reading-first
+Source: 2026-11-18 17:03:17 UTC message Sentinel_f036552e4da4819185d708196e283456, third attachment IMG_2190(1).jpeg / libfile_6094a31dfa508191af376da3fdc8eab9. Actual image inspected: import, vehicle list and edit management buttons below usage vehicle selector. User requested these PC-oriented controls be removed from mobile viewing.
+Baseline Live6ca81. Product delta is only <=767px hiding of existing authorised management row and scoped stylesheet version. Desktop DOM/links/role condition are untouched; all eight tabs share the same header. Search, vehicle switching, warnings and identity disclosure remain.
+Read-only Live GET confirmed initial demo driver has no admin row already; no role change or business write performed. Admin row presence verified with current source and isolated real Flask renderer. Dedicated 8-tab x 4-width acceptance verifies hidden mobile row, desktop three links and resize restoration, alongside existing identity dialog, focus, tabs and image overlap checks. Native browser/actual new screenshots must pass before acceptance.
+No deployment or auth/DB changes. Separate from #534 and #535.
