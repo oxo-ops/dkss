@@ -301,7 +301,17 @@ class StaticContracts(unittest.TestCase):
             and isinstance(n.func, ast.Name) and n.func.id == 'require')
         expected = Counter(BASELINE['require_condition_hash_counts'])
         self.assertEqual(sum(expected.values()), 51)
-        self.assertFalse(expected - actual)
+        # Approved detail-first history replaces only direct-PDF navigation.
+        replaced = Counter({
+            'ce47ca3750e2d4a1c22ba177965f4416836b674e1367c24995ba79b2021d360c': 1,
+            '4f63bafb36bfd88bf4dccefdd935a6f1410088a94ded795fcbb7c56e9786b36d': 1,
+            'dcf38e7e96920ae650ed89a3fc411f6d54d537897533461bc4f29ea42c23e069': 1,
+        })
+        self.assertFalse((expected - replaced) - actual)
+        text = HARNESS.read_text()
+        self.assertIn("expect(source_link).to_have_attribute('href', detail_path)", text)
+        self.assertIn("require(len(report['invoice_source_navigations']) == navigation_count,", text)
+        self.assertIn("accept_invoice_preview(width, 'history-detail')", text)
         native = (HERE / 'video_connected_browser/native_pdf_navigation.py').read_bytes()
         self.assertEqual(hashlib.sha1(f'blob {len(native)}\0'.encode() + native).hexdigest(),
                          '4573aa6f07666f1d4e508b7352cc4cd42df0a323')

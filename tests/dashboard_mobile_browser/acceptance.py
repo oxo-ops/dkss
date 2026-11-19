@@ -74,7 +74,7 @@ try:
         window.__demoClickCount=(window.__demoClickCount||0)+1;
         if(t.id!=='notificationBell')e.preventDefault();}
     },true)""")
-    page.goto('http://127.0.0.1:8765/',wait_until='networkidle')
+    page.goto('http://127.0.0.1:8765/?__aonagi_entry=1',wait_until='networkidle')
     assert page.locator('.dashboard-safety-content').count()==4,'fixture safety records absent'
     if scale==2:
      page.evaluate("""()=>{const values=Array.from(document.querySelectorAll('.public-demo-notice,.public-demo-notice *,.dashboard-page,.dashboard-page *')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)*2]);for(const [e,size] of values)e.style.setProperty('font-size',size+'px','important')}""")
@@ -203,7 +203,7 @@ try:
     report['cases'].append({'role':role,'width':width,'synthetic_text_scale':scale,'sidebar_alignment':sidebar_alignment,**measure});ctx.close()
   case.login('checker')
   ctx=browser.new_context(viewport={'width':390,'height':740},java_script_enabled=False,service_workers='block')
-  ctx.route('**/*',bridge);page=ctx.new_page();page.goto('http://127.0.0.1:8765/',wait_until='networkidle')
+  ctx.route('**/*',bridge);page=ctx.new_page();page.goto('http://127.0.0.1:8765/?__aonagi_entry=1',wait_until='networkidle')
   assert page.locator('.dashboard-safety-story').count()==0
   opening=page.locator('.dashboard-safety-opening').first
   href=opening.get_attribute('href');opening.click();page.wait_for_load_state('networkidle')

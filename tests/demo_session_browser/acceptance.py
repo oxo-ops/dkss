@@ -1,4 +1,4 @@
-"""Synthetic browser cookie-expiry acceptance. No production access or business POST."""
+"""Synthetic browser cookie-expiry acceptance. No production access; stale business POST must be rejected without writes."""
 import argparse,json,os,sys,subprocess,time
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
@@ -37,6 +37,10 @@ try:
     for width in (390,1316):
      for role in ('driver','manager'):
       case.setUp();before=snap();target='/pointouts';client=case.app.test_client(use_cookies=False)
+      case.demo_active=False;case.login('checker',company='B')
+      case.request('GET','/vehicle/checklists')
+      normal_checklist=case.models.Checklist.query.filter_by(company_code='B').one().id
+      case.demo_active=True
       record={'width':width,'role':role,'status':'running'};report['cases'].append(record);requests=[]
       class Handler(BaseHTTPRequestHandler):
        def log_message(self,*args):pass
@@ -45,13 +49,19 @@ try:
        def handle_request(self):
         try:
          u=urlsplit(self.path);path=u.path;assert not u.scheme and not u.netloc and '..' not in path.split('/')
-         allowed=path==f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}' or path in ('/demo','/demo/role','/','/login','/safety','/pointouts','/static/manifest.webmanifest','/favicon.ico','/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
+         allowed=(self.command=='GET' and path==f'/vehicle/checklists/{normal_checklist}') or path in (f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}', f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}/save-one', '/vehicle/checklists') or path in ('/demo','/demo/role','/','/login','/safety','/pointouts','/static/manifest.webmanifest','/favicon.ico','/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/','/static/guide/'))
          assert allowed,'unapproved path:'+path
          headers={'Cookie':self.headers.get('Cookie','')}
          if self.command=='POST':
-          length=int(self.headers.get('Content-Length','0'));assert 0<length<8192 and path=='/demo/role'
+          length=int(self.headers.get('Content-Length','0'));assert 0<length<8192
           data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
-          assert set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1
+          if path=='/demo/role':
+           assert set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1
+          else:
+           assert path==f'/vehicle/checklists/{case.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}/save-one'
+           assert set(data)=={'vehicle_record_id','year','month','day','item_no','value','csrf_token'}
+           assert data['vehicle_record_id']==[str(case.vehicle_id)] and data['value']==['✓']
+           assert case.app.config['WTF_CSRF_ENABLED'] is True
           response=client.post(self.path,data={k:v[0] for k,v in data.items()},headers=headers)
          else:response=client.get(self.path,headers=headers)
          requests.append({'method':self.command,'path':path,'status':response.status_code,'location':response.location})
@@ -72,8 +82,16 @@ try:
       def ws(w):report['blocked'].append('websocket');w.close()
       ctx.route_web_socket('**/*',ws);page=ctx.new_page()
       try:
+       # Previously distributed PC marker must work with no cookies, as must QR /demo.
+       page.goto(origin+'/?__aonagi_entry=1',wait_until='networkidle')
+       assert page.locator('.public-demo-notice').is_visible()
+       record['fresh_marker_entry']=True
+       page.screenshot(path=str(out/f'{width}-{role}-fresh-marker-entry.png'),full_page=True)
+       ctx.clear_cookies()
        page.goto(origin+'/demo',wait_until='networkidle')
        assert page.locator('.public-demo-notice').is_visible()
+       page.screenshot(path=str(out/f'{width}-{role}-fresh-qr-entry.png'),full_page=True)
+       record['fresh_qr_entry']=True
        page.locator(f'form[action="/demo/role"] button[value="{role}"]').click();page.locator('.public-demo-notice').wait_for(state='detached');page.wait_for_load_state('networkidle')
        page.goto(origin+target,wait_until='networkidle');assert '/login' not in page.url
        cookies={c['name']:c for c in ctx.cookies()};name=case.app.config['SESSION_COOKIE_NAME'];assert 'dkss_demo_return' in cookies
@@ -107,7 +125,38 @@ try:
        assert page.locator('input[name="company_code"]').is_visible()
        assert 'dkss_demo_return' not in {c['name']:c for c in ctx.cookies()}
        page.screenshot(path=str(out/f'{width}-{role}-bare-home-login.png'),full_page=True)
-       assert not any(r['method']=='POST' and r['path']!='/demo/role' for r in requests)
+       # Two real browser tabs sharing cookies: stale demo form cannot save in normal B.
+       page.goto(origin+'/demo',wait_until='networkidle')
+       oldtab=ctx.new_page();checklist=case.app.config['PUBLIC_DEMO_CHECKLIST_ID']
+       oldtab.goto(origin+f'/vehicle/checklists/{checklist}?vehicle_record_id={case.vehicle_id}',wait_until='networkidle')
+       stale_token=oldtab.locator('input[name="csrf_token"]').first.input_value()
+       page.goto(origin+'/login',wait_until='networkidle')
+       assert page.locator('input[name="company_code"]').is_visible()
+       # Authenticate only the isolated fixture, never a real account or login bypass route.
+       case.demo_active=False;case.client=case.app.test_client();case.login('checker',company='B')
+       with case.client.session_transaction() as normal_state:normal_cookie=serializer.dumps(dict(normal_state))
+       cookie_spec={'name':name,'value':normal_cookie,'url':origin,'httpOnly':True,'sameSite':'Lax'}
+       ctx.add_cookies([cookie_spec]);previous_csrf=case.app.config['WTF_CSRF_ENABLED'];case.app.config['WTF_CSRF_ENABLED']=True
+       try:
+        data={'vehicle_record_id':str(case.vehicle_id),'year':'2026','month':'11','day':'19','item_no':'0','value':'✓','csrf_token':stale_token}
+        status=oldtab.evaluate("async x=>(await fetch(x.path,{method:'POST',body:new URLSearchParams(x.data),redirect:'manual'})).status",{'path':f'/vehicle/checklists/{checklist}/save-one','data':data})
+        assert status==400 and snap()==before
+        # Back/Forward to the old marked demo home must not silently re-enter demo.
+        page.go_back(wait_until='networkidle');page.reload(wait_until='networkidle')
+        assert urlsplit(page.url).query=='__aonagi_entry=1'
+        assert not page.locator('.public-demo-notice').count()
+        assert any(r['path']=='/' and r['status']==409 for r in requests)
+        normal_response=oldtab.goto(origin+'/vehicle/checklists',wait_until='networkidle')
+        assert normal_response.status==200
+        assert not oldtab.locator('.public-demo-notice').count()
+        now={c['name']:c for c in ctx.cookies()};state=serializer.loads(now[name]['value'])
+        assert state['company_code']=='B' and not state.get('aonagi_readonly_demo')
+        record['shared_cookie_limit']='old common GET uses explicitly authenticated normal company; separate simultaneous sessions not supported'
+        record['stale_post_status']=status;record['normal_company_preserved']=True
+        page.screenshot(path=str(out/f'{width}-{role}-old-marked-tab-blocked.png'),full_page=True)
+       finally:
+        case.app.config['WTF_CSRF_ENABLED']=previous_csrf;case.demo_active=True;oldtab.close()
+       assert all(r['status']==400 for r in requests if r['method']=='POST' and r['path'].endswith('/save-one'))
        record.update(status='passed',requests=requests,business_writes=False)
       except BaseException as e:
        record.update(status='failed',error=type(e).__name__+':'+str(e),requests=requests,current_url=page.url)
