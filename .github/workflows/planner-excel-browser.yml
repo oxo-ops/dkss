@@ -1,7 +1,7 @@
 name: Planner Excel Icon Browser
 on:
   push:
-    branches: [validation/demo-ready-batch2-20261119, validation/planner-excel-icon]
+    branches: [validation/demo-ready-batch2-20261119, validation/planner-excel-icon, validation/excel-action-unified]
 permissions:
   contents: read
 jobs:
