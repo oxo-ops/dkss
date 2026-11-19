@@ -15,6 +15,20 @@ if(width<=650){assert(await tabs.evaluateAll(es=>es.every(e=>Math.abs(e.getBound
 assert.equal(await page.locator('.driving-main-filters input[type=date][name=start]').isVisible(),period==='custom');
 if(width<=650){assert(await page.locator('.driving-period-label select,.driving-extra-filters>summary,.driving-toolbar-actions> a,.driving-export-menu>summary').evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height).every(e=>{const r=e.getBoundingClientRect();return r.height>=44&&e.scrollWidth<=e.clientWidth+1&&r.left>=-1&&r.right<=innerWidth+1})),'toolbar controls fit and touch size: '+JSON.stringify(await page.locator('.driving-period-label select,.driving-extra-filters>summary,.driving-toolbar-actions> a,.driving-export-menu>summary').evaluateAll(es=>es.map(e=>({text:e.textContent,rect:e.getBoundingClientRect().toJSON(),scroll:e.scrollWidth,client:e.clientWidth,display:getComputedStyle(e).display})))));}
 
+const filter=page.locator('#driving-extra-filters'),trigger=filter.locator('summary');
+if(await filter.getAttribute('open')!==null)await trigger.click();
+await trigger.scrollIntoViewIfNeeded();const before=await trigger.boundingBox(),scrollBefore=await page.evaluate(()=>scrollY);
+assert.equal(await trigger.evaluate(e=>getComputedStyle(e,'::before').content),'none');
+const fields=await page.locator('#driving-filter-form').evaluate(f=>[...new FormData(f).entries()]);
+await trigger.click();assert.notEqual(await filter.getAttribute('open'),null);
+const after=await trigger.boundingBox();assert(Math.abs(before.x-after.x)<2&&Math.abs(before.y-after.y)<2,'filter button moved '+JSON.stringify({before,after}));
+assert(Math.abs(await page.evaluate(()=>scrollY)-scrollBefore)<2,'scroll changed on disclosure');
+assert(await page.locator('.driving-extra-filter-body input[name=start]').isVisible());
+assert.deepEqual(await page.locator('#driving-filter-form').evaluate(f=>[...new FormData(f).entries()]),fields,'opening changed GET data');
+await page.screenshot({path:path.join(out,`open-${mode}-${period}-${width}-${scale}x.png`),fullPage:true});
+await trigger.focus();await page.keyboard.press('Space');assert.equal(await filter.getAttribute('open'),null);
+await page.keyboard.press('Enter');assert.notEqual(await filter.getAttribute('open'),null);
+if(period!=='custom')await trigger.click();
 await page.locator('.driving-export-menu summary').click();assert.equal(await page.locator('.driving-export-menu a').count(),3);for(const a of await page.locator('.driving-export-menu a').all())assert((await a.getAttribute('href')).includes('period='+period));await page.locator('.driving-export-menu summary').click();
 await page.screenshot({path:path.join(out,`${mode}-${period}-${width}-${scale}x.png`),fullPage:true});rows.push({width,mode,period,scale,text_enlargement_not_native_zoom:true,passed:true});await context.close();page=null;
 }assert.equal(rows.length,48);assert.equal(external,0);assert.equal(posts,0);assert.equal(ws,0);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({rows,external,posts,ws}));}catch(e){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({rows,external,posts,ws,error:String(e)}));if(page)await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
