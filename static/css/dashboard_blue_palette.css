@@ -1,0 +1,72 @@
+/* Color-only dashboard branding. Layout, state palettes and behavior are unchanged. */
+.dashboard-page.dashboard-design-v2 {
+  --dash-purple: #5493d2;
+}
+
+.dashboard-page.dashboard-design-v2 :is(
+    .dashboard-display-trigger,
+    .dashboard-filter-select,
+    .dashboard-vehicle-add-button,
+    .dashboard-report-back
+) {
+  background: linear-gradient(var(--dkss-surface), #eff3f7);
+  box-shadow: inset 0 1px 0 var(--dkss-surface), 0 2px 4px #34475b0c;
+}
+
+.dashboard-page.dashboard-design-v2 .dashboard-vehicle-action-primary {
+  border-color: #d4e5f7;
+  background: linear-gradient(#ecf6ff, #deecfa);
+  color: #507fae;
+}
+
+.dashboard-page.dashboard-design-v2 .dashboard-reference-action-links > a {
+  background: linear-gradient(110deg, #edf4fc, #f7f8ff);
+}
+
+.dashboard-design-v2 .dashboard-reference-action-links > a > svg {
+  background: #dfecfa;
+}
+
+.dashboard-design-v2 .dashboard-trend-tabs {
+  border: 1px solid #dce7f2;
+  background: #eff4fa;
+}
+
+.dashboard-design-v2 .dashboard-trend-tabs button[aria-selected="true"] {
+  background: linear-gradient(#93bee9, #72a5d9);
+  box-shadow: inset 0 1px 0 #cee6ff, 0 2px 5px #507fae30;
+}
+
+.dashboard-page.dashboard-design-v2 .dashboard-reference-footer > :is(button, a) {
+  background: linear-gradient(110deg, #eef7fc, #f4f9fe);
+  box-shadow: inset 0 1px 0 var(--dkss-surface), 0 2px 5px #34445408;
+}
+
+.dashboard-design-v2 .dashboard-reference-footer > :is(button, a) > svg {
+  stroke: #78a3ce;
+}
+
+.dashboard-design-v2 .dashboard-setup-trigger {
+  border: 1px solid #d9e4ef;
+  background: linear-gradient(var(--dkss-surface), #eef3f9);
+}
+
+.dashboard-design-v2 :is(
+    .dashboard-reference-footer > :is(a, button),
+    .dashboard-daily-link,
+    .dashboard-reference-action-links > a
+):hover {
+  border-color: #acbdcf;
+}
+
+.dashboard-page.dashboard-design-v2 .dashboard-reference-footer > [aria-expanded="true"] {
+  border-color: #b7d3ef;
+  background: linear-gradient(110deg, #f3f9ff, #ebf3ff);
+  color: #426b95;
+  box-shadow: inset 0 1px 0 var(--dkss-surface), 0 0 0 1px #b7d3ef40;
+}
+
+.dashboard-page.dashboard-design-v2 .dashboard-history-open {
+  background: linear-gradient(var(--dkss-surface), #eff3f7);
+  box-shadow: inset 0 1px 0 var(--dkss-surface), 0 2px 4px #34475b0c;
+}
