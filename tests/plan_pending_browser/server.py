@@ -22,10 +22,11 @@ for mon,count in [('2026-02',1),('2026-11',12)]:
 m.db.session.commit()
 # Synthetic long description, without source/private data or production access.
 from flask import request
+synthetic_vehicle_id=case.vehicle.id
 @app.after_request
 def long_invoice_fixture(response):
  if request.path=='/api/vehicle/inspection-plans' and response.status_code==200:
-  value=response.get_json();value.setdefault('invoice_actuals',[]).append({'vehicle_record_id':case.vehicle.id,'performed_date':'2026-11-10','summary':'2026/11/10 保証対応によるワイパーゴム交換（無償）','sources':[]})
+  value=response.get_json();value.setdefault('invoice_actuals',[]).append({'vehicle_record_id':synthetic_vehicle_id,'performed_date':'2026-11-10','summary':'2026/11/10 保証対応によるワイパーゴム交換（無償）','sources':[]})
   response.set_data(json.dumps(value,ensure_ascii=False));response.content_type='application/json'
  return response
 app.config['WTF_CSRF_ENABLED']=True
