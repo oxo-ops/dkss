@@ -1,0 +1,11 @@
+/* Keep existing status facts, permission-controlled links and native actions. */
+.inspection-plan-panel .ip-actual {padding:14px;background:#f7faff;border:1px solid #d8e5f3;border-radius:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.inspection-plan-panel .ip-actual h4 {flex:1 0 100%;margin:0;color:#536c87;font-size:12px;font-weight:600}
+.inspection-plan-panel .ip-actual [data-plan-current-status] {margin:0;padding:5px 10px;border-radius:8px;background:#e7f0fc;color:#214f83;font-weight:600;line-height:1.5}
+.inspection-plan-panel .ip-actual :is([data-plan-last],[data-plan-evidence]) {flex:1 0 100%;margin:0;color:#344f6b;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.inspection-plan-panel .ip-actual [data-plan-evidence]:empty {display:none}
+.inspection-plan-panel .ip-actual form {flex:1 0 100%;min-width:0}
+.inspection-plan-panel a.ip-resource-action {display:inline-flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;max-width:100%;padding:8px 12px;border:1px solid #c5d9f1;border-radius:8px;background:linear-gradient(#fff,#f0f6ff);color:#285d95;font-size:13px;font-weight:600;line-height:1.5;text-decoration:none;overflow-wrap:anywhere;text-align:center}
+.inspection-plan-panel a.ip-resource-action:hover {background:#e8f2ff;border-color:#8eb5e5}
+.inspection-plan-panel a.ip-resource-action:focus-visible {outline:2px solid #2563eb;outline-offset:2px}
+.inspection-plan-panel [data-plan-annual].ip-resource-action {margin:4px 0 12px}
