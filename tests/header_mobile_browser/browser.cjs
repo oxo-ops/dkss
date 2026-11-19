@@ -50,7 +50,7 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
   await page.locator('[data-guide-open]').click();
   await page.locator('[data-guide-next]').click();
   await page.waitForTimeout(650);
-  assert.equal(await page.locator('[data-guide-title]').innerText(),'項目の詳細を見る');
+  assert.equal(await page.locator('#firstGuidePanel [data-guide-title]').innerText(),'項目の詳細を見る');
   const panel=await page.locator('#firstGuidePanel').boundingBox(),target=await page.locator('.inspection-item-detail.first-guide-target').boundingBox();
   assert(panel && target,'same inspection item highlighted');
   assert(panel.y+panel.height<=target.y+1 || panel.y>=target.y+target.height-1,'guide must not cover highlighted item');
