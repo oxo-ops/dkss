@@ -24,7 +24,7 @@ jobs:
           "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
       - run: |
           mkdir -p "$RUNNER_TEMP/blue-full/html" "$RUNNER_TEMP/blue-full/images"
-          PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/blue-full/html" AWS_EC2_METADATA_DISABLED=true python tests/dashboard_mobile_priority/render_full.py
+          PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/blue-full/html" AWS_EC2_METADATA_DISABLED=true python tests/dashboard_blue_full/render_full.py
           PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/blue-full/html" ARTIFACTS="$RUNNER_TEMP/blue-full/images" PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" node tests/dashboard_blue_full/browser.cjs
           git rev-parse HEAD > "$RUNNER_TEMP/blue-full/head.txt"
       - uses: actions/upload-artifact@v6
