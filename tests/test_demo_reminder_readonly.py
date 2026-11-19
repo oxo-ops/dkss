@@ -18,7 +18,7 @@ class DemoReminderReadonlyTests(Fixture):
         body = driver.get_data(as_text=True)
         self.assertIn('data-reminder-readonly', body)
         self.assertNotIn('id="reminder_notify_user_search"', body)
-        self.assertIn('20261119-sidebar-submenu-center-1', body)
+        self.assertIn('20261119-header-guide-1', body)
         self.assertIn('/static/js/vehicle_checklist_results.js?v=20261119-workspace-toolbar-4', body)
         endpoint = f'/vehicle/checklists/{index}/reminder-notify-users'
         self.assertEqual(self.request('POST', endpoint, data={'vehicle_record_id': 1}).status_code, 403)
@@ -33,3 +33,4 @@ for name in dir(Fixture):
     if name.startswith('test_') and name not in DemoReminderReadonlyTests.__dict__:
         setattr(DemoReminderReadonlyTests, name, None)
 del Fixture
+

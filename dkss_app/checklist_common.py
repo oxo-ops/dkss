@@ -1,4 +1,5 @@
 """Checklist Common responsibilities; routes are registered by the application factory."""
+from . import demo_label_display as _dkss_demo_label_display
 from . import common as _dkss_common, master_readers as _dkss_master_readers, models as _dkss_models, serialization as _dkss_serialization
 
 
@@ -430,6 +431,9 @@ def patrol_result_to_dict(result):
         "target_user_id": result.target_user_id,
         "target_identity": result.target_identity,
         "content": result.content,
+        "display_content": _dkss_demo_label_display.patrol_content(
+            result.content, company=result.company_code, result_id=result.id
+        ),
         "files": _dkss_serialization.safe_json_str_list(
             result.files_json
         ),
@@ -449,3 +453,4 @@ def patrol_result_to_dict(result):
         "approval_status": result.approval_status,
         "reject_reason": result.reject_reason,
     }
+

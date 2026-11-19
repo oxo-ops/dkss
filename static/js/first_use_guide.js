@@ -28,11 +28,13 @@
         },
         {
             "selector": ".dashboard-trend-tabs",
+            "revealSelector": ".dashboard-office-trends",
             "title": "営業所の傾向を見る",
             "text": "安全・点検と整備費を切り替えて確認できます。"
         },
         {
             "selector": "[data-reference-target=\"#dashboard-reference-inspection\"]",
+            "revealSelector": ".dashboard-reference-safety",
             "title": "期限や集計を確認する",
             "text": "車検期限が近い車両など、下の集計を開けます。"
         },
@@ -266,6 +268,12 @@
             "text": "一覧から確認するチェックリストを選びます。"
         }
     ],
+    "checklist_result_detail": [
+        {"selector":".result-info-card","title":"点検した対象と日付を確認する","text":"点検した人、日付と確認状況を確認します。"},
+        {"selector":".checklist-result-detail-card","title":"点検の内容を見る","text":"項目ごとの評価やコメント、添付された写真を確認します。"},
+        {"selector":".approval-card","title":"確認状況を見る","text":"確認者と確認の状況を確認します。操作できる内容は権限に応じて表示されます。"},
+        {"selector":".checklist-history-card","title":"履歴を確認する","text":"この点検の確認・対応の履歴を確認します。"}
+    ],
     "safety_checklist_results": [
         {
             "selector": ".safety-results-table",
@@ -421,7 +429,7 @@
     ]
 ,
     vehicle_checklist_results: [
-      { selector: '#vehicle_search', title: '車両を選ぶ', text: '車両を検索するか、使用車両のボタンから選びます。' },
+      { selector: '.vehicle-search-action', fallbackSelector: '#vehicle_search', title: '車両を選ぶ', text: '車両を検索するか、使用車両のボタンから選びます。' },
       { selector: '.inspection-item-detail', title: '項目の詳細を見る', text: '項目名を押すと詳細が開きます。水色はコメントや写真・添付がある印です。押すと内容を確認できます。' },
       { selector: '.check-choice-buttons', title: '評価を入れる', text: '各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。' },
       { selector: '.vehicle-check-complete-form .approval-user-search', title: '依頼先を選ぶ', text: '名前で検索し、候補から依頼先を選びます。' },
@@ -431,7 +439,8 @@
       { selector: '.vehicle-check-complete-primary', title: '点検を完了する', text: '評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。' }
     ]
   };
-  const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":"#vehicle_check_filter select[name=\"vehicle_record_id\"]","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
+  const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":".vehicle-search-action","fallbackSelector":"#vehicle_search","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
+  normalPlans.driving_reports = plans.driving_reports;
   normalPlans.vehicle_inspection_plans = plans.vehicle_inspection_plans;
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
   function state(storage, name) {
@@ -442,7 +451,7 @@
     if (mode === "demo" && page === "notifications" && find("#notificationDetailPane .dkss-notification-detail")) page="notification_detail";
     const result=[];
     for (const step of (mode === "demo" ? plans[page] : normalPlans[page]) || []) {
-      const target=find(step.selector);
+      const target=find(step.selector) || (step.fallbackSelector ? find(step.fallbackSelector) : null);
       if (target && !result.some(s=>s.target===target)) {
         const content=target.dataset || {};
         result.push({...step,target,title:content.guideTitle || step.title,text:content.guideText || step.text});
@@ -459,14 +468,16 @@
     return true;
   }
   // A guide step is not navigation. Keep the current viewport whenever the
-  // target is already visible; large regions only need to intersect it.
+  // target is fully visible. Oversized regions reveal their beginning instead
+  // of accepting a tiny intersection at the bottom of the viewport.
   function revealOptions(rect, viewport, reducedMotion) {
-    const margin=0, left=viewport.left+margin, top=viewport.top+margin;
+    const margin=12, left=viewport.left+margin, top=viewport.top+margin;
     const right=viewport.left+viewport.width-margin, bottom=viewport.top+viewport.height-margin;
-    const fits=(start,end,low,high)=>end-start>high-low ? end>low && start<high : start>=low && end<=high;
+    const fits=(start,end,low,high)=>end-start>high-low ? Math.abs(start-low)<=margin : start>=low && end<=high;
     if(fits(rect.left,rect.right,left,right) && fits(rect.top,rect.bottom,top,bottom)) return null;
-    return {block:'nearest',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
+    return {block:rect.bottom-rect.top>bottom-top?'start':'center',inline:'nearest',behavior:reducedMotion?'instant':'smooth'};
   }
+
   function coachmarkPlacement(rect, viewport, width, height) {
     const gap=12, edge=12, leftEdge=viewport.left+edge, rightEdge=viewport.left+viewport.width-edge;
     const topEdge=viewport.top+edge, bottomEdge=viewport.top+viewport.height-edge;
@@ -537,8 +548,9 @@
     next.textContent=index===steps.length-1?'終了':'次へ';panel.hidden=false;
     const visual=window.visualViewport;
     const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
-    const options=revealOptions(active.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if(options) active.scrollIntoView(options);
+    const revealTarget=s.revealSelector ? (active.closest(s.revealSelector) || active) : active;
+    const options=revealOptions(revealTarget.getBoundingClientRect(),viewport,window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(options) revealTarget.scrollIntoView(options);
     position();
   }
   function open(manual){
@@ -546,8 +558,9 @@
     if(root.dataset.page==='vehicle_karte_analysis' && window.location.hash.startsWith('#proposal=')) return;
     const choosingRole=!!find('.public-demo-notice');
     if(choosingRole && !manual) return; // Never interrupt the initial choice automatically.
-    if(!choosingRole) revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
-    steps=candidates(choosingRole?'demo_entry':root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
+    const entryGuide=choosingRole && root.dataset.page==='dashboard';
+    if(!entryGuide) revealRecord(root.dataset.page,manual,document.getElementById('vehicle-inspection-record'));
+    steps=candidates(entryGuide?'demo_entry':root.dataset.page,find,root.dataset.mode);if(!steps.length)return;
     previous=document.activeElement;
     const resumeIndex=manual && resumeSelector ? steps.findIndex(step=>step.selector===resumeSelector) : -1;
     index=resumeIndex>=0?resumeIndex:0;clearResume();show();remember();
@@ -573,3 +586,4 @@
     else afterLayout();
   }else startInitialGuide();
 })();
+

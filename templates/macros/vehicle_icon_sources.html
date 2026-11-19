@@ -1,0 +1,8 @@
+{% macro vehicle_icon_sources(filename) -%}
+    {% if filename in ['truck.png', 'trailer.png', 'tractor.png', 'crane.png', 'flatbed.png', 'car.png'] %}
+    src="{{ url_for('static', filename='icons/' ~ filename[:-4] ~ '-display-96.png') }}"
+    srcset="{{ url_for('static', filename='icons/' ~ filename[:-4] ~ '-display-96.png') }} 1x, {{ url_for('static', filename='icons/' ~ filename[:-4] ~ '-display-192.png') }} 2x, {{ url_for('static', filename='icons/' ~ filename[:-4] ~ '-display-384.png') }} 4x"
+    {% else %}
+    src="{{ url_for('static', filename='icons/' ~ filename) }}"
+    {% endif %}
+{%- endmacro %}

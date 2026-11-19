@@ -48,6 +48,11 @@ def click_target(page, control, label):
     return geometry
 
 def bell_roundtrip(page):
+    if page.viewport_size['width'] < 768 and page.url.split('?')[0].endswith('/safety/driving-reports'):
+        require(not page.locator('#notificationBell').is_visible(), 'mobile driving bell hidden by request')
+        require(not page.locator('.top-bar-user').is_visible(), 'mobile driving user hidden by request')
+        require(page.locator('[data-guide-open]').is_visible(), 'mobile driving help maintained')
+        return
     # Finish the real first-use overlay before measuring underlying controls.
     # Do not hide it via CSS/DOM or weaken any notification hit-target assertion.
     guide = page.locator('#firstGuidePanel')
@@ -223,7 +228,11 @@ def main():
                                     control = page.get_by_text(label, exact=True)
                                     click_target(page,control,label)
                                     require(not page.locator('#notificationBell').get_attribute('aria-expanded') == 'true', 'demo click opened notification bell')
-                                bell_roundtrip(page)
+                                if path == '/safety/driving-reports' and width < 768:
+                                    require(not page.locator('#notificationBell').is_visible(), 'mobile driving bell must be hidden')
+                                    require(page.locator('[data-guide-open]').is_visible(), 'mobile driving help missing')
+                                else:
+                                    bell_roundtrip(page)
                                 # Return-to-top check only; this does not prove hit targets during scrolling.
                                 page.evaluate('window.scrollTo(0,400)')
                                 page.evaluate('window.scrollTo(0,0)')
@@ -291,3 +300,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

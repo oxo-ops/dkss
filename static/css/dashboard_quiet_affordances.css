@@ -1,0 +1,11 @@
+/* Decorative chevrons only. Links, disclosure controls, status and paging remain. */
+body .dashboard-page.dashboard-design-v2 .dashboard-video-detail,
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-opening::after,
+body .dashboard-page.dashboard-design-v2 .dashboard-attention-table td:last-child > a::after {display:none!important;content:none!important}
+body .dashboard-page.dashboard-design-v2 summary {list-style:none}
+body .dashboard-page.dashboard-design-v2 summary::marker {content:""}
+body .dashboard-page.dashboard-design-v2 summary::-webkit-details-marker {display:none}
+body .dashboard-page.dashboard-design-v2 .dashboard-safety-state {white-space:nowrap!important;overflow-wrap:normal!important;max-width:none!important;flex-shrink:0}
+@media(max-width:600px){
+ body .dashboard-page.dashboard-design-v2 .dashboard-video-proposal {grid-template-columns:32px minmax(0,1fr) max-content;gap:4px 8px}
+}

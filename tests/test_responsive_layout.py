@@ -70,7 +70,7 @@ class ResponsiveLayoutTests(unittest.TestCase):
         self.assertNotIn('max-width', rule)
         self.assertIn('position:sticky !important; top:0 !important; z-index:900;', css)
         template = (Path(__file__).resolve().parents[1] / 'templates/base.html').read_text()
-        self.assertIn("v='20261119-sidebar-submenu-center-1'", template)
+        self.assertIn("v='20261119-header-guide-1'", template)
 
     def test_master_tables_have_a_scroll_viewport(self):
         for path in ('/master/offices', '/master/vehicle-types', '/master/license-types',
@@ -81,3 +81,4 @@ class ResponsiveLayoutTests(unittest.TestCase):
 
 
 del _Workflow
+

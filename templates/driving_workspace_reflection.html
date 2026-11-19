@@ -16,11 +16,6 @@
     {% if not item.links and item.report_links %}<a class="btn btn-outline" data-analysis-destination href="{{ item.report_links[0].url }}">対象日報を確認 <span aria-hidden="true">→</span></a>{% endif %}
     </div>
     {% if item.get('display_summary') %}<p class="driving-followup-date">{{ item.display_summary }}</p>{% endif %}
-    <details><summary>根拠・比較条件を見る <span aria-hidden="true">›</span></summary>
-      <p>{{ item.finding }}</p><p>{{ item.context }}</p>
-      {% for source in item.report_links %}<a href="{{ source.url }}">{{ source.label }}</a> {% endfor %}
-      {% if driving_is_admin and item.get('vehicle_id') %}{% for mid in item.get('maintenance_sources',[])[:10] %}<a href="{{ url_for('vehicle_karte_maintenance',vehicle_record_id=item.vehicle_id,record_id=mid) }}">整備記録 {{ mid }}</a> {% endfor %}{% endif %}
-    </details>
   </div>
 </article>
 {% endfor %}

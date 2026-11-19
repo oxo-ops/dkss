@@ -189,7 +189,7 @@
             <div class="criteria-box">
                 {% for criteria in criteria_list %}
                     <div class="criteria-line">
-                        {{ criteria }}
+                        {{ display_safety_criteria(criteria) if display_safety_criteria is defined else criteria }}
                     </div>
                 {% endfor %}
             </div>

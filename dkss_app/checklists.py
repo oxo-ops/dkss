@@ -862,10 +862,13 @@ def checklist_result_detail(result_index, *, approval_conflict=False):
         None
     )
 
-    from .demo_label_display import approval_label
+    from .demo_label_display import approval_label, safety_criteria
 
     return _dkss_common.render_template(
         "checklist_result_detail.html",
+        display_safety_criteria=lambda value: safety_criteria(
+            value, company=result_record.company_code,
+            checklist_id=result_record.checklist_id, result_id=result_record.id),
         display_approval_label=lambda value: approval_label(
             value, company=result_record.company_code,
             checklist_id=result_record.checklist_id, result_id=result_record.id),
@@ -11661,3 +11664,4 @@ def reject_checklist_result(result_index):
         )
 
     return _dkss_common.redirect(f"/safety/checklist-results/{result_record.id}")
+

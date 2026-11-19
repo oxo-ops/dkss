@@ -126,6 +126,13 @@ const results=[], screenshots=[], errors=[];
         const row=page.locator(mobile?'.mobile-list-card':'.checklist-table tbody tr').filter({has:page.getByText(actor,{exact:true})});
         assert.equal(await row.count(),1);
         assert.equal(await row.isVisible(),true);
+        // The approved mobile master shows name/office first; inspect the expanded details.
+        if(mobile) {
+          assert.equal(await row.evaluate(el=>el.tagName),'DETAILS');
+          assert.equal(await row.evaluate(el=>el.open),false);
+          await row.locator('summary').click();
+          assert.equal(await row.evaluate(el=>el.open),true);
+        }
         const shown=mobile?row.locator('.mobile-card-row').filter({has:page.getByText('無事故・無違反',{exact:true})}).locator('strong'):row.locator('td').nth(3);
         assert.equal((await shown.innerText()).trim().split('\n')[0],want.listing,name+' listing value');
         const listingBox=await visibleBox(shown);
