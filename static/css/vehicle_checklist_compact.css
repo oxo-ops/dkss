@@ -251,3 +251,8 @@
 }
 
 .vehicle-workspace-top .header-actions > .vehicle-workspace-date { display:inline-flex; align-items:center; gap:8px; margin:0; color:#586b82; font-size:13px; }
+
+/* Close the daily inspection grid without changing its scrolling or inputs. */
+.vehicle-check-table-scroll .monthly-check-table tbody > tr:last-child > td {
+  border-bottom: 1px solid var(--dkss-table-divider);
+}
