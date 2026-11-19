@@ -2,6 +2,7 @@
 
 {% block title %}チェックリスト結果詳細{% endblock %}
 
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='css/excel_action_icon.css',v='20261120-1') }}">{% endblock %}
 {% block content %}
 
 {% if approval_conflict %}
@@ -25,9 +26,9 @@
     <div class="header-actions">
         <a
             href="/safety/checklist-results/{{ result_index }}/excel"
-            class="btn"
+            class="btn excel-icon-action" aria-label="Excel出力" title="Excel出力"
         >
-            Excel出力
+            {% include 'partials/excel_icon.html' %}
         </a>
     </div>
 </div>
