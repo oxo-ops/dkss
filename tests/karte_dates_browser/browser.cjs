@@ -11,7 +11,7 @@ if(url.pathname.startsWith('/static/')){const f=path.resolve(repo,'.'+url.pathna
 return route.fulfill({status:404,body:'offline'});});
 await page.goto(new URL(row.path,'https://fixture.invalid').href);
 const dates=page.locator('.karte-date-mobile');assert(await dates.count()>0);
-for(const date of await dates.all()){assert.equal(await date.isVisible(),width<=768);}
+for(const date of await dates.all()){const duplicate=await date.evaluate(e=>Boolean(e.closest('.karte-date-duplicate')));assert.equal(await date.isVisible(),width<=768&&!duplicate);}
 if(name==='vehicle_karte_maintenance'){
  const cell=page.locator('.km-record-date').first();const text=await cell.innerText();
  if(width<=768){assert.equal(text.trim(),'11/18');assert.equal(await cell.locator('.karte-date-duplicate').isVisible(),false);}else{assert(text.includes('2026/11/18'));assert.equal(await cell.locator('.karte-date-duplicate').isVisible(),true);}
