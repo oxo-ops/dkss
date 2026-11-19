@@ -1,0 +1,25 @@
+name: Safety result action design
+on:
+  push:
+    branches: [validation/safety-result-actions-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install jinja2 playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python tests/test_safety_result_action_contract.py
+      - run: python tests/safety_result_actions_browser.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: safety-result-actions
+          path: safety-result-actions-output

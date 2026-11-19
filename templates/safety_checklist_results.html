@@ -2,6 +2,10 @@
 
 {% block title %}チェックリスト結果一覧{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_actions.css', v='20261119-1') }}">
+{% endblock %}
+
 {% block content %}
 
 <div class="safety-results-page-head">
@@ -234,8 +238,7 @@
                 href="/safety/checklist-results/{{ result.index }}"
                 class="btn safety-result-mobile-detail"
             >
-                <span>詳細を見る</span>
-                <span class="safety-result-mobile-detail-arrow">›</span>
+                <span>詳細</span>
             </a>
 
             {% if result.can_manage %}
@@ -271,3 +274,4 @@
 <script src="{{ url_for('static', filename='js/safety_checklist_results.js') }}"></script>
 
 {% endblock %}
+
