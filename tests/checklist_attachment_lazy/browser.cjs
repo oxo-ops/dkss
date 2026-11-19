@@ -12,10 +12,12 @@ for(const width of [320,390,768,1316])for(const mode of ['detail','edit']){
   const href=await excel.getAttribute('href');assert(href&&href.startsWith('/safety/checklist-results/'));
   assert.equal(await header.evaluate(e=>getComputedStyle(e).position),'static');
   await page.screenshot({path:path.join(out,'detail-top-'+width+'.png')});
+  // Repeat real rendered content to exercise a genuinely scrollable result, not a short-page clamp.
+  await page.locator('.result-info-card').evaluate(e=>{for(let i=0;i<3;i++)e.parentElement.append(e.cloneNode(true))});
   const before=await header.boundingBox();
   await page.evaluate(()=>window.scrollBy(0,500));
   const dy=await page.evaluate(()=>scrollY),after=await header.boundingBox();
-  assert(dy>0,'real page must scroll');assert(Math.abs(before.y-after.y-dy)<2,'heading must travel with document');
+  assert(dy>=499,'long fixture must scroll the requested distance');assert(after.y+after.height<0,'result title and Excel must leave viewport');assert(Math.abs(before.y-after.y-dy)<2,'heading must travel with document');
   await page.screenshot({path:path.join(out,'detail-scrolled-'+width+'.png')});
   await page.evaluate(()=>window.scrollTo(0,0));
   await excel.click();await page.waitForURL(u=>u.pathname.endsWith('/excel'));assert(page.url().endsWith(href));
