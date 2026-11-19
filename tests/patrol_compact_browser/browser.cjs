@@ -41,6 +41,8 @@ assert.equal(await page.locator('.pointouts-list-toolbar .pointouts-pagination')
 const bottom=page.locator('.pointouts-pagination-bottom');assert(await bottom.isVisible());
 await bottom.getByRole('link',{name:'次のページ',exact:true}).click();await page.waitForURL(u=>u.searchParams.get('page')==='2');assert.equal(await cards.count(),1);await page.goBack();await list.waitFor({state:'visible'});
 assert.equal(await cards.locator('.safety-result-mobile-actions').count(),5,'existing owner/manager permissions');
+assert.equal(await cards.locator('.btn-edit').first().evaluate(e=>getComputedStyle(e).color),'rgb(31, 93, 165)');
+assert.equal(await cards.locator('.btn-delete').first().evaluate(e=>getComputedStyle(e).color),'rgb(179, 60, 84)');
 const first=cards.first(),image=list.locator('img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());assert(await image.evaluate(e=>e.naturalWidth>0));
 await first.locator('.patrol-record-link').click();await page.waitForURL(/\/pointouts\/\d+$/);assert((await page.locator('body').innerText()).includes('安全パトロール詳細'));await page.goBack();await list.waitFor({state:'visible'});
 await cards.nth(1).locator('.patrol-record-link').press('Enter');await page.waitForURL(/\/pointouts\/\d+$/);await page.goBack();await list.waitFor({state:'visible'});
