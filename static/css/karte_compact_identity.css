@@ -19,6 +19,6 @@
  .karte-identity-dialog .vehicle-karte-basic-grid>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px;padding:5px 0;border-bottom:1px solid #e0e8f0}
  .karte-identity-dialog .vehicle-karte-basic-grid :is(dt,dd){margin:0;font-size:13px;overflow-wrap:anywhere}
  .karte-identity-dialog .vehicle-karte-summary{display:grid;gap:10px}
- .karte-identity-dialog :is(.vehicle-karte-metrics,.vehicle-karte-deadlines){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .karte-identity-dialog :is(.vehicle-karte-metrics,.vehicle-karte-deadlines){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
  .karte-identity-open:focus-visible,.karte-identity-close:focus-visible{outline:2px solid #176db4;outline-offset:2px}
 }
