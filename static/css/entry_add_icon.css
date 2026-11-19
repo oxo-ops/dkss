@@ -14,3 +14,8 @@ body .main-content :is(.page-header,.safety-results-title-row,.card-title-row):h
 body .main-content :is(.page-header,.safety-results-title-row,.card-title-row):has(.entry-add-icon) > :is(h2,h3,div:first-child){min-width:0}
 body .main-content .header-actions:has(.entry-add-icon){display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-left:auto}
 body .main-content .safety-results-new-button.entry-add-icon{margin-top:0;align-self:center}
+
+/* Masters without a local title share the reorder-hint row rather than reserving a button row. */
+body .main-content .master-list-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0}
+body .main-content .master-list-actions .master-order-help{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}
+body .main-content .master-list-actions .entry-add-icon{flex-shrink:0}

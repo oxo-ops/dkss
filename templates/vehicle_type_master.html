@@ -4,15 +4,7 @@
 
 {% block content %}
 
-<div class="page-header">
-    <div class="header-actions">
-        <a href="/master/vehicle-types/new" class="btn">
-            新規登録
-        </a>
-    </div>
-</div>
-
-<p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p>
+<div class="master-list-actions"><p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p><a href="/master/vehicle-types/new" class="btn entry-add-icon" aria-label="車種を新規登録" title="車種を新規登録"><span aria-hidden="true">＋</span></a></div>
 <div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/vehicle-types/order">
     <thead>
     <tr>
