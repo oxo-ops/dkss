@@ -427,3 +427,10 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:f
 @media(max-width:700px){
  body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title{max-inline-size:calc(100% - 228px)!important}
 }
+
+/* Unselected demo purpose controls occupy their own row below the mobile title. */
+@media screen and (max-width:700px) {
+ body[data-responsive-shell].ip-mobile-workspace .main-content:has(> .public-demo-notice) > .mobile-shell-title {
+  margin-bottom:0;
+ }
+}
