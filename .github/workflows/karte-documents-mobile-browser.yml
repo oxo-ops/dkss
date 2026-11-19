@@ -1,7 +1,7 @@
 name: Karte Documents Mobile Browser
 on:
   push:
-    branches: [validation/karte-session-integrated-20261119, review/karte-documents-mobile-20261119]
+    branches: [validation/karte-docs-lazy-integrated-20261119, validation/documents-lazy-integrated-20261119, fix/document-preview-closed-state, validation/karte-session-integrated-20261119, review/karte-documents-mobile-20261119]
 permissions:
   contents: read
 jobs:

@@ -176,8 +176,8 @@ test('data-state copy spans the missing badge column at every viewport and asset
     const css = fs.readFileSync(path.join(__dirname, '../static/css/vehicle_karte_overview.css'), 'utf8');
     assert.match(css, /\.ko-proposal\[data-priority-data-state="invalid"\] \.ko-proposal-copy\s*\{\s*grid-column:1 \/ 3;/);
     const template = fs.readFileSync(path.join(__dirname, '../templates/vehicle_karte.html'), 'utf8');
-    assert.match(template, /css\/vehicle_karte_overview\.css', v='20261118-action-history-2'/);
-    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261111-confirmed-3'/);
+    assert.match(template, /css\/vehicle_karte_overview\.css', v='20261119-row-actions-1'/);
+    assert.match(template, /js\/vehicle_karte_overview\.js', v='20261119-row-actions-1'/);
 });
 
 function computedProposal(id, floor=false) {
@@ -216,3 +216,12 @@ test('summary count labels previous evaluations without adding a fourth priority
     assert.equal(ui.rows[0].children[0].textContent,'高');
     assert.doesNotMatch(ui.summary.textContent,/未評価/);
 });
+
+ test('proposal uses one accessible row link without duplicate detail copy', async () => {
+ const ui=await mount([proposal('row')]);
+ const action=ui.rows[0].children[2];
+ assert.equal(action.tag,'a');
+ assert.equal(action.textContent,'');
+ assert.equal(action.href,'https://example.test/vehicle/karte/7/analysis#proposal=row');
+ assert.equal(action.attributes['aria-label'],'詳細：部品rowの提案と対応を確認');
+ });
