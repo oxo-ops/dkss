@@ -1,0 +1,42 @@
+/* Reuse the existing soft action treatment for both result-list renderers.
+   Do not style status badges, approval controls, or other pages. */
+body .main-content :is(.safety-results-table .action-buttons, .safety-result-mobile-actions) :is(.btn-small, .btn-edit, .btn-delete),
+body .main-content .safety-result-mobile-detail {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 7px 12px;
+    border: 1px solid #c6d9f1 !important;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--dkss-surface, #fff), #f2f7ff) !important;
+    color: var(--dk-ui-primary-deep, #2b5d91) !important;
+    box-shadow: 0 2px 6px rgba(42, 59, 119, .045);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-decoration: none;
+}
+body .main-content :is(.safety-results-table .action-buttons, .safety-result-mobile-actions) :is(.btn-small, .btn-edit):hover,
+body .main-content .safety-result-mobile-detail:hover {
+    background: #eaf3fd !important;
+    border-color: #98bfe7 !important;
+    color: var(--dk-ui-primary-deep, #2b5d91) !important;
+}
+/* Destructive actions retain the existing shared danger palette. */
+body .main-content :is(.safety-results-table .action-buttons, .safety-result-mobile-actions) .btn-delete {
+    border-color: #f0c7d0 !important;
+    background: #fff4f6 !important;
+    color: #b33c54 !important;
+}
+body .main-content :is(.safety-results-table .action-buttons, .safety-result-mobile-actions) .btn-delete:hover {
+    border-color: #e9a8bc !important;
+    background: #fff0f5 !important;
+    color: #a33151 !important;
+}
+body .main-content :is(.safety-results-table .action-buttons, .safety-result-mobile-actions) :is(a, button):focus-visible,
+body .main-content .safety-result-mobile-detail:focus-visible {
+    outline: 2px solid #3479f6;
+    outline-offset: 2px;
+}
