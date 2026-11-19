@@ -11,7 +11,7 @@ with sync_playwright() as p:
  for width in [320,390,501,768,1024,1440]:
   for manage in [False,True]:
    content=Contract().render(manage)
-   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','entry_add_icon.css','responsive_layout.css','safety_result_actions.css'])
+   css=''.join('<style>'+ (ROOT/'static/css'/f).read_text()+'</style>' for f in ['style.css','entry_add_icon.css','responsive_layout.css','safety_result_actions.css','safety_result_reading_card.css'])
    html='<meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8">'+css+'<body data-responsive-shell>'+content+'</body>'+ '<script>'+ (ROOT/'static/js/safety_checklist_results.js').read_text()+'</script>'
    page=browser.new_page(viewport={'width':width,'height':900})
    requests=[]
@@ -37,6 +37,16 @@ with sync_playwright() as p:
    assert page.url=='https://fixture.invalid/safety/checklists/13/new'
    page.goto('https://fixture.invalid/')
    visible='.safety-results-mobile-list' if width<=768 else '.safety-results-table'
+   if width<=768:
+    grid=page.locator('.safety-result-mobile-grid')
+    assert grid.locator(':scope > div').count()==4
+    boxes=grid.locator(':scope > div').evaluate_all('es=>es.map(e=>e.getBoundingClientRect().toJSON())')
+    assert abs(boxes[0]['y']-boxes[1]['y'])<1 and abs(boxes[2]['y']-boxes[3]['y'])<1,boxes
+    assert '試験運転者' in grid.inner_text() and '試験営業所' in grid.inner_text() and '2026-11-19' in grid.inner_text() and '承認待ち' in grid.inner_text()
+    assert '対象 · 営業所' in grid.inner_text()
+    assert page.locator('.safety-result-mobile-head-title').count()==0
+    assert page.locator('.safety-result-mobile-card').first.bounding_box()['height']<440
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
    controls=page.locator(visible).locator('a[href*="checklist-results/"],button.btn-delete')
    metrics=controls.evaluate_all("es=>es.map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {height:r.height,width:r.width,color:s.color,background:s.backgroundImage,radius:s.borderRadius}})")
    page.screenshot(path=str(OUT/f'actions-{width}-{manage}.png'),full_page=True)

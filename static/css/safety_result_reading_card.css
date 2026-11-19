@@ -1,0 +1,16 @@
+/* Readable two-column result summary; original desktop table and controls stay intact. */
+@media (max-width:768px) {
+ body .main-content .safety-result-mobile-card {padding:0 12px 12px;border-radius:12px;overflow:hidden;}
+ body .main-content .safety-result-mobile-head {padding:9px 0;margin:0;gap:8px;min-height:0;background:transparent;}
+ body .main-content .safety-result-mobile-head-main {gap:0;}
+ body .main-content .safety-result-mobile-head .checklist-version-period {font-size:11px;line-height:1.4;white-space:normal;text-align:right;}
+ body .main-content .safety-result-mobile-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 10px;padding:0;gap:0;}
+ body .main-content .safety-result-mobile-grid > div {min-width:0;padding:10px 8px;border:0;border-top:1px solid #e2eaf5;display:flex;flex-direction:column;gap:4px;}
+ body .main-content .safety-result-mobile-grid > div:nth-child(even) {border-left:1px solid #e2eaf5;}
+ body .main-content .safety-result-mobile-grid > div strong {font-size:14px;line-height:1.5;white-space:normal;overflow-wrap:anywhere;}
+ body .main-content .safety-result-mobile-label {font-size:11px;line-height:1.4;}
+ body .main-content .safety-result-mobile-grid .status-badge {align-self:flex-start;font-size:12px;line-height:1.4;padding:4px 8px;}
+ body .main-content .safety-result-approved-date {font-size:11px;color:#65758b;overflow-wrap:anywhere;}
+ body .main-content .safety-result-mobile-detail {margin:0;}
+ body .main-content .safety-result-mobile-actions {margin-top:8px;gap:8px;}
+}

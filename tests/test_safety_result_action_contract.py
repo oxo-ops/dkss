@@ -5,9 +5,10 @@ from jinja2 import Environment, DictLoader
 import re
 ROOT=Path(__file__).resolve().parents[1]
 class Contract(unittest.TestCase):
- def render(self, manage, title="営業所安全確認"):
+ def render(self, manage, title="営業所安全確認", changes=None):
   env=Environment(loader=DictLoader({'base.html':'{% block page_styles %}{% endblock %}<main class="main-content">{% block content %}{% endblock %}</main>', 'results.html':(ROOT/'templates/safety_checklist_results.html').read_text()}))
   result=dict(index=17,checked_by='試験運転者',checked_date='2026-11-19',target_type='office',target_office='試験営業所',status='承認待ち',approved_date=None,can_manage=manage)
+  result.update(changes or {})
   return env.get_template('results.html').render(checklist={},checklist_navigation={},checklist_result_heading=lambda *x:'<h2>'+title+'</h2>',checklist_index=13,checklist_periods=[dict(start_date=datetime(2026,11,18),end_date=datetime(2026,11,18),results=[result])],csrf_token=lambda:'synthetic-token',url_for=lambda endpoint,filename,**kw:'/static/'+filename)
  def test_manager_controls_keep_contracts(self):
   s=self.render(True)
@@ -23,6 +24,12 @@ class Contract(unittest.TestCase):
   for c in ['btn-edit','btn-delete','<form']:
    self.assertNotIn(c,s)
   self.assertEqual(s.count('href="/safety/checklist-results/17"'),2)
+ def test_compact_card_retains_real_approval_and_target(self):
+  s=self.render(True,changes=dict(approved_date='2026-11-20 09:30',status='承認済み',target_type='vehicle',target_vehicle='品川100か101'))
+  self.assertIn('承認日 2026-11-20 09:30',s)
+  self.assertIn('対象 · 車両',s)
+  self.assertIn('品川100か101',s)
+  self.assertIn('承認済み',s)
  def test_delete_confirmation_untouched(self):
   js=(ROOT/'static/js/safety_checklist_results.js').read_text()
   self.assertIn('window.confirm("この結果を削除しますか？")',js)
