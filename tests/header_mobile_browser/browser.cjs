@@ -46,12 +46,15 @@ try{for(const width of [320,390,768,1024,1180,1440])for(const name of ['dashboar
    assert.equal(await menu.getAttribute('aria-expanded'),String(!collapsed));
    const rail=await sidebar.boundingBox();assert(collapsed?rail.width<=75:rail.width>=160,'desktop rail width matches state');
    assert.equal(await page.locator('.alseon-wordmark').isVisible(),!collapsed);
-   assert.equal(await page.locator('.alseon-symbol').isVisible(),collapsed);
+   assert.equal(await page.locator('.alseon-symbol').isVisible(),false);
+   assert.equal(await page.locator('.sidebar-head > .alseon-logo').isVisible(),!collapsed);
    const label=page.locator('.sidebar .menu-text').first();assert.equal(await label.isVisible(),!collapsed);
    if(collapsed)assert.equal(await page.locator('.sidebar-submenu').evaluateAll(es=>es.some(e=>e.getBoundingClientRect().height>0)),false,'collapsed submenus hidden');
    await page.screenshot({path:path.join(out,`desktop-sidebar-${width}-${collapsed?'collapsed':'expanded'}.png`)});
   }
  }
+ const toggleColor=await page.locator('#sidebarToggle').evaluate(e=>getComputedStyle(e).backgroundColor);
+ assert.equal(toggleColor,'rgba(15, 23, 42, 0.18)','menu retains original translucent surface');
  const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert.equal(await avatar.isVisible(),!(name==='driving_reports'&&width<768));assert.equal(await bar.locator('.top-bar-user-name').isVisible(),width>900);
  if(width<768){const heading=page.locator('.main-content > [data-mobile-page-title]');assert(await heading.isVisible());const hb=await heading.boundingBox();assert(hb.x>=0,'title inside viewport');assert(hb.width>0);assert.equal(await bar.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');if(name==='driving_reports'){assert.equal(await bar.locator('.notification-menu').isVisible(),false);assert(await bar.locator('[data-guide-open]').isVisible());}}
  else assert.equal(await bar.locator('[data-mobile-page-title]').isVisible(),false);
