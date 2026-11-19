@@ -17,6 +17,8 @@ const filter=page.locator('.patrol-filter-disclosure');
 const form=filter.locator('form');
 if(width<=768){
 assert(!(await form.isVisible()),'mobile filter must start collapsed');
+const totalBox=await page.locator('.pointouts-total').boundingBox(), sizeBox=await page.locator('.pointouts-page-size-form').boundingBox();
+assert(Math.abs((totalBox.y+totalBox.height/2)-(sizeBox.y+sizeBox.height/2))<2,'count and page size must share a row');
 await filter.locator('summary').click();
 assert(await form.isVisible());
 await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-filter.png'),fullPage:true});
