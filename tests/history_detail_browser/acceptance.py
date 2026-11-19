@@ -29,7 +29,10 @@ try:
      page.goto(url,wait_until='networkidle')
      guide=page.get_by_role('button',name='操作ガイドを閉じる',exact=True)
      if guide.is_visible():guide.click()
-     page.get_by_role('link',name='History detail fixture',exact=True).filter(visible=True).click()
+     # Desktop retains its existing dedicated record control; mobile links the content.
+     entry = page.get_by_role('link',name='History detail fixture' if width < 768 else 'この履歴の記録を開く',exact=True).filter(visible=True)
+     assert entry.count()==1
+     entry.click()
      page.wait_for_url(f'**/maintenance/{r.id}#maintenance_detail_panel')
      assert page.locator('#maintenance_detail_panel').is_visible()
      assert page.locator('#maintenance_detail_panel').inner_text().find('History detail fixture')>=0
