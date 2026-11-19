@@ -1,0 +1,36 @@
+name: Periodic Source Reader Browser
+on:
+  push:
+    branches: [validation/periodic-source-reader-20261119]
+permissions:
+  contents: read
+jobs:
+  reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          pip install -r requirements.txt reportlab==4.4.9
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          python -m unittest discover -s tests -p test_periodic_source_reader.py -v
+          node tests/periodic_reader/browser.cjs
+          git rev-parse HEAD > "$READER_QA_DIR/source-sha.txt"
+        env:
+          READER_QA_DIR: ${{ runner.temp }}/qa
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: periodic-reader-${{ github.sha }}
+          path: ${{ runner.temp }}/qa

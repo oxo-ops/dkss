@@ -1091,6 +1091,16 @@ def vehicle_periodic_inspection_source(record_id):
         for entry in entries
     ):
         raise _dkss_common.NotFound()
+    if (_dkss_common.request.args.get('view') == 'reader'
+            and _dkss_common.os.path.splitext(draft.source_filename)[1].lower() == '.pdf'):
+        response = _dkss_runtime.app.make_response(_dkss_common.render_template(
+            'vehicle_periodic_source_reader.html', record=record,
+            pdf_source_url=_dkss_common.url_for('vehicle_periodic_inspection_source', record_id=record.id),
+            pdf_filename=draft.source_filename, pdf_record_key=f'periodic:{record.id}',
+        ))
+        response.headers['Cache-Control'] = 'private, no-store'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
     return vehicle_imported_record_source(_dkss_models.VehiclePeriodicInspectionRecord, record_id)
 
 

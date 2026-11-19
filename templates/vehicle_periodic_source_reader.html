@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}点検原本{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/maintenance_invoice_preview.css', v='20261026-portrait-review-1') }}">
+<style>
+.periodic-source-reader{min-width:0}.periodic-source-reader .source-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px}.periodic-source-reader h2{font-size:18px;margin:0}.periodic-source-reader .invoice-pdf-viewer{height:calc(100dvh - 190px);min-height:360px}.periodic-source-reader .invoice-pdf-toolbar button{min-height:44px;min-width:44px}.periodic-source-reader .invoice-pdf-toolbar input{min-height:44px}.periodic-source-reader .source-actions a{min-height:44px;display:inline-flex;align-items:center}
+</style>
+{% endblock %}
+{% block content %}
+<div class="invoice-review-page periodic-source-reader">
+  <div class="source-actions"><h2>点検原本</h2>
+    <a class="btn btn-outline" href="{{ pdf_source_url }}" target="_blank" rel="noopener">原本を別タブで開く</a>
+    <a class="btn btn-outline" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=record.vehicle_record_id, inspection_view='periodic') }}">点検一覧へ</a>
+  </div>
+  {% include 'vehicle_document_pdf_viewer.html' %}
+</div>
+<script type="module" src="{{ url_for('static', filename='js/maintenance_invoice_pdf_viewer.mjs', v='20261026-portrait-review-1') }}"></script>
+{% endblock %}

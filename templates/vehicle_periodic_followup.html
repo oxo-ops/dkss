@@ -12,7 +12,7 @@
     <section class="card pf-intro">
         <div class="card-title-row"><h3>点検・整備のAI提案</h3><a class="btn btn-outline" href="{{ url_for('vehicle_karte_inspections', vehicle_record_id=vehicle.id, inspection_view='periodic') }}">点検一覧へ</a></div>
         <p>{{ record.inspection_date }} · {{ inspection_kind_label }} · {{ record.inspection_company or '工場記載なし' }}</p>
-        <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_inspection_source', record_id=record.id) }}" target="_blank" rel="noopener">原本を開く</a>
+        <a class="btn btn-outline" href="{{ url_for('vehicle_periodic_inspection_source', record_id=record.id, view='reader') }}" target="_blank" rel="noopener">原本を開く</a>
     </section>
     <section class="card" aria-labelledby="pf-ai-title">
         <div class="card-title-row"><h3 id="pf-ai-title">提案事項</h3><span class="help-text" data-proposal-order style="display:none">優先度：高 → 中 → 低</span></div>
