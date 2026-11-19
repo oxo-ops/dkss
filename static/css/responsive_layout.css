@@ -245,6 +245,8 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-responsive-shell] .top-bar > .notification-menu {margin:0;flex:0 0 44px;}
  body[data-responsive-shell] .notification-bell {width:44px;height:44px;min-width:44px;min-height:44px;box-sizing:border-box;}
  body[data-responsive-shell] .top-bar-user {padding-inline:0;width:44px;min-width:44px;height:44px;box-sizing:border-box;justify-content:center;}
+ body[data-responsive-shell] .top-bar-user-name {display:none!important;}
+ body[data-responsive-shell] .top-bar-user-menu {flex:0 0 44px;}
 }
 /* Driving results share the compact plan workspace convention on phones only. */
 @media screen and (max-width:767px) {
@@ -256,9 +258,23 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-page-endpoint="driving_reports"] .driving-page-title h2 {font-size:18px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;margin:0;}
 }
 .mobile-shell-title {display:none;}
+/* Keep floating controls legible over scrolled content, without restoring a
+   full-width toolbar surface. Popovers and guide images keep their own layers. */
+@media screen and (max-width:900px) {
+ body[data-responsive-shell] .top-bar :is(#firstUseGuide > .first-guide-launch,.notification-bell,.top-bar-user,.karte-mobile-search-trigger) {
+  background:var(--dkss-page-background,#f4f6fc); border-radius:50%;
+ }
+ body[data-responsive-shell]:not(.sidebar-open) .sidebar-toggle {background:#64748b;}
+}
 @media screen and (max-width:767px) {
  body[data-responsive-shell] .main-content > .top-bar {padding-inline-start:52px;align-items:center;}
  body[data-responsive-shell] .mobile-shell-title {display:block;flex:1 1 0;min-width:0;margin:0 4px 0 0;font-size:16px;line-height:1.3;font-weight:700;color:var(--dkss-text-primary,#17344d);overflow-wrap:anywhere;}
+ body[data-responsive-shell] .main-content > .mobile-shell-title {
+  position:relative; background:transparent; box-sizing:border-box;
+  height:56px; padding:6px 0 6px 52px; margin:0 0 -56px;
+  max-inline-size:calc(100% - 132px); display:flex; flex-direction:column; justify-content:center;
+ }
+ body[data-responsive-shell] .main-content:has(.karte-mobile-search-trigger) > .mobile-shell-title {max-inline-size:calc(100% - 176px);}
  body[data-responsive-shell] .mobile-shell-title small {display:block;font-size:11px;line-height:1.4;font-weight:400;color:var(--dkss-text-secondary,#64748b);}
  body[data-responsive-shell] .mobile-title-source {display:none!important;}
  body[data-responsive-shell] .top-bar > #firstUseGuide {margin-left:0;flex:0 0 44px;}
@@ -272,3 +288,27 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
 }
 
 @media screen and (max-width:767px){body[data-page-endpoint="driving_reports"] .driving-toolbar-actions > a[aria-label="日報を取り込む"]{width:44px;height:44px;min-width:44px;padding:0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;}}
+
+
+/* Split desktop windows use the same collapsed rail as full-width desktop.
+   Override the legacy 769–1180 tablet reset only above the drawer breakpoint. */
+@media screen and (min-width:901px) and (max-width:1180px) {
+ body[data-responsive-shell].sidebar-collapsed .sidebar {width:74px;min-width:74px;}
+ body[data-responsive-shell].sidebar-collapsed :is(.logo-text,.menu-text,.menu-arrow,.sidebar-user,.sidebar-submenu) {display:none!important;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head {flex-direction:column;gap:10px;padding:16px 10px;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-nav {padding:18px 10px;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-nav .menu-item {justify-content:center!important;padding:0!important;gap:0!important;}
+}
+
+/* The planner hides the shared account bar and owns four 44px top actions.
+   Reserve that capsule width so the scrolling title cannot cover its hit areas. */
+@media screen and (max-width:700px) {
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title {
+  max-inline-size:calc(100% - 184px);
+ }
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title [data-mobile-title-text] {
+  display:block; min-width:0; max-width:100%; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+ }
+}
+

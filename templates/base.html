@@ -54,10 +54,10 @@
     {% if request.endpoint in ['vehicle_inspection_plans', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_inspection_plans.css', v='20261029-stable-filters-1') }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261119-header-guide-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261119-ui-polish-2') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/karte_mobile_header_search.css', v='20261119-1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-2') }}">
 </head>
 <body
     data-page-endpoint="{{ request.endpoint }}"
@@ -534,7 +534,7 @@
 <script defer src="{{ url_for('static', filename='js/public_demo_share.js', v='20261117-1') }}"></script>
 {% endif %}
 <script defer src="{{ url_for('static', filename='js/karte_mobile_header_search.js', v='20261119-1') }}"></script>
-<script src="{{ url_for('static', filename='js/mobile_page_title.js', v='20261119-1') }}"></script>
+<script src="{{ url_for('static', filename='js/mobile_page_title.js', v='20261119-ui-polish-2') }}"></script>
 </body>
 </html>
 
