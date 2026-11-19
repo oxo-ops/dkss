@@ -32,8 +32,8 @@ try:
    target=setup()
    try:
     token,html=case.enter();before=snapshot();assert target in html
-    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
-    assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/?__aonagi_entry=1'
+    assert 'class="alert public-demo-notice"' not in case.client.get('/?__aonagi_entry=1').get_data(as_text=True)
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
     from html.parser import HTMLParser
@@ -97,12 +97,12 @@ try:
           data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
           assert path=='/demo/role' and set(data)=={'role','csrf_token','demo_entry'} and data['demo_entry']==['purpose'] and data['role']==[role] and len(data['csrf_token'])==1 and not post_count[0]
           post_count[0]+=1;res=case.client.post(path,data={k:v[0] for k,v in data.items()})
-          assert res.status_code==302 and (res.location=='/' if role=='manager' else urlsplit(res.location).path==urlsplit(target).path)
+          assert res.status_code==302 and (res.location=='/?__aonagi_entry=1' if role=='manager' else urlsplit(res.location).path==urlsplit(target).path)
          elif path in ('/demo','/',urlsplit(target).path,'/api/approval-candidates','/api/notifications/recent','/api/notifications/unread-count','/api/push/vapid-public-key','/static/manifest.webmanifest','/favicon.ico','/static/guide/inspection-detail-open.png') or path.startswith(('/static/css/','/static/js/','/static/images/','/static/icons/','/static/vendor/')):
           if path==urlsplit(target).path:assert parse_qs(u.query).get('vehicle_record_id')==[str(case.vehicle_id)]
           res=case.client.get(path+query)
          else:raise AssertionError('GET outside synthetic allowlist')
-         if 300<=res.status_code<400:assert res.status_code==302 and (res.location=='/' or (path=='/demo/role' and role=='driver' and urlsplit(res.location).path==urlsplit(target).path))
+         if 300<=res.status_code<400:assert res.status_code==302 and (res.location=='/?__aonagi_entry=1' or (path=='/demo/role' and role=='driver' and urlsplit(res.location).path==urlsplit(target).path))
          requests.append({'method':method,'path':path,'status':res.status_code})
          self.send_response(res.status_code)
          for k,v in res.headers.items():
@@ -131,7 +131,7 @@ try:
        page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
-       page.goto(origin+'/',wait_until='networkidle')
+       page.goto(origin+'/?__aonagi_entry=1',wait_until='networkidle')
        toolbar=page.locator('.top-bar');help_button=toolbar.locator('[data-guide-open]');user=toolbar.locator('.top-bar-user')
        assert help_button.is_visible() and user.is_visible()
        hb=help_button.bounding_box();ub=user.bounding_box()

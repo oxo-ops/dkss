@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 ORIGIN = 'http://127.0.0.1:8765'
 WIDTHS = (320, 390, 768, 900, 901, 1024, 1165, 1200, 1280, 1316)
 PAGES = ('/', '/vehicle/checklists', '/safety/driving-reports')
+DEMO_PAGES = ('/?__aonagi_entry=1', *PAGES[1:])
 
 def require(value, message):
     if not value:
@@ -173,7 +174,7 @@ def main():
             case.login(role)
             recent=case.request('GET','/api/notifications/recent')
             require(recent.status_code==200 and '長い架空通知' in json.dumps(recent.get_json(),ensure_ascii=False),'long notification fixture missing')
-            for path in PAGES:
+            for path in DEMO_PAGES:
                 response = case.request('GET', path, follow_redirects=True)
                 require(response.status_code == 200, f'preflight {role} {path}: {response.status_code}')
                 require('public-demo-notice' in response.get_data(as_text=True), 'missing demo banner')
@@ -217,7 +218,7 @@ def main():
                             if(target.id!=='notificationBell')e.preventDefault();}
                         },true);""")
                         try:
-                            for n, path in enumerate(PAGES):
+                            for n, path in enumerate(DEMO_PAGES):
                                 page.goto(ORIGIN + path, wait_until='networkidle')
                                 page.locator('.public-demo-notice').wait_for()
                                 require(page.locator('.public-demo-notice form[action="/logout"]').count()==0,'removed demo exit returned')
@@ -245,8 +246,8 @@ def main():
                             # Real synthetic Flask POST, not a DOM-only hide. Keep browser bridge GET-only.
                             token=page.locator('.public-demo-notice form[action="/demo/role"] input[name="csrf_token"]').input_value()
                             selected=case.request('POST','/demo/role',data={'role':'manager' if role=='admin' else 'driver','csrf_token':token})
-                            require(selected.status_code==302 and selected.headers['Location']=='/','role must return home')
-                            for n,path in enumerate(PAGES):
+                            require(selected.status_code==302 and selected.headers['Location']=='/?__aonagi_entry=1','role must return home')
+                            for n,path in enumerate(DEMO_PAGES):
                                 page.goto(ORIGIN+path,wait_until='networkidle')
                                 require(page.locator('.public-demo-notice').count()==0,'selected role retained demo notice')
                                 header=page.locator('main > .top-bar')

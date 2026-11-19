@@ -89,6 +89,18 @@ def install(app):
         g.public_demo_recovery_redirect = False
         marked = SHARE_QUERY in request.args
         recovery_target = None
+        # /login is the explicit ordinary-account entry, not a demo recovery URL.
+        # Only leave the synthetic identity here; ordinary and MFA sessions keep
+        # their existing authentication rules. Never authenticate a real company.
+        if request.endpoint == 'login' and request.method == 'GET' and not marked and is_demo():
+            session.clear()
+            return None
+        if (request.endpoint == 'dashboard' and request.method == 'GET' and not marked
+                and (is_demo() or (not session and recovery_valid()))):
+            if is_demo():
+                session.clear()
+            g.public_demo_normal_entry = True
+            return redirect('/login')
         if marked:
             if request.method != 'GET':
                 abort(405)
@@ -237,17 +249,21 @@ def install(app):
         # durable session revocation and company state after this guard.
 
     def no_cache(response):
+        # Keep every synthetic home redirect explicit, including completion/role
+        # returns. Ordinary home URLs remain ordinary-account entry points.
+        if is_demo() and response.status_code in (301, 302, 303, 307, 308) and response.headers.get('Location') == '/':
+            response.headers['Location'] = '/?' + SHARE_QUERY + '=1'
         if getattr(g, 'public_demo_entry_ok', False) and response.status_code < 400:
             remaining = max(0, current_app.config['PUBLIC_DEMO_UNTIL'] - int(time.time()))
             response.set_cookie(RECOVERY_COOKIE, recovery_signer().dumps({
                 'epoch': current_app.config['PUBLIC_DEMO_EPOCH'],
                 'until': current_app.config['PUBLIC_DEMO_UNTIL']}),
                 max_age=remaining, secure=True, httponly=True, samesite='Lax')
-        elif (request.endpoint in {'login', 'logout', 'mfa'} or response.status_code in {410, 503}
+        elif (getattr(g, 'public_demo_normal_entry', False) or request.endpoint in {'login', 'logout', 'mfa'} or response.status_code in {410, 503}
               or (session.get('username') and not is_demo())):
             if RECOVERY_COOKIE in request.cookies:
                 response.delete_cookie(RECOVERY_COOKIE, secure=True, httponly=True, samesite='Lax')
-        if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args or getattr(g, 'public_demo_recovery_redirect', False):
+        if is_demo() or request.path == '/demo' or SHARE_QUERY in request.args or getattr(g, 'public_demo_recovery_redirect', False) or getattr(g, 'public_demo_normal_entry', False):
             response.headers['Cache-Control'] = 'private, no-store'
             # Keep HTTPS same-origin CSRF checks working without leaking demo URLs externally.
             response.headers['Referrer-Policy'] = 'same-origin'

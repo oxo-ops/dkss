@@ -19,7 +19,7 @@
 {% elif driving_is_admin and filters.scope=='office' %}
 <nav class="driving-analysis-path" aria-label="分析の階層"><a class="btn btn-outline" href="{{ url_for('driving_reports',**dict(filter_query,scope='company',office='',focus='',listing='offices',panel='analysis',page=1)) }}">← 会社全体の分析へ</a><span>{{ insights.scope_name }}</span></nav>
 {% endif %}
-<nav class="page-breadcrumb"><a href="{{ url_for('dashboard') }}">ホーム</a><span>› 安全管理 › 運転実績</span></nav>
+<nav class="page-breadcrumb"><a href="{{ '/?__aonagi_entry=1' if session.get('aonagi_readonly_demo') else '/' }}">ホーム</a><span>› 安全管理 › 運転実績</span></nav>
 <form method="get" class="driving-workspace-filters" id="driving-filter-form"><div class="driving-main-filters">
 {% if driving_can_manage %}<nav class="driving-view-switch" aria-label="運転実績の表示"><a href="{{ driving_view_navigation.self }}"{% if not driving_is_admin %} aria-current="page"{% endif %}>自分の実績</a><a href="{{ driving_view_navigation.manager }}"{% if driving_is_admin %} aria-current="page"{% endif %}>営業所の実績</a></nav><input type="hidden" name="scope" value="{{ filters.scope }}">{% endif %}
 {% if not driving_can_manage %}<nav class="driving-view-switch" aria-label="運転実績の表示"><a href="{{ url_for('driving_reports',scope='self') }}" aria-current="page">自分の実績</a><a href="{{ url_for('driving_office_summary') }}">営業所の実績</a></nav>{% endif %}

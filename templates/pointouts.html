@@ -13,7 +13,7 @@
 {% set column_count = 9 if has_target_column else 8 %}
 
 <nav class="page-breadcrumb safety-list-breadcrumb" aria-label="パンくずリスト">
-    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <a href="{{ '/?__aonagi_entry=1' if session.get('aonagi_readonly_demo') else '/' }}">ホーム</a>
     <span class="breadcrumb-separator">›</span>
     <span>安全管理</span>
     <span class="breadcrumb-separator">›</span>

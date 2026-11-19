@@ -59,7 +59,7 @@ class DemoWorkflowTests(Base):
         self.addCleanup(self.app.config.pop, 'PUBLIC_DEMO_SHARED_COMPANY', None)
         self.login('checker')
         notes = []
-        for path in ('/', '/vehicle/checklists', '/safety/driving-reports'):
+        for path in ('/?__aonagi_entry=1', '/vehicle/checklists', '/safety/driving-reports'):
             response = self.request('GET', path, follow_redirects=True)
             self.assertEqual(response.status_code, 200)
             root = Document(response.get_data(as_text=True)).root
@@ -80,7 +80,7 @@ class DemoWorkflowTests(Base):
         self.app.config['PUBLIC_DEMO_SHARED_COMPANY'] = True
         self.addCleanup(self.app.config.pop, 'PUBLIC_DEMO_SHARED_COMPANY', None)
         self.login('admin')
-        for path in ('/', '/safety/driving-reports', '/vehicle/checklists'):
+        for path in ('/?__aonagi_entry=1', '/safety/driving-reports', '/vehicle/checklists'):
             with self.subTest(path=path):
                 page = self.request('GET', path, follow_redirects=True)
                 self.assertEqual(page.status_code, 200)
@@ -127,8 +127,8 @@ class DemoWorkflowTests(Base):
         self.client=self.app.test_client()
         self.assertEqual(self.request('GET','/demo').status_code,404)
         self.app.config['PUBLIC_DEMO_FROM']=int(time.time())-1
-        self.assertEqual(self.request('GET','/demo').location,'/')
-        page=self.request('GET','/')
+        self.assertEqual(self.request('GET','/demo').location,'/?__aonagi_entry=1')
+        page=self.request('GET','/?__aonagi_entry=1')
         token=html.unescape(re.search(r'name="csrf_token" value="([^\"]+)"',page.get_data(as_text=True))[1])
         self.app.config['PUBLIC_DEMO_MANAGER_IDENTITY']='wrong-person'
         self.assertEqual(self.request('POST','/demo/role',data={'role':'manager','csrf_token':token}).status_code,404)
@@ -140,8 +140,8 @@ class DemoWorkflowTests(Base):
         self.app.config['PUBLIC_DEMO_SHARED_COMPANY']=True
         self.addCleanup(self.app.config.pop,'PUBLIC_DEMO_SHARED_COMPANY',None)
         self.client=self.app.test_client()
-        self.assertEqual(self.request('GET','/demo').location,'/')
-        self.assertEqual(self.request('GET','/').status_code,200)
+        self.assertEqual(self.request('GET','/demo').location,'/?__aonagi_entry=1')
+        self.assertEqual(self.request('GET','/?__aonagi_entry=1').status_code,200)
         self.assertEqual(self.request('GET','/vehicle/checklists',follow_redirects=True).status_code,200)
         index=self.app.config['PUBLIC_DEMO_CHECKLIST_ID']
         form={'vehicle_record_id':1,'year':'2026','month':'10','day':'24','item_no':'0','value':'✓'}

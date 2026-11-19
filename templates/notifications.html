@@ -33,7 +33,7 @@
             </form>
         {% endif %}
 
-        <a href="/" class="notification-page-close">
+        <a href="{{ '/?__aonagi_entry=1' if session.get('aonagi_readonly_demo') else '/' }}" class="notification-page-close">
             <svg viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="1.6"
                  stroke-linecap="round" aria-hidden="true">

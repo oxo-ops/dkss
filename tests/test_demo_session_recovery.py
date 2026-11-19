@@ -12,12 +12,81 @@ class RecoveryTests(Base):
   c=self.app.test_client();c.set_cookie(self.app.config['SESSION_COOKIE_NAME'],cookie);c.set_cookie('dkss_demo_return',hint);return c
  def test_expired_get_recovers_original_path_then_runs_normal_guard(self):
   t,cookie,hint=self.enter_cookies()
-  for path in ('/vehicle/checklists',f'/vehicle/karte/{self.vehicle_id}','/','/safety/driving-reports','/vehicle/inspection-plans','/safety'):
+  for path in ('/vehicle/checklists',f'/vehicle/karte/{self.vehicle_id}','/safety/driving-reports','/vehicle/inspection-plans','/safety'):
    c=self.client_with(cookie,hint)
    with patch('itsdangerous.timed.time.time',return_value=t+1801):
     r=c.get(path);self.assertEqual(r.location,path);self.assertIn('no-store',r.headers['Cache-Control'])
     r=c.get(r.location,follow_redirects=True);self.assertEqual(r.status_code,200)
     with c.session_transaction() as s:self.assertTrue(s['aonagi_readonly_demo']);self.assertEqual(s['demo_role'],'driver')
+ def test_explicit_normal_login_leaves_active_demo_without_business_writes(self):
+  _,cookie,hint=self.enter_cookies();c=self.client_with(cookie,hint)
+  before=self.models.VehicleChecklistResult.query.count()
+  r=c.get('/login');self.assertEqual(r.status_code,200)
+  self.assertIn('name="company_code"',r.get_data(as_text=True))
+  self.assertIsNone(c.get_cookie('dkss_demo_return'))
+  with c.session_transaction() as s:
+   self.assertNotIn('aonagi_readonly_demo',s);self.assertNotIn('username',s)
+  self.assertEqual(c.get('/').location,'/login')
+  self.assertEqual(before,self.models.VehicleChecklistResult.query.count())
+ def test_explicit_normal_login_with_expired_demo_hint_never_recovers(self):
+  t,cookie,hint=self.enter_cookies();c=self.client_with(cookie,hint)
+  with patch('itsdangerous.timed.time.time',return_value=t+1801):
+   r=c.get('/login');self.assertEqual(r.status_code,200)
+   self.assertIsNone(c.get_cookie('dkss_demo_return'))
+   self.assertEqual(c.get('/').location,'/login')
+ def test_normal_logged_in_login_keeps_identity(self):
+  self.demo_active=False;self.login('checker')
+  with self.client.session_transaction() as s:before=dict(s)
+  self.assertEqual(self.client.get('/login').location,'/')
+  with self.client.session_transaction() as s:
+   self.assertEqual(s['username'],before['username']);self.assertEqual(s['company_code'],before['company_code'])
+ def test_old_demo_post_cannot_change_normal_identity(self):
+  import html,re
+  _,cookie,hint=self.enter_cookies();c=self.client_with(cookie,hint)
+  page=c.get('/?__aonagi_entry=1').get_data(as_text=True)
+  old_token=html.unescape(re.search(r'name="csrf_token" value="([^"]+)"',page)[1])
+  self.assertEqual(c.get('/login').status_code,200)
+  self.demo_active=False;self.client=c;self.login('checker')
+  with c.session_transaction() as s:before=dict(s)
+  reply=c.post('/demo/role',data={'role':'manager','csrf_token':old_token})
+  self.assertIn(reply.status_code,(400,403,404))
+  with c.session_transaction() as s:
+   self.assertEqual(s['username'],before['username']);self.assertEqual(s['company_code'],before['company_code'])
+   self.assertNotIn('aonagi_readonly_demo',s)
+  self.assertEqual(c.get('/demo').status_code,409)
+  self.assertEqual(c.get('/?__aonagi_entry=1').status_code,409)
+ def test_demo_login_with_entry_query_is_not_a_switch_bypass(self):
+  _,cookie,hint=self.enter_cookies();c=self.client_with(cookie,hint)
+  self.assertEqual(c.get('/login?__aonagi_entry=1').status_code,404)
+  with c.session_transaction() as s:self.assertTrue(s['aonagi_readonly_demo'])
+ def test_bare_home_stays_normal_and_explicit_demo_home_remains_available(self):
+  _,cookie,hint=self.enter_cookies()
+  for session_cookie in (cookie,''):
+   c=self.client_with(session_cookie,hint)
+   response=c.get('/');self.assertEqual(response.location,'/login')
+   self.assertIn('no-store',response.headers['Cache-Control']);self.assertIsNone(c.get_cookie('dkss_demo_return'))
+   self.assertEqual(c.get('/login').status_code,200)
+   self.assertIsNone(c.get_cookie('dkss_demo_return'))
+   self.assertEqual(c.get('/demo').location,'/?__aonagi_entry=1')
+   self.assertEqual(c.get('/?__aonagi_entry=1').status_code,200)
+ def test_old_demo_business_post_rejected_by_csrf_and_company_boundary(self):
+  import html,re
+  _,cookie,hint=self.enter_cookies();c=self.client_with(cookie,hint)
+  checklist=self.app.config['PUBLIC_DEMO_CHECKLIST_ID']
+  text=c.get(f'/vehicle/checklists/{checklist}?vehicle_record_id={self.vehicle_id}').get_data(as_text=True)
+  token=html.unescape(re.search(r'name="csrf_token" value="([^"]+)"',text)[1])
+  self.assertEqual(c.get('/login').status_code,200)
+  self.demo_active=False;self.client=c;self.login('checker',company='B')
+  data={'vehicle_record_id':self.vehicle_id,'year':'2026','month':'11','day':'19','item_no':'0','value':'✓','csrf_token':token}
+  before=self.models.VehicleChecklistResult.query.count()
+  previous=self.app.config['WTF_CSRF_ENABLED'];self.app.config['WTF_CSRF_ENABLED']=True
+  try:self.assertEqual(c.post(f'/vehicle/checklists/{checklist}/save-one',data=data).status_code,400)
+  finally:self.app.config['WTF_CSRF_ENABLED']=previous
+  # Independently verify company ownership, even when the fixture disables CSRF.
+  foreign=c.post(f'/vehicle/checklists/{checklist}/save-one',data=data)
+  self.assertEqual(foreign.status_code,302);self.assertEqual(foreign.location,'/vehicle/checklists')
+  self.assertEqual(before,self.models.VehicleChecklistResult.query.count())
+  with c.session_transaction() as state:self.assertEqual(state['company_code'],'B');self.assertNotIn('aonagi_readonly_demo',state)
  def test_valid_session_and_role_unchanged(self):
   self.login('admin');c=self.client
   with c.session_transaction() as s:before=dict(s)
@@ -80,14 +149,14 @@ class RecoveryTests(Base):
   from flask import url_for
   _,_,hint=self.enter_cookies();checked=set()
   for rule in self.app.url_map.iter_rules():
-   if rule.endpoint not in RECOVERY_ENDPOINTS:continue
+   if rule.endpoint not in RECOVERY_ENDPOINTS or rule.endpoint == 'dashboard':continue
    with self.app.test_request_context():path=url_for(rule.endpoint,**{key:1 for key in rule.arguments})
    response=self.client_with('',hint).get(path+'?unexpected_redirect=https://example.invalid')
    self.assertEqual(response.status_code,302)
    from urllib.parse import urlsplit,parse_qs
    target=urlsplit(response.location);self.assertEqual(target.netloc,'');self.assertEqual(target.path,path)
    self.assertEqual(parse_qs(target.query),{'unexpected_redirect':['https://example.invalid']});checked.add(rule.endpoint)
-  self.assertEqual(checked,RECOVERY_ENDPOINTS)
+  self.assertEqual(checked,RECOVERY_ENDPOINTS - {'dashboard'})
 
  def test_query_filters_survive_recovery_and_no_role_escalation(self):
   from urllib.parse import urlsplit,parse_qs
