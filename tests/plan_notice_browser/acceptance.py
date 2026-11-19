@@ -59,7 +59,7 @@ try:
        b.wait_for(state='visible');b.click(trial=True)
       if width>700:
        assert page.locator('[data-plan-filters]').is_visible()
-       assert page.locator('[data-plan-filters] input[name="q"]').is_visible()
+       assert page.locator('[data-plan-filters] input[name="search"]').is_visible()
       page.screenshot(path=str(out/f'selected-{width}-{role}.png'));report['cases'].append({'width':width,'role':role,'purpose_native_click':True,'purpose_destination_preserved':True,'selected_plan_revisit':True});context.close()
     report['passed']=True
    finally:browser.close()
