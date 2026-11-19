@@ -1,0 +1,377 @@
+[
+  {
+    "template": "checklist_form.html",
+    "label": "項目削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_form.html",
+    "label": "項目削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "checklist_result_detail.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "delivery_place_import_preview.html",
+    "label": "編集をやめる",
+    "coverage": "navigation or cancel, unchanged"
+  },
+  {
+    "template": "delivery_place_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "delivery_place_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_form.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_form.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_form.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "driver_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "driving_workspace_reports.html",
+    "label": "日報の詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "driving_workspace_vehicle_context.html",
+    "label": "費用の詳細",
+    "coverage": "navigation or cancel, unchanged"
+  },
+  {
+    "template": "import_flow_error.html",
+    "label": "編集内容を保持した確認画面へ戻る",
+    "coverage": "navigation or cancel, unchanged"
+  },
+  {
+    "template": "index.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "itc_dashboard.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "itc_dashboard.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "itc_dashboard.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "itc_dashboard.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "itc_news_form.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "license_type_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "license_type_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "manual_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "manual_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "notification_detail.html",
+    "label": "通知を削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "notifications.html",
+    "label": "通知を削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "office_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "office_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "patrol_content_type_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "patrol_content_type_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointout_detail.html",
+    "label": "登録内容を編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointout_detail.html",
+    "label": "対策を編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointout_detail.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "詳細",
+    "coverage": "scoped existing selector"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "詳細を見る\n                \n                    ›",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "pointouts.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "safety_checklist_results.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_data_import.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_data_import.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_document_delete_confirm.html",
+    "label": "資料と由来データを削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_import_preview.html",
+    "label": "編集に戻る",
+    "coverage": "navigation or cancel, unchanged"
+  },
+  {
+    "template": "vehicle_karte.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_karte_documents.html",
+    "label": "資料の削除・取込取消",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_karte_header.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_karte_maintenance_detail.html",
+    "label": "{{ '読取内容を訂正' if record.is_invoice_actual else '編集' }}",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_master.html",
+    "label": "選択した車両を一括削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrol_detail.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "詳細",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_patrols.html",
+    "label": "削除",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_type_master.html",
+    "label": "編集",
+    "coverage": "common family"
+  },
+  {
+    "template": "vehicle_type_master.html",
+    "label": "削除",
+    "coverage": "common family"
+  }
+]

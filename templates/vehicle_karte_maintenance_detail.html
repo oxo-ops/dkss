@@ -23,7 +23,7 @@
             {% endif %}
             {% if session.get('role') in ['admin', 'itc'] %}
             <a
-                class="btn btn-outline"
+                class="btn btn-outline btn-edit"
                 href="{{ url_for('vehicle_karte_maintenance_form', vehicle_record_id=vehicle.id, record_id=record.id) }}"
             >{{ '読取内容を訂正' if record.is_invoice_actual else '編集' }}</a>
             {% endif %}
