@@ -10,7 +10,7 @@
 {% include 'ocr_searchable_select_assets.html' %}
 <div class="invoice-review-page invoice-import-review">
 <nav class="page-breadcrumb" aria-label="パンくずリスト">
-    <a href="{{ url_for('dashboard') }}">ホーム</a>
+    <a href="{{ '/?__aonagi_entry=1' if session.get('aonagi_readonly_demo') else '/' }}">ホーム</a>
     <span class="breadcrumb-separator">›</span>
     <span>車両管理</span>
     <span class="breadcrumb-separator">›</span>

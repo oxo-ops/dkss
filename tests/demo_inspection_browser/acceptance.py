@@ -32,8 +32,8 @@ try:
    target=setup()
    try:
     token,html=case.enter();before=snapshot();assert target in html
-    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
-    assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/?__aonagi_entry=1'
+    assert 'class="alert public-demo-notice"' not in case.client.get('/?__aonagi_entry=1').get_data(as_text=True)
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
     from html.parser import HTMLParser
@@ -131,7 +131,7 @@ try:
        page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
-       page.goto(origin+'/',wait_until='networkidle')
+       page.goto(origin+'/?__aonagi_entry=1',wait_until='networkidle')
        toolbar=page.locator('.top-bar');help_button=toolbar.locator('[data-guide-open]');user=toolbar.locator('.top-bar-user')
        assert help_button.is_visible() and user.is_visible()
        hb=help_button.bounding_box();ub=user.bounding_box()

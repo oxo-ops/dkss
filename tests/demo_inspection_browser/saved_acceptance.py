@@ -49,8 +49,8 @@ try:
    target=setup()
    try:
     token,html=case.enter();before=snapshot()
-    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/'
-    assert 'class="alert public-demo-notice"' not in case.client.get('/').get_data(as_text=True)
+    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/?__aonagi_entry=1'
+    assert 'class="alert public-demo-notice"' not in case.client.get('/?__aonagi_entry=1').get_data(as_text=True)
     unselected=case.client.get(urlsplit(target).path).get_data(as_text=True)
     assert 'usage-vehicle-shortcut' in unselected and ('data-vehicle-id="'+str(case.vehicle_id)+'"') in unselected
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
@@ -134,7 +134,7 @@ try:
        page.wait_for_url(lambda u:urlsplit(u).path==('/' if role=='manager' else urlsplit(target).path));page.wait_for_load_state('networkidle')
        assert post_count[0]==1 and page.locator('.public-demo-notice').count()==0
        with case.client.session_transaction() as s:assert s['demo_role_selected'] is True and s['demo_role']==role
-       page.goto(origin+'/',wait_until='networkidle')
+       page.goto(origin+'/?__aonagi_entry=1',wait_until='networkidle')
        page.screenshot(path=str(out/f'{width}-{role}-{scenario}-home.png'),full_page=True)
        # Actual sidebar -> daily checklist -> vehicle choice, without a direct target goto.
        sidebar=page.locator('a[href="/vehicle/checklists"]')

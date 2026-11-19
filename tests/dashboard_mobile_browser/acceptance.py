@@ -41,7 +41,7 @@ try:
  case.db.session.commit()
  for role in ['checker','admin']:
   case.login(role)
-  response=case.request('GET','/')
+  response=case.request('GET','/?__aonagi_entry=1')
   assert response.status_code==200
   html=response.get_data(as_text=True)
   if html.count('class="dashboard-safety-content"')!=4:(out/f'fixture-{role}.html').write_text(html)

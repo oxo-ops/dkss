@@ -9,8 +9,8 @@ class CompactDemoTests(Base):
   v.plate_area='品川';v.plate_class='100';v.plate_kana='か';v.plate_number='101';self.db.session.commit()
   self.vehicle_id=v.id;self.client=self.app.test_client()
  def enter(self):
-  self.assertEqual(self.client.get('/demo').location,'/')
-  text=self.client.get('/').get_data(as_text=True)
+  self.assertEqual(self.client.get('/demo').location,'/?__aonagi_entry=1')
+  text=self.client.get('/?__aonagi_entry=1').get_data(as_text=True)
   return html.unescape(re.search(r'name="csrf_token" value="([^"]+)"',text)[1]),text
  def test_role_selection_hides_notice_and_reentry_restores_it(self):
   for role in ('driver','manager'):
@@ -18,9 +18,9 @@ class CompactDemoTests(Base):
    self.assertNotIn('体験を終了',text)
    count=self.models.VehicleChecklistResult.query.count()
    reply=self.client.post('/demo/role',data={'role':role,'csrf_token':token})
-   self.assertEqual(reply.status_code,302);self.assertEqual(reply.location,'/')
+   self.assertEqual(reply.status_code,302);self.assertEqual(reply.location,'/?__aonagi_entry=1')
    with self.client.session_transaction() as s:self.assertIs(s['demo_role_selected'],True)
-   selected=self.client.get('/').get_data(as_text=True)
+   selected=self.client.get('/?__aonagi_entry=1').get_data(as_text=True)
    self.assertNotIn('class="alert public-demo-notice"',selected)
    self.assertEqual(count,self.models.VehicleChecklistResult.query.count())
    self.enter()

@@ -94,7 +94,19 @@ try:
        after={c['name']:c for c in ctx.cookies()};assert serializer.loads(after[name]['value'])['demo_role']=='driver'
        assert snap()==before
        page.screenshot(path=str(out/f'{width}-{role}-recovered.png'),full_page=True)
-       page.goto(origin+'/login',wait_until='networkidle') # Existing demo blocks ordinary login, never replaces normal identity.
+       page.goto(origin+'/login',wait_until='networkidle')
+       assert page.locator('input[name="company_code"]').is_visible()
+       assert not page.locator('.public-demo-notice').count()
+       assert 'dkss_demo_return' not in {c['name']:c for c in ctx.cookies()}
+       page.screenshot(path=str(out/f'{width}-{role}-normal-login.png'),full_page=True)
+       page.goto(origin+'/demo',wait_until='networkidle')
+       assert urlsplit(page.url).query=='__aonagi_entry=1'
+       assert page.locator('.public-demo-notice').is_visible()
+       page.goto(origin+'/',wait_until='networkidle')
+       assert urlsplit(page.url).path=='/login'
+       assert page.locator('input[name="company_code"]').is_visible()
+       assert 'dkss_demo_return' not in {c['name']:c for c in ctx.cookies()}
+       page.screenshot(path=str(out/f'{width}-{role}-bare-home-login.png'),full_page=True)
        assert not any(r['method']=='POST' and r['path']!='/demo/role' for r in requests)
        record.update(status='passed',requests=requests,business_writes=False)
       except BaseException as e:
