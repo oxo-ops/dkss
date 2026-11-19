@@ -29,7 +29,7 @@
 
 /* Desktop uses the same search icon and field actions without a full-screen sheet. */
 @media(min-width:768px){
-body .top-bar .karte-mobile-search-trigger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit}
+body .top-bar .karte-mobile-search-trigger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;min-height:44px;flex:0 0 44px;box-sizing:border-box;margin:0;padding:0;border:0;border-radius:50%;background:transparent;color:inherit}
 .karte-mobile-search-dialog[open]{display:block;width:min(680px,calc(100vw - 48px));max-height:80dvh;border:1px solid #d8e4f1;border-radius:16px;padding:24px;box-sizing:border-box;background:#f6f8fb;color:#192b43;overflow:auto}
 .karte-mobile-search-dialog .vehicle-karte-search{display:block;width:100%;max-width:none;margin:0;padding-right:48px;box-sizing:border-box}
 .karte-mobile-search-close{position:absolute;right:8px;top:12px;width:44px;height:44px;border:0;background:transparent;font-size:28px;color:inherit}
