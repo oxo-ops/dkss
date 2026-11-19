@@ -10,7 +10,7 @@ if(url.pathname===new URL(row.path,'https://fixture.invalid').pathname)return ro
 if(url.pathname.startsWith('/static/')){const f=path.resolve(repo,'.'+url.pathname);if(f.startsWith(repo+'/static/')&&fs.existsSync(f))return route.fulfill({path:f});}
 return route.fulfill({status:404,body:'offline'});});
 await page.goto(new URL(row.path,'https://fixture.invalid').href);const button=page.locator('a.entry-add-icon').first();assert.equal((await button.innerText()).trim(),'＋');assert(await button.getAttribute('aria-label'));const box=await button.boundingBox();assert(box&&Math.abs(box.width-44)<1&&Math.abs(box.height-44)<1,JSON.stringify({name,width,box}));assert(box.x>=0&&box.x+box.width<=width+1);
-const href=await button.getAttribute('href');assert(href.includes('/new'));
+const look=await button.evaluate(e=>({radius:getComputedStyle(e).borderRadius,font:getComputedStyle(e).fontSize}));assert.equal(look.radius,'50%');assert.equal(look.font,'24px');const href=await button.getAttribute('href');assert(href.includes('/new'));
 if(name==='normal_office_master'){const hint=await page.locator('.master-order-help').boundingBox();assert(Math.abs(box.y+22-hint.y-hint.height/2)<2);assert.equal(await page.locator('.page-header').count(),0);}
 await page.screenshot({path:path.join(out,name+'-'+width+'.png')});report.push({name,width,href,box,passed:true});await context.close();}
 assert.equal(blocked.length,0);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked},null,2));
