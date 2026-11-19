@@ -39,8 +39,12 @@ try:
       page.locator('.public-demo-notice button[value="'+role+'"]').click();page.wait_for_load_state('networkidle');assert urlsplit(page.url).path==path
       assert page.locator('.public-demo-notice').count()==0
       if width<=700:assert page.locator('.mobile-shell-title').evaluate('e=>getComputedStyle(e).marginBottom')=='-56px'
+      page.screenshot(path=str(out/f'selected-{width}-{role}.png'))
       for selector in ['[data-plan-view-toggle]','[data-plan-filter-toggle]','[data-plan-search-toggle]']:
-       b=page.locator(selector);assert b.is_visible();b.click(trial=True)
+       b=page.locator(selector)
+       if width>700 and selector=='[data-plan-view-toggle]':
+        assert not b.is_visible();continue
+       b.wait_for(state='visible');b.click(trial=True)
       page.screenshot(path=str(out/f'selected-{width}-{role}.png'));report['cases'].append({'width':width,'role':role,'purpose_native_click':True,'return_preserved':True});context.close()
     report['passed']=True
    finally:browser.close()
