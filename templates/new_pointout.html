@@ -2,6 +2,10 @@
 
 {% block title %}安全パトロール結果登録{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/patrol_attachment_buttons.css', v='20261119-1') }}">
+{% endblock %}
+
 {% block content %}
 
 <nav class="page-breadcrumb form-page-header" aria-label="パンくずリスト">
@@ -213,6 +217,7 @@
             <div class="file-upload-cell pointout-file-upload-cell">
 
                 <label class="file-upload-button file-upload-button-camera">
+<svg class="patrol-attachment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z"/><circle cx="12" cy="13" r="4"/></svg>
                     写真
                     <input
                         type="file"
@@ -224,6 +229,7 @@
                 </label>
 
                 <label class="file-upload-button file-upload-button-secondary">
+<svg class="patrol-attachment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 11-9 9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8L15 6"/></svg>
                     ファイル
                     <input
                         type="file"

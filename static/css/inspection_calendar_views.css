@@ -411,3 +411,19 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-view-popover .
 body .main-content .inspection-plans[data-inspection-planner] > details[data-plan-vehicle-table][open] {
  max-height:none;overflow:visible;
 }
+
+/* One accessible Excel action in the existing toolbar on phone and desktop.
+   Keep the legacy hidden link as the existing JS synchronization target. */
+body .main-content .inspection-plans[data-inspection-planner] [data-plan-export-mobile]{display:none!important}
+body .main-content .inspection-plans[data-inspection-planner] .ip-top-actions a.ip-excel-action{
+ display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 44px;
+ width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;
+ box-sizing:border-box;padding:10px!important;border-radius:50%!important;
+ color:#23754b!important;background:#f2faf5!important;border:1px solid #b9d8c5!important;box-shadow:none!important;
+}
+body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action svg{width:22px;height:22px;flex:none}
+body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:hover{background:#e6f4ec!important;color:#185535!important}
+body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:focus-visible{outline:2px solid #23754b!important;outline-offset:-3px}
+@media(max-width:700px){
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title{max-inline-size:calc(100% - 228px)!important}
+}

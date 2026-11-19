@@ -1,0 +1,3 @@
+# Patrol photo button
+Reference libfile_1a0bd3b49fa88191b5e8ea755fcc2b88 actually viewed: new safety patrol photo label dark on blue. Keep explicit white label requirement and reuse checklist detail attachment icons, 48px height, 8px corner, 14px700 typography, focus outline. Camera remains blue primary; file remains white secondary. Scope to patrol new/edit file cells, no shared checklist style changes.
+Native file input attributes/name/capture/multiple and original upload JavaScript are unchanged. No uploads or saves in acceptance, only filechooser event. 2 pages x 4 widths screenshot/white text/native picker test pending. Baseline Livecd8. No auth/DB/deploy changes.
