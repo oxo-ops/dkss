@@ -10,6 +10,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 SIZES = {96, 192}
 THUMBNAIL_SIZES = {160, 320, 480}
+DETAIL_SIZES = {640, 1280}
 
 
 class DisplayImages:
@@ -119,6 +120,14 @@ def display_thumbnail(filename):
     if size not in THUMBNAIL_SIZES or Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         return None
     return _display(filename, size, True)
+
+
+def display_detail(filename):
+    """Uncropped display only; original authorization has already run."""
+    size = request.args.get("display", type=int)
+    if size not in DETAIL_SIZES or Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        return None
+    return _display(filename, size, False)
 
 
 def _encode(read, size, crop, *, lossless=False, width_only=False):
