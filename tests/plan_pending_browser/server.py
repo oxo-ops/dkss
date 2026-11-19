@@ -20,6 +20,14 @@ for mon,count in [('2026-02',1),('2026-11',12)]:
   m.db.session.add(v);m.db.session.flush()
   m.db.session.add(Plan(company_code='TEST',vehicle_record_id=v.id,kind='3month',period_key=mon,planned_month=mon,reservation_date=None,status='planned',factory='試験整備',note='未予約の合成試験'))
 m.db.session.commit()
+# Synthetic long description, without source/private data or production access.
+from flask import request
+@app.after_request
+def long_invoice_fixture(response):
+ if request.path=='/api/vehicle/inspection-plans' and response.status_code==200:
+  value=response.get_json();value.setdefault('invoice_actuals',[]).append({'vehicle_record_id':case.vehicle.id,'performed_date':'2026-11-10','summary':'2026/11/10 保証対応によるワイパーゴム交換（無償）','sources':[]})
+  response.set_data(json.dumps(value,ensure_ascii=False));response.content_type='application/json'
+ return response
 app.config['WTF_CSRF_ENABLED']=True
 cookie=app.session_interface.get_signing_serializer(app).dumps(dict(company_code='TEST',username='admin',role='admin',account_identity=user.account_identity,password_changed_at=user.password_changed_at,name='試験管理者'))
 a.out.mkdir(parents=True,exist_ok=True)

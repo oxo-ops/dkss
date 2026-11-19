@@ -6,5 +6,12 @@ const context=await browser.newContext({viewport:{width,height:900},serviceWorke
 const items=page.locator('.ip-cal-pending-item');assert.equal(await items.count(),count);const grid=page.locator('.ip-cal-grid');const gridHeight=(await grid.boundingBox()).height;
 if(count){const area=page.locator('.ip-cal-pending-items');await area.scrollIntoViewIfNeeded();if(width<=700){assert(await items.evaluateAll(es=>es.every(e=>{const r=e.getBoundingClientRect();return r.height>=52&&e.scrollWidth<=e.clientWidth+1&&e.scrollHeight<=e.clientHeight+1})));assert((await area.boundingBox()).height>=52);if(count>1){const state=await area.evaluate(e=>{e.scrollTop=e.scrollHeight;return {top:e.scrollTop,client:e.clientHeight,scroll:e.scrollHeight}});assert(state.top>0&&state.client>=180,JSON.stringify(state));}}
 await items.last().click();await page.locator('#inspection-plan-panel[open]').waitFor();assert((await page.locator('[data-plan-vehicle-label]').innerText()).includes(String(200+count-1)));await page.locator('#inspection-plan-panel [data-plan-close]').click();assert.equal((await grid.boundingBox()).height,gridHeight);}
-await page.screenshot({path:out+`/pending-${width}-${count}.png`,fullPage:true});assert.deepEqual(blocked,[]);cases.push({width,count,month,passed:true});await context.close();page=null;
+await page.screenshot({path:out+`/pending-${width}-${count}.png`,fullPage:true});
+if(month==='2026-11'){
+ await page.goto(base+'/vehicle/inspection-plans?view=month&month=2026-11');const invoice=page.locator('button.ip-invoice-summary').filter({hasText:'保証対応'}).first();await invoice.waitFor();
+ if(width<=700)assert(await invoice.evaluate(e=>{const t=e.querySelector('.ip-invoice-content'),a=e.getBoundingClientRect(),b=t.getBoundingClientRect();return e.scrollWidth<=e.clientWidth+1&&b.right<=a.right+1&&b.left>=a.left&&t.scrollWidth<=t.clientWidth+1}),'long invoice overflow');
+ await invoice.click();await page.locator('#inspection-plan-source-detail[open]').waitFor();assert((await page.locator('[data-source-detail-body]').innerText()).includes('保証対応によるワイパーゴム交換（無償）'));await page.locator('[data-source-detail-close]').click();
+ await page.screenshot({path:out+`/long-invoice-${width}.png`,fullPage:true});
+}
+assert.deepEqual(blocked,[]);cases.push({width,count,month,passed:true});await context.close();page=null;
 }fs.writeFileSync(out+'/report.json',JSON.stringify({cases,passed:true,writes:0},null,2));}catch(e){if(page)await page.screenshot({path:out+'/failure.png',fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -435,3 +435,8 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:f
  body .main-content .inspection-plans[data-inspection-planner] button.ip-cal-pending-item{display:grid!important;grid-template-columns:minmax(0,1fr);width:100%;box-sizing:border-box;height:auto!important;min-height:52px!important;padding:8px 10px!important;white-space:normal!important;overflow-wrap:anywhere;line-height:1.5!important}
  body .main-content .inspection-plans[data-inspection-planner] .ip-cal-pending-item strong{max-width:none;white-space:normal;overflow:visible}
 }
+/* Actual maintenance rows use buttons now; keep long descriptions inside their cells. */
+@media(max-width:700px){
+ body .main-content .inspection-plans[data-inspection-planner][data-view=month] button.ip-invoice-summary{display:grid!important;grid-template-columns:minmax(0,1fr);box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:44px!important;height:auto!important;gap:4px;padding:6px!important;text-align:left;white-space:normal!important}
+ body .main-content .inspection-plans[data-inspection-planner][data-view=month] .ip-invoice-content{min-width:0;max-width:100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip}
+}
