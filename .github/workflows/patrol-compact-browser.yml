@@ -1,7 +1,7 @@
 name: Patrol compact list isolated browser
 on:
   push:
-    branches: [validation/demo-ready-batch2-20261119, review/patrol-compact-20261119, validation/release-integrated-20261119, validation/patrol-space-live6ca]
+    branches: [review/patrol-cohesive-spacing-20261120, validation/pitch-ready-ui, review/safety-records-mobile, validation/demo-ready-batch2-20261119, review/patrol-compact-20261119, validation/release-integrated-20261119, validation/patrol-space-live6ca]
 permissions:
   contents: read
 jobs:

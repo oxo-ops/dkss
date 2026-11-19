@@ -40,3 +40,16 @@ body .main-content .safety-result-mobile-detail:focus-visible {
     outline: 2px solid #3479f6;
     outline-offset: 2px;
 }
+
+/* Keep the existing add action beside the heading instead of a separate row. */
+@media (max-width: 768px) {
+ body[data-responsive-shell] .main-content .safety-results-title-row {
+  flex-wrap: nowrap; align-items: flex-start;
+ }
+ body[data-responsive-shell] .main-content .safety-results-title-row > div {
+  flex: 1 1 0; min-width: 0;
+ }
+ body[data-responsive-shell] .main-content .safety-results-title-row > .entry-add-icon {
+  flex: 0 0 44px; margin: 0; align-self: flex-start;
+ }
+}

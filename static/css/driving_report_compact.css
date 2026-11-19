@@ -1,0 +1,36 @@
+/* Driving workspace: existing blue palette; status semantics are unchanged. */
+.driving-page.driving-designed .btn{border-color:#cbd8e8;background:linear-gradient(#fff,#f4f8fc);color:#235c9d}
+.driving-page.driving-designed .btn:hover{background:#eaf2fa}
+.driving-designed .driving-view-switch{border-color:#cfdeed;background:#eaf2fa}
+.driving-designed .driving-view-switch a[aria-current=page],
+.driving-designed .driving-metric-tabs a[aria-current=page]{background:linear-gradient(#397bb7,#235c9d);color:#fff;box-shadow:0 2px 4px #235c9d22}
+.driving-designed .driving-view-switch a:focus-visible{outline-color:#235c9d}
+.driving-designed .driving-ai-icon{background:#e8f1fb;color:#397bb7}
+.driving-page.driving-designed .driving-finding-vehicle{background:#f5f9fd;border-color:#d4e2ef}
+.driving-designed .driving-finding-vehicle .driving-finding-label{color:#235c9d}
+.driving-designed .driving-next-review .driving-badge,
+.driving-designed .driving-vehicle-suggestion small{background:#e8f1fb;color:#235c9d}
+
+/* Only the daily-report list is compacted. Desktop tables and raw-data lists stay intact. */
+@media(max-width:650px){
+ .driving-page.driving-designed #report-list{padding:10px!important}
+ .driving-page.driving-designed #report-list .driving-section-heading{margin-bottom:6px}
+ .driving-page.driving-designed #report-list .driving-report-table tbody{display:grid;gap:8px}
+ .driving-page.driving-designed #report-list .driving-report-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;padding:0;margin:0;align-items:start}
+ .driving-page.driving-designed #report-list .driving-report-table tbody tr>td{padding:6px 8px;line-height:1.4;font-size:13px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label]::before{font-size:11px;line-height:1.4;margin:0 5px 0 0;display:inline}
+ .driving-page.driving-designed #report-list .driving-report-table td small{font-size:12px;line-height:1.4;margin-top:2px}
+ .driving-page.driving-designed #report-list .driving-report-table .driving-report-identity{grid-column:1/-1;padding:7px 8px}
+ .driving-page.driving-designed #report-list .driving-report-table td.driving-report-identity::before{display:none}
+ .driving-page.driving-designed #report-list .driving-report-identity strong{font-size:14px;line-height:1.4}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="主な指標"]{grid-column:1/-1}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="主な指標"] small{display:inline;margin:0 8px 0 4px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="確認・対応"]{grid-column:auto;display:flex;flex-wrap:wrap;align-items:center;gap:3px;min-height:44px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="確認・対応"]::before{display:none}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"]{display:flex;justify-content:flex-end;padding-top:2px;padding-bottom:4px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"]::before{display:none}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="日報"] a{display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;box-sizing:border-box;padding:6px 10px!important;font-size:13px}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="原本"]{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;padding-top:0}
+ .driving-page.driving-designed #report-list .driving-report-table td[data-label="原本"] a{display:inline-flex;align-items:center;min-height:44px}
+ .driving-page.driving-designed #report-list .driving-actions{margin-top:8px;font-size:12px}
+}
