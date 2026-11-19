@@ -1,0 +1,9 @@
+/* Preserve category semantics and native links without noisy repeated badges. */
+:is(#vehicle-karte-overview .ko-timeline,.vehicle-karte-history-table) .vehicle-history-kind-label .history-kind-unit { display:inline-block; white-space:nowrap; overflow-wrap:normal; word-break:keep-all; }
+:is(#vehicle-karte-overview .ko-timeline,.vehicle-karte-history-table) .vehicle-history-kind > .vehicle-history-kind-label { background:transparent; color:#34465c; font-weight:500; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a,
+#vehicle-karte-overview a.ko-history-link { color:#253b53; text-decoration:none; font-weight:400; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:hover,
+#vehicle-karte-overview a.ko-history-link:hover { text-decoration:underline; }
+body.vehicle-list-ppt .vehicle-karte-history-table .vehicle-history-content a:focus-visible,
+#vehicle-karte-overview a.ko-history-link:focus-visible { outline:2px solid #2563eb; outline-offset:2px; text-decoration:underline; }

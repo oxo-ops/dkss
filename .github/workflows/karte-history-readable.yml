@@ -1,0 +1,35 @@
+name: Karte History Readable Browser
+on:
+  push:
+    branches: [fix/karte-history-readable]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          python -m pip install jinja2==3.1.6
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          python -m unittest discover -s tests -p test_karte_history_readable.py
+          mkdir -p "$RUNNER_TEMP/readable/html" "$RUNNER_TEMP/readable/qa"
+          git rev-parse HEAD > "$RUNNER_TEMP/readable/qa/head.txt"
+          python tests/karte_history_readable_browser/render_fixture.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/readable/html"
+          HTML_OUT="$RUNNER_TEMP/readable/html" ARTIFACTS="$RUNNER_TEMP/readable/qa" PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" node tests/karte_history_readable_browser/browser.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: karte-history-readable
+          path: ${{ runner.temp }}/readable/qa
