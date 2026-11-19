@@ -23,8 +23,8 @@ def snap():return [(r.id,r.answers_json,r.status) for r in case.models.VehicleCh
 try:
  if a.preflight_only:
   import unittest
-  import test_demo_session_recovery,test_demo_share_entry
-  result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(m) for m in (test_demo_session_recovery,test_demo_share_entry)]))
+  import test_demo_session_recovery,test_demo_share_entry,test_demo_entry_conflict_message
+  result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(m) for m in (test_demo_session_recovery,test_demo_share_entry,test_demo_entry_conflict_message)]))
   assert result.wasSuccessful();report['preflight_tests']=result.testsRun
  else:
   from playwright.sync_api import sync_playwright
@@ -116,6 +116,10 @@ try:
        assert page.locator('input[name="company_code"]').is_visible()
        assert not page.locator('.public-demo-notice').count()
        assert 'dkss_demo_return' not in {c['name']:c for c in ctx.cookies()}
+       if width<=900:
+        boxes=page.evaluate('''()=>{const h=document.querySelector('.ordinary-login-heading');const r=document.createRange();r.selectNodeContents(h);const t=r.getBoundingClientRect(),b=document.querySelector('#sidebarToggle').getBoundingClientRect();return {textLeft:t.left,buttonRight:b.right}}''')
+        assert boxes['textLeft']>=boxes['buttonRight']+4
+        record['login_title_geometry']=boxes
        page.screenshot(path=str(out/f'{width}-{role}-normal-login.png'),full_page=True)
        page.goto(origin+'/demo',wait_until='networkidle')
        assert urlsplit(page.url).query=='__aonagi_entry=1'
@@ -145,6 +149,9 @@ try:
         page.go_back(wait_until='networkidle');page.reload(wait_until='networkidle')
         assert urlsplit(page.url).query=='__aonagi_entry=1'
         assert not page.locator('.public-demo-notice').count()
+        assert page.get_by_role('heading',name='通常利用を継続しています').is_visible()
+        assert page.get_by_role('link',name='通常利用へ戻る').get_attribute('href')=='/login'
+        assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
         assert any(r['path']=='/' and r['status']==409 for r in requests)
         normal_response=oldtab.goto(origin+'/vehicle/checklists',wait_until='networkidle')
         assert normal_response.status==200

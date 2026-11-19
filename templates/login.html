@@ -4,9 +4,17 @@
 ログイン
 {% endblock %}
 
+{% block page_styles %}
+<style>
+@media (max-width: 900px) {
+    .ordinary-login-heading { padding-left: 56px; min-height: 44px; display: flex; align-items: center; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
-<h2>ログイン</h2>
+<h2 class="ordinary-login-heading">ログイン</h2>
 
 <form
     method="post"
