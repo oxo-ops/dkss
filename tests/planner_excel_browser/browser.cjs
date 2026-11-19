@@ -9,8 +9,11 @@ try{for(const width of [320,390,768,1316]){
  page=await c.newPage();
  for(const view of ['month','calendar','year']){
   await page.goto(base+'/vehicle/inspection-plans?view='+view+'&month=2026-02');await page.waitForSelector('[data-plan-export].ip-excel-action');
+  // Dismiss the genuine first-visit guide before testing toolbar operations.
+  const guideClose=page.locator('[data-guide-close]').filter({visible:true});
+  if(await guideClose.count())await guideClose.click();
   const excel=page.locator('[data-plan-export]');assert(await excel.isVisible());assert(!await page.locator('[data-plan-export-mobile]').isVisible());assert.equal(await excel.getAttribute('aria-label'),'Excel出力');assert.equal((await excel.innerText()).trim(),'');
-  const info=await excel.evaluate(e=>{const r=e.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {width:r.width,height:r.height,right:r.right,hit:n===e||e.contains(n),color:getComputedStyle(e).color,parent:e.parentElement.className}});
+  const info=await excel.evaluate(e=>{const r=e.getBoundingClientRect(),n=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {width:r.width,height:r.height,right:r.right,hit:n===e||e.contains(n),color:getComputedStyle(e).color,parent:e.parentElement.className,blocker:n?.outerHTML.slice(0,300)}});
   assert(info.width>=44&&info.height>=44&&info.right<=width&&info.hit,JSON.stringify(info));assert.equal(info.color,'rgb(35, 117, 75)');assert(info.parent.includes('ip-top-actions'));
   // Native click keeps original endpoint/query and downloads an Excel workbook.
   const url=await excel.getAttribute('href');assert(url.includes('excel'));const downloadPromise=page.waitForEvent('download');await excel.click();const download=await downloadPromise;assert(/\.xlsx$/i.test(download.suggestedFilename()));assert.equal(await download.failure(),null);

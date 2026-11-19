@@ -425,5 +425,5 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action s
 body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:hover{background:#e6f4ec!important;color:#185535!important}
 body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:focus-visible{outline:2px solid #23754b!important;outline-offset:-3px}
 @media(max-width:700px){
- body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title{max-inline-size:calc(100% - 228px)}
+ body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title{max-inline-size:calc(100% - 228px)!important}
 }
