@@ -416,7 +416,7 @@
                                                     <img
                                                         src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
                                                         alt=""
-                                                        class="saved-file-preview-image"
+                                                        class="saved-file-preview-image" loading="lazy" decoding="async"
                                                     >
                                                 </a>
                                             {% else %}
