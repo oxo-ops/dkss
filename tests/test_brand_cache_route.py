@@ -11,7 +11,7 @@ class CacheRouteTests(Base):
    self.assertNotIn('Set-Cookie',r.headers)
    r=self.client.get('/static/'+path+'?v=old')
    self.assertIn('no-store',r.headers['Cache-Control'])
-  r=self.client.get('/')
+  r=self.client.get('/?__aonagi_entry=1')
   self.assertEqual(r.status_code,200);self.assertIn('no-store',r.headers['Cache-Control'])
  def test_expired_session_not_bypassed_on_asset_fetch(self):
   self.login('admin')

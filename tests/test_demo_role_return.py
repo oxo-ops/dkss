@@ -33,7 +33,7 @@ class RoleReturnTests(CompactDemoTests):
         target = (f'/vehicle/checklists/{self.app.config["PUBLIC_DEMO_CHECKLIST_ID"]}'
                   f'?vehicle_record_id={self.vehicle_id}')
         before = self.models.VehicleChecklistResult.query.count()
-        for role, destination in [('driver', target), ('manager', '/')]:
+        for role, destination in [('driver', target), ('manager', '/?__aonagi_entry=1')]:
             response = self.client.post('/demo/role', data={
                 'role':role, 'csrf_token':token, 'demo_entry':'purpose'})
             self.assertEqual(response.location, destination)
@@ -54,7 +54,7 @@ class RoleReturnTests(CompactDemoTests):
         token, page = self.enter()
         self.assertNotIn('name="checklist_return"', page)
         self.assertEqual(self.client.post('/demo/role', data={
-            'role':'driver', 'csrf_token':token}).location, '/')
+            'role':'driver', 'csrf_token':token}).location, '/?__aonagi_entry=1')
 
     def test_untrusted_destinations_cannot_redirect(self):
         token, _ = self.enter()
@@ -63,7 +63,7 @@ class RoleReturnTests(CompactDemoTests):
                        'https://[bad', '/vehicle/checklists/1#x', '\n/vehicle/checklists/1'):
             with self.subTest(target=target):
                 self.assertEqual(self.client.post('/demo/role', data={
-                    'role':'driver', 'csrf_token':token, 'checklist_return':target}).location, '/')
+                    'role':'driver', 'csrf_token':token, 'checklist_return':target}).location, '/?__aonagi_entry=1')
 
     def test_extra_parameters_are_not_forwarded(self):
         token, _ = self.enter()
