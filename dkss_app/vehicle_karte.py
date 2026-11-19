@@ -1115,15 +1115,13 @@ def get_vehicle_karte_history_entries(company_code, vehicle_record_id, *, read_s
                 )
                 if value
             ),
-            "link": (
-                _dkss_common.url_for(
-                    "vehicle_karte_document_source",
-                    vehicle_record_id=vehicle_record_id,
-                    draft_id=source_draft_id,
-                )
-                if source_draft_id
-                else None
-            ),
+            # Keep the first click inside the application. The existing
+            # maintenance detail panel exposes the original document separately.
+            "link": _dkss_common.url_for(
+                "vehicle_karte_maintenance",
+                vehicle_record_id=vehicle_record_id,
+                record_id=record.id,
+            ) + "#maintenance_detail_panel",
         })
 
     repair_events = (

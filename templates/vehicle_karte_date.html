@@ -1,0 +1,6 @@
+{% macro karte_date(value, slash=false) -%}
+{% set text = (value|string) if value else '' %}
+{% set day = text[:10] %}
+{% set iso_day = day|length == 10 and day[4:5] in ['-', '/'] and day[7:8] in ['-', '/'] %}
+<span class="karte-date-desktop">{{ (text|replace('-', '/') if slash else text) if text else '—' }}</span><span class="karte-date-mobile" title="{{ text }}">{{ day[5:]|replace('-', '/') if iso_day else text or '—' }}</span>
+{%- endmacro %}
