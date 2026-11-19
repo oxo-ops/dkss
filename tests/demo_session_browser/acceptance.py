@@ -81,12 +81,15 @@ try:
        serializer=case.app.session_interface.get_signing_serializer(case.app)
        state=serializer.loads(cookies[name]['value']);assert state['demo_role']==role
        page.reload(wait_until='networkidle');current={c['name']:c for c in ctx.cookies()};assert serializer.loads(current[name]['value'])['demo_role']==role
+       before_recovery=urlsplit(page.url)
+       recovery_path=before_recovery.path+('?' + before_recovery.query if before_recovery.query else '')
        with patch('itsdangerous.timed.time.time',return_value=int(time.time())-1801):aged=serializer.dumps(state)
        replacement={k:v for k,v in current[name].items() if k in ('name','domain','path','expires','httpOnly','secure','sameSite')};replacement['value']=aged;ctx.add_cookies([replacement]);requests.clear()
        page.reload(wait_until='networkidle')
        assert page.locator('.public-demo-notice').is_visible();assert all(r['path']!='/login' for r in requests)
-       assert any(r['path']==target and r['location']==target for r in requests)
-       assert urlsplit(page.url).path==target
+       assert any(r['path']==target and r['location']==recovery_path for r in requests)
+       assert urlsplit(page.url).path==before_recovery.path
+       assert parse_qs(urlsplit(page.url).query)==parse_qs(before_recovery.query)
        assert not any(r['path']=='/demo' for r in requests)
        after={c['name']:c for c in ctx.cookies()};assert serializer.loads(after[name]['value'])['demo_role']=='driver'
        assert snap()==before
@@ -95,7 +98,7 @@ try:
        assert not any(r['method']=='POST' and r['path']!='/demo/role' for r in requests)
        record.update(status='passed',requests=requests,business_writes=False)
       except BaseException as e:
-       record.update(status='failed',error=type(e).__name__+':'+str(e))
+       record.update(status='failed',error=type(e).__name__+':'+str(e),requests=requests,current_url=page.url)
        try:page.screenshot(path=str(out/f'{width}-{role}-FAILED.png'),full_page=True)
        except BaseException as shot:record['screenshot_error']=type(shot).__name__
        raise
