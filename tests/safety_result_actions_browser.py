@@ -33,7 +33,7 @@ with sync_playwright() as p:
      assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
      page.screenshot(path=str(OUT/f'heading-{width}-{manage}-{len(title)}.png'),full_page=True)
     page.locator('.safety-results-title-row h2').evaluate('(e)=>e.textContent="営業所安全確認"')
-   add.focus();page.keyboard.press('Enter')
+   add.focus();page.keyboard.press('Enter');page.wait_for_url('https://fixture.invalid/safety/checklists/13/new')
    assert page.url=='https://fixture.invalid/safety/checklists/13/new'
    page.goto('https://fixture.invalid/')
    visible='.safety-results-mobile-list' if width<=768 else '.safety-results-table'

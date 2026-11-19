@@ -1,0 +1,4 @@
+/* Only this result heading/Excel row scrolls with its content. Global controls remain fixed. */
+body .main-content .page-header.checklist-result-detail-header {
+ position: static; top: auto; z-index: auto; background: transparent; box-shadow: none;
+}
