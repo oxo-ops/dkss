@@ -1,0 +1,8 @@
+@media(max-width:767px){
+ .vi-workspace>.karte-inspection-filter{display:block;min-width:0;margin-bottom:8px}
+ .karte-inspection-filter>summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;color:var(--dkss-text-primary);font-weight:600;font-size:13px}
+ .karte-inspection-filter>summary::-webkit-details-marker{display:none}
+ .karte-inspection-filter>summary svg{flex:0 0 22px}
+ .karte-inspection-filter>summary:focus-visible{outline:2px solid #9184e2;outline-offset:2px}
+ .karte-inspection-filter>.vi-nav,.karte-inspection-filter>.vi-filters{margin-top:8px}
+}
