@@ -1,0 +1,38 @@
+name: Plan Demo Purpose Layout Browser
+on:
+  push:
+    branches: [validation/pitch-ready-ui, validation/plan-notice-overlap]
+permissions:
+  contents: read
+jobs:
+  isolated-header:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned isolated browser dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/browser-venv"
+          "$RUNNER_TEMP/browser-venv/bin/python" -m pip install -r requirements.txt playwright==1.62.0
+          "$RUNNER_TEMP/browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Verify exact head, header geometry and click targets
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/browser-venv/bin/python"
+          CHROMIUM=$("$PY" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          DKSS_BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/plan-notice-results" bash tests/plan_notice_browser/run-isolated.sh \
+            "$GITHUB_WORKSPACE" "$PY" --expected-sha "$EXPECTED_HEAD" --run-browser --chromium "$CHROMIUM"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: plan-notice-${{ github.sha }}
+          path: ${{ runner.temp }}/plan-notice-results/
+          retention-days: 14

@@ -1,7 +1,7 @@
 name: Checklist attachment lazy isolated browser
 on:
   push:
-    branches: [validation/karte-docs-lazy-integrated-20261119, validation/documents-lazy-integrated-20261119, 'validation/safety-lazy-live6ca-20261119']
+    branches: [validation/pitch-ready-ui, review/safety-results-heading, validation/karte-docs-lazy-integrated-20261119, validation/documents-lazy-integrated-20261119, 'validation/safety-lazy-live6ca-20261119']
 permissions:
   contents: read
 concurrency:
