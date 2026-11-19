@@ -41,3 +41,7 @@ body .top-bar .karte-mobile-search-trigger{display:inline-flex;align-items:cente
 .karte-mobile-search-dialog .vehicle-karte-search-results{position:static;max-height:none;width:100%;box-sizing:border-box}
 .karte-mobile-search-trigger:focus-visible,.karte-mobile-search-close:focus-visible,.karte-mobile-search-clear:focus-visible{outline:2px solid #176db4;outline-offset:2px}
 }
+/* A named account must not paint backwards over the adjacent search target. */
+@media (min-width:768px) and (max-width:900px) {
+ body .top-bar .karte-mobile-search-trigger + .top-bar-user {min-width:max-content;flex:0 0 auto;}
+}
