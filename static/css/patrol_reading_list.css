@@ -1,6 +1,6 @@
 /* Patrol-specific blue palette; retain the existing slanted ::after tab shape. */
 body:has(.safety-list-breadcrumb) .main-content .tabs .tab {--patrol-tab-bg:#edf4ff;--patrol-tab-border:#cfdef2;color:#536b90}
-body:has(.safety-list-breadcrumb) .main-content .tabs .tab.active {--patrol-tab-bg:#e4efff;--patrol-tab-border:#b8d2f5;color:#145ac8;box-shadow:none}
+body:has(.safety-list-breadcrumb) .main-content .tabs .tab.active {--patrol-tab-bg:#e4efff;--patrol-tab-border:#b8d2f5;background:var(--patrol-tab-bg);border-color:var(--patrol-tab-border);color:#145ac8;box-shadow:none}
 @media(max-width:768px){
  body:has(.safety-list-breadcrumb) .safety-summary-compact .safety-summary-card {background:#f2f7ff;border-color:#d5e3f5;color:#193c67}
  body:has(.safety-list-breadcrumb) .pointouts-list-toolbar>.pointouts-pagination {display:none!important}
