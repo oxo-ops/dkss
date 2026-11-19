@@ -267,7 +267,7 @@
                                 >
                                     <img
                                         src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                        class="checklist-result-attachment-image"
+                                        class="checklist-result-attachment-image" loading="lazy" decoding="async"
                                     >
                                 </a>
 
@@ -385,7 +385,7 @@
                                 >
                                     <img
                                         src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                        class="checklist-result-attachment-image"
+                                        class="checklist-result-attachment-image" loading="lazy" decoding="async"
                                     >
                                 </a>
                             {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
@@ -473,7 +473,7 @@
                             >
                                 <img
                                     src="{{ url_for('uploaded_file', folder='uploads', filename=file) }}"
-                                    class="checklist-result-attachment-image"
+                                    class="checklist-result-attachment-image" loading="lazy" decoding="async"
                                 >
                             </a>
                         {% elif ext in ['mp4', 'webm', 'mov', 'm4v'] %}
