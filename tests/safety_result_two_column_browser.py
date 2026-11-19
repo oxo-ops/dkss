@@ -30,6 +30,10 @@ with sync_playwright() as p:
      rects=[x.bounding_box() for x in cells]
      assert len(rects)==2 and abs(rects[0]['y']-rects[1]['y'])<2
      assert rects[0]['x']+rects[0]['width']<=rects[1]['x']
+     controls=pg.locator('.safety-result-mobile-card').first.locator('.safety-result-mobile-detail,.btn-edit,.btn-delete').all()
+     boxes=[c.bounding_box() for c in controls]
+     assert all(abs(r['height']-44)<1 for r in boxes),boxes
+     assert max(r['y'] for r in boxes)-min(r['y'] for r in boxes)<1,boxes
      h=pg.locator('.safety-result-mobile-card').first.bounding_box()['height'];assert h<230,h
     pg.screenshot(path=str(out/f'two-column-{width}-{count}-{manage}.png'),full_page=True)
     if count:
