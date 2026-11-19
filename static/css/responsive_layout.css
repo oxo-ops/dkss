@@ -264,7 +264,6 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  body[data-responsive-shell] .top-bar :is(#firstUseGuide > .first-guide-launch,.notification-bell,.top-bar-user,.karte-mobile-search-trigger) {
   background:var(--dkss-page-background,#f4f6fc); border-radius:50%;
  }
- body[data-responsive-shell]:not(.sidebar-open) .sidebar-toggle {background:#64748b;}
 }
 @media screen and (max-width:767px) {
  body[data-responsive-shell] .main-content > .top-bar {padding-inline-start:52px;align-items:center;}
@@ -312,3 +311,9 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  }
 }
 
+
+/* A closed desktop rail keeps navigation, not a duplicate compact brand. */
+@media screen and (min-width:901px) {
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head > .alseon-logo {display:none !important;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head {gap:0;}
+}

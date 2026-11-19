@@ -112,8 +112,9 @@ def brand_roundtrip(page, width, out, role, scene=0):
         word = page.locator('.alseon-wordmark')
         symbol = page.locator('.alseon-symbol')
         require(word.is_visible() == (state == 'expanded'), 'wrong wordmark visibility')
-        require(symbol.is_visible() == (state == 'collapsed'), 'wrong symbol visibility')
+        require(not symbol.is_visible(), 'compact symbol must not appear on closed desktop rail')
         logo = page.locator('.alseon-logo')
+        require(logo.is_visible() == (state == 'expanded'), 'closed desktop brand must be hidden; open logo retained')
         require(logo.get_attribute('aria-label') == 'ALSEON ホーム', 'brand accessible name')
         require(logo.locator('img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth>0)'), 'logo asset failed to load')
         require(logo.evaluate("e=>getComputedStyle(e).backgroundColor") == 'rgba(0, 0, 0, 0)', 'opaque logo tile')
@@ -126,7 +127,11 @@ def brand_roundtrip(page, width, out, role, scene=0):
           const contained=q=>q.left>=s.left-1&&q.right<=s.right+1&&q.top>=s.top-1&&q.bottom<=s.bottom+1;
           return {width:r.width,height:r.height,sidebarWidth:s.width,sidebarRight:s.right,toggleRight:t.right,sidebarContainsLogo:contained(r),sidebarContainsToggle:contained(t),inside:r.left>=0&&r.right<=innerWidth,
             overlap:r.left<t.right&&r.right>t.left&&r.top<t.bottom&&r.bottom>t.top}}''')
-        require(geometry['inside'] and geometry['sidebarContainsLogo'] and geometry['sidebarContainsToggle'] and not geometry['overlap'], f'brand clips/overlaps toggle: {geometry}')
+        require(geometry['sidebarContainsToggle'] and not geometry['overlap'], f'toggle clips/overlaps: {geometry}')
+        if state == 'expanded':
+            require(geometry['inside'] and geometry['sidebarContainsLogo'], f'open brand clips: {geometry}')
+        else:
+            require(geometry['width'] == 0 and geometry['height'] == 0, f'closed brand retains space: {geometry}')
         page.screenshot(path=str(out / f'brand-{role}-{width}-{scene}-{state}.png'), full_page=False)
         checks.append(dict(state=state, **geometry))
     toggle.click()  # restore closed mobile drawer / expanded desktop

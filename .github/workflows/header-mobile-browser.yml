@@ -1,7 +1,7 @@
 name: Mobile Header Search Browser
 on:
   push:
-    branches: [validation/karte-session-integrated-20261119, validation/mobile-title-flow-20261119, validation/header-mobile-search-20261119, validation/release-integrated-20261119, validation/header-guide-followup-20261119, validation/ui-polish-integrated-20261119]
+    branches: [validation/hamburger-alpha-20261119, validation/karte-session-integrated-20261119, validation/mobile-title-flow-20261119, validation/header-mobile-search-20261119, validation/release-integrated-20261119, validation/header-guide-followup-20261119, validation/ui-polish-integrated-20261119]
 permissions:
   contents: read
 jobs:
