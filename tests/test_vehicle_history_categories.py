@@ -115,3 +115,31 @@ class HistoryCategoryTests(unittest.TestCase):
         self.assertNotIn('所属・担当変更', body)
         self.assertNotIn('運行実績を取り込み', body)
         self.assertEqual(self.client.get('/master/vehicles/999999/karte/history').status_code, 404)
+
+    def test_maintenance_history_opens_app_detail_before_original(self):
+        m = self.m
+        record = m.VehicleMaintenanceRecord(company_code='TEST', vehicle_record_id=self.vehicle.id,
+            content='History detail fixture', category='整備', status='完了', total_cost=1234,
+            invoice_details_json='{"source":{"draft_id":"history-fixture-source"}}')
+        m.db.session.add(record); m.db.session.commit()
+        response, ctx = self.get('?category=maintenance')
+        entry = next(r for r in ctx['history_page'].items if r['key'] == f'maintenance:{record.id}')
+        parts = urlsplit(entry['link'])
+        self.assertEqual(parts.fragment, 'maintenance_detail_panel')
+        self.assertTrue(parts.path.endswith(f'/maintenance/{record.id}'))
+        self.assertNotIn('/source', parts.path)
+        # Both mobile and desktop presentation use the same protected detail URL.
+        body = response.get_data(as_text=True)
+        self.assertGreaterEqual(body.count(entry['link']), 2)
+        before = m.VehicleMaintenanceRecord.query.count()
+        detail = self.client.get(entry['link'])
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn('maintenance_detail_panel', detail.get_data(as_text=True))
+        self.assertIn('History detail fixture', detail.get_data(as_text=True))
+        self.assertEqual(m.VehicleMaintenanceRecord.query.count(), before)
+        # A foreign-company record cannot be opened by altering record_id.
+        foreign = m.VehicleMaintenanceRecord(company_code='OTHER', vehicle_record_id=self.vehicle.id,
+            content='PRIVATE_DETAIL', status='完了')
+        m.db.session.add(foreign); m.db.session.commit()
+        bad = self.client.get(parts.path.rsplit('/', 1)[0] + '/' + str(foreign.id))
+        self.assertNotIn('PRIVATE_DETAIL', bad.get_data(as_text=True))
