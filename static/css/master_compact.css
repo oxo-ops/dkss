@@ -1,6 +1,6 @@
 .master-compact-add,.master-filter-toggle{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;box-sizing:border-box;border:1px solid #bfd1e6;border-radius:50%;background:#fff;color:var(--dkss-action-blue,#2563eb);box-shadow:0 2px 5px #183b6914;cursor:pointer;text-decoration:none}
 .master-compact-add{font-size:24px}
-.master-filter-toggle[hidden],#driverFilterPanel[hidden],#vehicleFilterPanel[hidden]{display:none!important}
+.master-filter-toggle[hidden],#driverFilterPanel[hidden],#vehicleFilterPanel[hidden],#checklistFilterPanel[hidden]{display:none!important}
 .master-filter-toggle:focus-visible,.master-compact-add:focus-visible,.master-compact-row>summary:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
 @media(max-width:768px){
 .mobile-card-list:has(.master-compact-row){gap:0;border-top:1px solid #d9e2ed}
