@@ -120,7 +120,8 @@
         <div class="nd-message mention-display"
              data-value="{{ summary_message }}"></div>
 
-        {% if summary_message != notification.message %}
+        {% set full_display_message = notification.display_message | default(notification.message, true) %}
+        {% if summary_message != full_display_message %}
             <details class="nd-attachments">
                 <summary>
                     <span>詳細を見る</span>
@@ -131,7 +132,7 @@
                     </svg>
                 </summary>
                 <div class="nd-message mention-display"
-                     data-value="{{ notification.message }}"></div>
+                     data-value="{{ full_display_message }}"></div>
             </details>
         {% endif %}
 
