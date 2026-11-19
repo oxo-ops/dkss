@@ -4,7 +4,8 @@ Production activation is intentionally prohibited pending deployment review.
 """
 import os
 import time
-from flask import abort, current_app, g, redirect, request, session
+from flask import abort, current_app, g, redirect, request, session, url_for
+from urllib.parse import urlencode
 
 MARKER = 'aonagi_readonly_demo'
 SHARE_QUERY = '__aonagi_entry'
@@ -87,6 +88,7 @@ def install(app):
         g.public_demo_entry_ok = False
         g.public_demo_recovery_redirect = False
         marked = SHARE_QUERY in request.args
+        recovery_target = None
         if marked:
             if request.method != 'GET':
                 abort(405)
@@ -117,17 +119,21 @@ def install(app):
                 and current_app.config.get('PUBLIC_DEMO_SHARED_COMPANY')
                 and int(time.time()) >= current_app.config.get('PUBLIC_DEMO_FROM', 0)
                 and not expired() and recovery_valid()):
-            # No original URL/role is replayed, and no business POST is repeated.
+            # Build a local route from Flask's matched endpoint, never a caller's
+            # return URL. Reissue only the dedicated driver; do not recover roles
+            # or replay a business POST. The following GET runs all normal guards.
+            recovery_target = url_for(request.endpoint, **(request.view_args or {}))
+            if request.args:
+                recovery_target += '?' + urlencode(list(request.args.items(multi=True)))
             g.public_demo_recovery_redirect = True
-            return redirect('/demo')
-        if request.path == '/demo' or (marked and not is_demo()):
+        if request.path == '/demo' or (marked and not is_demo()) or recovery_target:
             from .extensions import limiter
             if limiter.enabled:
                 with limiter.limit('30 per minute', scope='public_demo_entry'):
                     pass
             if request.method != 'GET':
                 abort(405)
-            if request.args and not marked:
+            if request.args and not marked and recovery_target is None:
                 abort(400)  # No user/company/role/redirect overrides from callers.
             if int(time.time()) < current_app.config.get('PUBLIC_DEMO_FROM',0):
                 abort(404)
@@ -136,7 +142,7 @@ def install(app):
                 abort(410)
             if session.get('username') and not is_demo():
                 abort(409)  # Do not replace an ordinary authenticated session.
-            user = target_user(force_driver=marked)
+            user = target_user(force_driver=marked or recovery_target is not None)
             from .public_demo_shared import enabled as shared
             if not shared():
                 from .models import Vehicle
@@ -150,7 +156,7 @@ def install(app):
                                account_identity=user.account_identity, role=user.role,
                                name=(user.last_name or '')+(user.first_name or ''), office=user.office,
                                password_changed_at=user.password_changed_at, password_expired=False)
-                if marked:
+                if marked or recovery_target is not None:
                     state['demo_role'] = 'driver'
                 state[MARKER] = True
                 issue(state)
@@ -165,6 +171,9 @@ def install(app):
             from .public_demo_shared import enabled as shared
             if enabled() and not shared():
                 bind_shared_result()
+            if recovery_target is not None:
+                session.pop('demo_role_selected', None)
+                return redirect(recovery_target)
             if marked:
                 # Redirect to the same reviewed URL, then run the complete normal guard.
                 return redirect(request.full_path.rstrip('?'))
