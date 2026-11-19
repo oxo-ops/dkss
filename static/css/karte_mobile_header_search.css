@@ -26,3 +26,18 @@
   max-block-size:100dvh!important;
  }
 }
+
+/* Desktop uses the same search icon and field actions without a full-screen sheet. */
+@media(min-width:768px){
+body .top-bar .karte-mobile-search-trigger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit}
+.karte-mobile-search-dialog[open]{display:block;width:min(680px,calc(100vw - 48px));max-height:80dvh;border:1px solid #d8e4f1;border-radius:16px;padding:24px;box-sizing:border-box;background:#f6f8fb;color:#192b43;overflow:auto}
+.karte-mobile-search-dialog .vehicle-karte-search{display:block;width:100%;max-width:none;margin:0;padding-right:48px;box-sizing:border-box}
+.karte-mobile-search-close{position:absolute;right:8px;top:12px;width:44px;height:44px;border:0;background:transparent;font-size:28px;color:inherit}
+.karte-mobile-search-field{display:block;position:relative}
+.karte-mobile-search-dialog input[type=search]{width:100%;min-height:44px;padding-right:44px;box-sizing:border-box;border-radius:24px}
+.karte-mobile-search-dialog input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+.karte-mobile-search-clear{display:inline-flex;align-items:center;justify-content:center;position:absolute;right:0;top:0;width:44px;height:44px;padding:0;border:0;background:transparent;color:#245c9a;font-size:22px}
+.karte-mobile-search-clear[hidden]{display:none!important}
+.karte-mobile-search-dialog .vehicle-karte-search-results{position:static;max-height:none;width:100%;box-sizing:border-box}
+.karte-mobile-search-trigger:focus-visible,.karte-mobile-search-close:focus-visible,.karte-mobile-search-clear:focus-visible{outline:2px solid #176db4;outline-offset:2px}
+}

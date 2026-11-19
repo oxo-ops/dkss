@@ -4,7 +4,6 @@
     const search = input?.closest('.vehicle-karte-search');
     const bar = search?.closest('.top-bar');
     if (!search || !bar || typeof HTMLDialogElement === 'undefined') return;
-    const mobile = matchMedia('(max-width: 767px)');
     const anchor = document.createComment('vehicle search original position');
     search.before(anchor);
     const trigger = document.createElement('button');
@@ -36,10 +35,10 @@
         if (!dialog.open) return;
         input.value = previous; input.dispatchEvent(new Event('input', {bubbles:true}));
         dialog.close(); trigger.setAttribute('aria-expanded', 'false');
-        if (restoreFocus && mobile.matches) trigger.focus();
+        if (restoreFocus) trigger.focus();
     };
     trigger.addEventListener('click', () => {
-        if (!mobile.matches || dialog.open) return;
+        if (dialog.open) return;
         previous = input.value; dialog.showModal();
         trigger.setAttribute('aria-expanded', 'true'); input.focus();
     });
@@ -54,9 +53,5 @@
             event.preventDefault(); dismiss();
         }
     });
-    const layout = () => {
-        if (mobile.matches) dialog.prepend(search);
-        else { dismiss(false); anchor.after(search); }
-    };
-    mobile.addEventListener('change', layout); layout();
+    dialog.prepend(search);
 })();
