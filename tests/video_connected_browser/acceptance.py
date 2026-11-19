@@ -895,9 +895,13 @@ def main():
                     report['cases'].append(f'Browser connected normal screens, width {width}, navigation and saved records')
                 if args.case == 'invoice':
                     require(len(report['invoice_preview_observations']) ==
-                            len(report['verified_invoice_preview_fetches']) == 6 and
+                            len(report['verified_invoice_preview_fetches']) == 9 and
                             not report['invoice_preview_console_errors'],
-                            'All six invoice previews must finish visibly without console errors')
+                            'All nine invoice previews must finish visibly without console errors')
+                    require({(entry['width'], entry['stage']) for entry in report['invoice_preview_observations']} ==
+                            {(width, stage) for width in (1440, 390, 320)
+                             for stage in ('history-detail', 'maintenance-tab', 'maintenance-record')},
+                            'Each width and distinct invoice entry route must be covered exactly once')
                 require(not report['page_errors'] and not report['failed_gets'] and not report['blocked_requests'] and not report['failed_requests'], 'Browser request or script failure')
                 require(snapshot() == before, 'Browser GET changed protected saved data')
                 report.update(status='PASS', browser_acceptance_passed=True, protected_records_unchanged=True)
