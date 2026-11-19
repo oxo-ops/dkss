@@ -4,7 +4,7 @@
   "templates/driving_report_detail.html": "1ccc4e09c40cc97adf5a41eee6240d4820869de0cd87f1aa4c2a72ff35461a2e",
   "static/js/driving_report_detail.js": "b1014f5638830a384d8e4e6e238702d7abd3a37b73bc2fa915f140a315f2d7ae",
   "static/js/base.js": "e8901f2ff8d48fda3f08dc6abfa1a2b225423c3bfca02593ff0c19565d917ef7",
-  "templates/base.html": "4a390af23ace5cc4d1cb7d7bf8a0e2dff230b4def6d5a0e9fd4571d05b406ba0",
+  "templates/base.html": "77df4b9236ada4ede2286877b5644901a3b327d4ff8c28a4eff20fa60eee0240",
   "dkss_app/http.py": "1975b8e3e17f9f9791c4e30f7aab1ef58ef2ce11102db041f2e785e6052806a2",
   "dkss_app/access.py": "c2a1daf4f7b75e19dfce1c283128853ab0e2ab5cd696f3e053369bd09036cb3b"
 }

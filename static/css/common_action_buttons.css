@@ -40,3 +40,11 @@
   body .main-content .pointouts-table .action-buttons > a.btn-small:first-child {min-height:44px!important; padding:9px 12px!important;}
  }
 }
+
+/* Existing PC patrol cells include icons: keep each short action on one line. */
+@layer alseon-actions {
+ @media(min-width:769px) {
+  body .main-content .pointouts-table .action-buttons > :is(a,form) {flex:0 0 auto;}
+  body .main-content .pointouts-table .action-buttons :is(a,button).btn-small {white-space:nowrap!important;min-width:60px!important;padding-inline:6px!important;gap:4px!important;}
+ }
+}

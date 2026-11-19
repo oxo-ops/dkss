@@ -53,7 +53,7 @@ assert.equal(await cards.locator('.btn-delete').first().evaluate(e=>getComputedS
 const first=cards.first(),image=list.locator('img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());assert(await image.evaluate(e=>e.naturalWidth>0));
 await first.locator('.patrol-record-link').click();await page.waitForURL(/\/pointouts\/\d+$/);assert((await page.locator('body').innerText()).includes('安全パトロール詳細'));await page.goBack();await list.waitFor({state:'visible'});
 await cards.nth(1).locator('.patrol-record-link').press('Enter');await page.waitForURL(/\/pointouts\/\d+$/);await page.goBack();await list.waitFor({state:'visible'});
-}else{assert(await form.isVisible(),'PC form stays available');await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-pc.png'),fullPage:true});}
+}else{assert(await form.isVisible(),'PC form stays available');for(const control of await page.locator('.pointouts-table .action-buttons .btn-small').all()){assert.equal(await control.evaluate(e=>getComputedStyle(e).whiteSpace),'nowrap');assert(await control.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'PC action text overflow');const b=await control.boundingBox();assert(b.height<=44,'PC action wrapped');}await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-pc.png'),fullPage:true});}
 // Exercise original GET submission, retained conditions, zero results and full reset.
 if(width<=768)await filter.locator('summary').click();
 await form.locator('[name=keyword]').fill('通路');
