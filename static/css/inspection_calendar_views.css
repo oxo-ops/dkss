@@ -427,3 +427,11 @@ body .main-content .inspection-plans[data-inspection-planner] .ip-excel-action:f
 @media(max-width:700px){
  body[data-responsive-shell].ip-mobile-workspace .main-content > .mobile-shell-title{max-inline-size:calc(100% - 228px)!important}
 }
+/* Pending bookings must be readable/tappable rather than a clipped 34px strip. */
+@media(max-width:700px){
+ body .main-content .inspection-plans[data-inspection-planner] .ip-cal-pending{display:block!important;overflow:visible;padding:10px!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-cal-pending h3{margin:0 0 8px!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-cal-pending-items{display:grid!important;grid-template-columns:minmax(0,1fr);gap:6px;max-height:min(35dvh,260px)!important;overflow-x:hidden;overflow-y:auto;touch-action:pan-y;overscroll-behavior-y:contain}
+ body .main-content .inspection-plans[data-inspection-planner] button.ip-cal-pending-item{display:grid!important;grid-template-columns:minmax(0,1fr);width:100%;box-sizing:border-box;height:auto!important;min-height:52px!important;padding:8px 10px!important;white-space:normal!important;overflow-wrap:anywhere;line-height:1.5!important}
+ body .main-content .inspection-plans[data-inspection-planner] .ip-cal-pending-item strong{max-width:none;white-space:normal;overflow:visible}
+}
