@@ -2,6 +2,10 @@
 
 {% block title %}チェックリスト結果詳細{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_detail_flow.css', v='20261119-1') }}">
+{% endblock %}
+
 {% block content %}
 
 {% if approval_conflict %}
