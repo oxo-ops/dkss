@@ -45,6 +45,7 @@ class Pages(CompactDemoTests):
    rule=next(r for r in self.app.url_map.iter_rules() if r.endpoint==name and 'GET' in r.methods)
    args={k:({'vehicle_record_id':self.vehicle_id,'batch_id':draft.batch_id,'draft_id':draft.id}.get(k,ids.get(name,self.app.config['PUBLIC_DEMO_CHECKLIST_ID']))) for k in rule.arguments if k not in (rule.defaults or {})}
    with self.app.test_request_context():p=url_for(name,**args)
+   if name=='dashboard':p+='?__aonagi_entry=1'
    r=self.client.get(p);body=r.get_data(as_text=True)
    rows.append({'endpoint':name,'path':p,'status':r.status_code,'guide':'id="firstUseGuide"' in body,'location':r.headers.get('Location')})
    if name=='notification_detail':
