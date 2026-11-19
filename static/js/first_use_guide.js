@@ -511,6 +511,7 @@
   const initial=state(storage,name);
   let steps=[], index=0, active=null, previous=null;
   let resumeSelector=null;
+  let panelPointer=null, pointerStartedInside=false;
   const resumable=root.dataset.mode==='demo' && root.dataset.page==='vehicle_checklist_results';
   const launchLabel=launch.querySelector('.first-guide-launch-label');
   function clearResume(){resumeSelector=null;launch.setAttribute('aria-label','この画面の使い方を見る');if(launchLabel)launchLabel.textContent='使い方';}
@@ -530,7 +531,13 @@
   function close(restore=true, keepResume=false){if(!keepResume)clearResume();clearTarget();panel.hidden=true;remember();if(restore && previous && previous.isConnected) previous.focus({preventScroll:true});}
   function position(){
     if(panel.hidden || !active) return;
-    if(!visible(active)){close(false);return;}
+    if(!visible(active)){
+      const replacement=steps[index] && find(steps[index].selector);
+      if(!replacement){close(false);return;}
+      clearTarget();active=replacement;steps[index].target=replacement;active.classList.add('first-guide-target');
+    }
+    // Do not move the action row out from under a pressed finger or mouse.
+    if(panelPointer!==null)return;
     const visual=window.visualViewport;
     const viewport={left:visual?visual.offsetLeft:0,top:visual?visual.offsetTop:0,width:visual?visual.width:innerWidth,height:visual?visual.height:innerHeight};
     // DOMRect is visual geometry; fixed style coordinates remain unzoomed.
@@ -578,8 +585,21 @@
   next.addEventListener('click',()=>{index++;show();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.preventDefault();close();}});
   // If the user operates the real UI, get out of the way. Never trigger that UI ourselves.
-  document.addEventListener('click',e=>{if(!panel.hidden&&!root.contains(e.target)) {if(resumable)pauseForOperation(e.target);else close(false);}},true);
-  new MutationObserver(()=>{if(!panel.hidden && active && !visible(active)) close(false);}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
+  document.addEventListener('pointerdown',e=>{
+    pointerStartedInside=!panel.hidden && root.contains(e.target);
+    if(!panel.hidden && panel.contains(e.target))panelPointer=e.pointerId;
+  },true);
+  const releasePointer=e=>{
+    if(panelPointer===e.pointerId){panelPointer=null;requestAnimationFrame(position);}
+    if(e.type==='pointercancel')pointerStartedInside=false;
+  };
+  document.addEventListener('pointerup',releasePointer,true);
+  document.addEventListener('pointercancel',releasePointer,true);
+  document.addEventListener('click',e=>{
+    const fromPanel=pointerStartedInside;pointerStartedInside=false;
+    if(!panel.hidden&&!root.contains(e.target)&&!fromPanel){if(resumable)pauseForOperation(e.target);else close(false);}
+  },true);
+  new MutationObserver(()=>{if(!panel.hidden && active && !visible(active)) position();}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
   // Images/fonts may finish after show(); reposition when the rendered card grows.
   // Keep the target visible and the action row inside the viewport on PC too.
   if(typeof ResizeObserver!=='undefined') new ResizeObserver(position).observe(panel);
@@ -596,5 +616,6 @@
     else afterLayout();
   }else startInitialGuide();
 })();
+
 
 
