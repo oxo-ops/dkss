@@ -28,6 +28,8 @@ class Pages(CompactDemoTests):
   ids={'pointout_detail':point.id,'edit_pointout':point.id,'notification_detail':notice.id,'safety_checklist_results':safety.id,'driving_report_detail':report.id}
   db.session.add(m.Checklist(company_code='AONAGI',name='防災確認',target='安全管理',display_type='日',items_json='[]'))
   user.office='test'
+  from dkss_app.vehicle_inspection_plans_models import get_models
+  db.session.add(get_models(db)[2](company_code='AONAGI',vehicle_record_id=self.vehicle_id,kind='3month',performed_date='2026-10-23',created_by='admin',created_at='2026-10-23T10:00:00'))
   db.session.add(m.VehicleMaintenanceRecord(company_code='AONAGI',vehicle_record_id=self.vehicle_id,category='整備',status='実施済み',entry_date='2026-11-18',completion_date='2026-11-18',content='タイヤの状態確認',total_cost=1000,created_by_username='admin'))
   db.session.add(m.VehicleKarteAnalysis(company_code='AONAGI',vehicle_record_id=self.vehicle_id,status='completed',result_json=json.dumps({'analysis':{'recommendations':[{'proposal_id':'synthetic-1','title':'タイヤの状態確認','target':'タイヤ','category':'整備・点検','priority':'中','action':'次の運行前に確認する','reason':'点検記録に確認待ちがある','timing':'次の運行前'}]},'generated_at':'2026-11-18T00:00:00Z'},ensure_ascii=False)))
   from datetime import datetime,timezone

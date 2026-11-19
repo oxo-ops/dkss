@@ -1,0 +1,6 @@
+.karte-date-mobile{display:none}
+@media(max-width:768px){
+ .karte-date-desktop{display:none}
+ .karte-date-mobile{display:inline;white-space:nowrap}
+ .km-record-date .karte-date-duplicate{display:none}
+}
