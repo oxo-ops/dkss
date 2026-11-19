@@ -1,8 +1,8 @@
 /* Reuse checklist attachment geometry and icons, preserving native file controls. */
-.pointout-file-upload-cell > .file-upload-button{min-height:48px;height:48px;min-width:84px;box-sizing:border-box;border-radius:8px;padding:10px 16px;gap:8px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
-.pointout-file-upload-cell > .file-upload-button-camera{color:#fff;background:var(--dkss-action-blue);border-color:var(--dkss-action-blue)}
-.pointout-file-upload-cell > .file-upload-button-camera:hover{color:#fff;background:#1d4ed8;border-color:#1d4ed8}
-.pointout-file-upload-cell > .file-upload-button-secondary{color:var(--dkss-action-blue);background:var(--dkss-surface);border-color:#bfdbfe}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button{min-height:48px;height:48px;min-width:84px;box-sizing:border-box;border-radius:8px;padding:10px 16px;gap:8px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button-camera{color:#fff;background:var(--dkss-action-blue);border-color:var(--dkss-action-blue)}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button-camera:hover{color:#fff;background:#1d4ed8;border-color:#1d4ed8}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button-secondary{color:var(--dkss-action-blue);background:var(--dkss-surface);border-color:#bfdbfe}
 .pointout-file-upload-cell .patrol-attachment-icon{width:20px;height:20px;flex:0 0 20px}
-.pointout-file-upload-cell > .file-upload-button:focus-within{outline:2px solid #9184e2;outline-offset:2px}
-.pointout-file-upload-cell > .file-upload-button[hidden]{display:none}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button:focus-within{outline:2px solid #9184e2;outline-offset:2px}
+body .main-content .form-card .pointout-file-upload-cell > label.file-upload-button[hidden]{display:none}
