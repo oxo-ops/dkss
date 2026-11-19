@@ -1,0 +1,24 @@
+.karte-identity-open[hidden],.karte-identity-dialog:not([open]){display:none!important}
+.karte-identity-alerts:empty{display:none}
+@media(max-width:767px){
+ body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-identity-condensed{grid-template-columns:48px minmax(0,1fr);gap:8px;padding:10px 12px;margin-bottom:8px;align-items:center}
+ body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-photo-empty{width:48px;height:48px;min-height:0;padding:4px}
+ body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-number-row{display:flex;gap:6px;align-items:center;margin:0}
+ body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-number-row h2{font-size:17px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+ .karte-identity-open{display:inline-flex;flex:0 0 44px;align-items:center;justify-content:center;width:44px;min-width:44px;height:44px;min-height:44px;margin:0 0 0 auto;padding:0;border:0;border-radius:8px;background:transparent;color:#245c9a;box-shadow:none}
+ body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-model{font-size:12px;margin:0;overflow-wrap:anywhere}
+ .karte-identity-alerts{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+ .karte-identity-alerts>.vehicle-karte-defect-count,.karte-identity-alerts>.ip-compact-deadline{display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #edd9b4;border-radius:8px;background:#fffaf0;font-size:12px}
+ .karte-identity-dialog[open]{position:fixed;inset:auto 0 0;width:100%;max-width:none;max-height:85dvh;margin:0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));border:1px solid #d4e2f0;border-radius:18px 18px 0 0;background:#f6f9fd;color:#19324f;box-sizing:border-box;overflow:auto}
+ .karte-identity-dialog::backdrop{background:#17324f55}
+ .karte-identity-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+ .karte-identity-dialog-heading h2{font-size:18px;margin:0}
+ .karte-identity-close{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:#245c9a;font-size:26px;box-shadow:none}
+ .karte-identity-dialog .karte-header-attributes{display:block}
+ .karte-identity-dialog .vehicle-karte-basic-grid{display:grid;grid-template-columns:1fr;margin:0 0 12px}
+ .karte-identity-dialog .vehicle-karte-basic-grid>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px;padding:5px 0;border-bottom:1px solid #e0e8f0}
+ .karte-identity-dialog .vehicle-karte-basic-grid :is(dt,dd){margin:0;font-size:13px;overflow-wrap:anywhere}
+ .karte-identity-dialog .vehicle-karte-summary{display:grid;gap:10px}
+ .karte-identity-dialog :is(.vehicle-karte-metrics,.vehicle-karte-deadlines){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .karte-identity-open:focus-visible,.karte-identity-close:focus-visible{outline:2px solid #176db4;outline-offset:2px}
+}
