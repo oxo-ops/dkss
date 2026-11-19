@@ -9,5 +9,5 @@ env -i PATH="$PATH" HOME="$RUN/home" LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 PYTH
 SERVER=$!
 for i in $(seq 1 60); do [[ -f "$RUN/server/ready" ]] && break; kill -0 "$SERVER" || { cat "$OUT/server.log"; exit 1; }; sleep 1; done
 [[ -f "$RUN/server/ready" ]]
-env -i PATH="$PATH" HOME="$RUN/home" Q12_BROWSER_EXECUTABLE="$CHROME" PLAYWRIGHT_MODULE="${PLAYWRIGHT_MODULE:?}" node "$HERE/app.cjs" "$RUN/server/fixture.json" "$OUT"
+env -i PATH="$PATH" HOME="$RUN/home" LANG=C.UTF-8 Q12_BROWSER_EXECUTABLE="$CHROME" PLAYWRIGHT_MODULE="${PLAYWRIGHT_MODULE:?}" node "$HERE/app.cjs" "$RUN/server/fixture.json" "$OUT"
 
