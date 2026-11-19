@@ -46,7 +46,8 @@ try{for(const width of [320,390,768,1024,1180,1440])for(const name of ['dashboar
    assert.equal(await menu.getAttribute('aria-expanded'),String(!collapsed));
    const rail=await sidebar.boundingBox();assert(collapsed?rail.width<=75:rail.width>=160,'desktop rail width matches state');
    assert.equal(await page.locator('.alseon-wordmark').isVisible(),!collapsed);
-   assert.equal(await page.locator('.alseon-symbol').isVisible(),collapsed);
+   assert.equal(await page.locator('.alseon-symbol').isVisible(),false);
+   assert.equal(await page.locator('.sidebar-head > .alseon-logo').isVisible(),!collapsed);
    const label=page.locator('.sidebar .menu-text').first();assert.equal(await label.isVisible(),!collapsed);
    if(collapsed)assert.equal(await page.locator('.sidebar-submenu').evaluateAll(es=>es.some(e=>e.getBoundingClientRect().height>0)),false,'collapsed submenus hidden');
    await page.screenshot({path:path.join(out,`desktop-sidebar-${width}-${collapsed?'collapsed':'expanded'}.png`)});

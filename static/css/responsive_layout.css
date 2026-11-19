@@ -311,3 +311,9 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
  }
 }
 
+
+/* A closed desktop rail keeps navigation, not a duplicate compact brand. */
+@media screen and (min-width:901px) {
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head > .alseon-logo {display:none !important;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head {gap:0;}
+}
