@@ -10,3 +10,19 @@ SERVER=$!
 for i in $(seq 1 60); do [[ -f "$RUN/server/ready" ]] && break; kill -0 "$SERVER" || { cat "$OUT/server.log"; exit 1; }; sleep 1; done
 [[ -f "$RUN/server/ready" ]]
 env -i PATH="$PATH" HOME="$RUN/home" Q12_BROWSER_EXECUTABLE="$CHROME" PLAYWRIGHT_MODULE="${PLAYWRIGHT_MODULE:?}" node "$HERE/browser.cjs" "$RUN/server/fixture.json" "$OUT"
+
+# Validate the actual native downloads, not Chromium's provisional name.
+"$PY" - "$OUT" <<'PYBOOK'
+from pathlib import Path
+from openpyxl import load_workbook
+import sys
+files=list(Path(sys.argv[1]).glob('download-*.xlsx'))
+assert len(files)==12,len(files)
+for file in files:
+ w=load_workbook(file)
+ assert w.sheetnames==['年間点検計画','点検明細'],w.sheetnames
+ assert w.active['A1'].value=='2025年度 点検計画'
+ assert '試験営業所' in w.active['A2'].value
+ assert '1台' in w.active['A3'].value and '対象1件' in w.active['A3'].value
+print('NATIVE_WORKBOOKS_OK',len(files))
+PYBOOK
