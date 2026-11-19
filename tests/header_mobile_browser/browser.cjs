@@ -8,7 +8,7 @@ async function motion(page,opening){
  return rows;
 }
 (async()=>{fs.mkdirSync(out,{recursive:true});let report=[],blocked=[],current;const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checklist_result_detail','driving_reports','pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input','demo_settings_manager','demo_settings_driver','normal_settings_manager','normal_settings_driver']){
+try{for(const width of [320,390,768,1024,1180,1440])for(const name of ['dashboard','checklist_result_detail','driving_reports','pointouts','vehicle_karte','vehicle_karte_history','normal_driver_master','normal_checklist_master','inspection_driver_input','demo_settings_manager','demo_settings_driver','normal_settings_manager','normal_settings_driver']){
  const file=path.join(html,name+'.html');assert(fs.existsSync(file),name);const info=JSON.parse(fs.readFileSync(path.join(html,'routes.json'))).find(r=>r.endpoint===name);assert(info);
  const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block'});await context.routeWebSocket('**/*',ws=>{blocked.push('WS');ws.close()});const page=await context.newPage();current=page;
  await page.route('**/*',route=>{const req=route.request(),url=new URL(req.url());if(req.method()!=='GET'||url.origin!=='https://fixture.invalid'){blocked.push(req.method()+' '+url.origin);return route.abort()}
@@ -37,6 +37,21 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
   }
  }
  if(name.includes('settings_')){assert(await page.locator('.settings-user-card').isVisible());for(const selector of ['.settings-notification-card','.settings-password-card','form[action="/logout"]'])assert.equal(await page.locator(selector).count(),name.startsWith('demo_')?0:1);}
+ if(name==='dashboard'&&width>900){
+  const menu=page.locator('#sidebarToggle'),sidebar=page.locator('.sidebar');
+  for(const collapsed of [true,false,true,false]){
+   const now=await page.evaluate(()=>document.body.classList.contains('sidebar-collapsed'));
+   if(now!==collapsed)await menu.click();
+   await page.waitForTimeout(100);
+   assert.equal(await menu.getAttribute('aria-expanded'),String(!collapsed));
+   const rail=await sidebar.boundingBox();assert(collapsed?rail.width<=75:rail.width>=160,'desktop rail width matches state');
+   assert.equal(await page.locator('.alseon-wordmark').isVisible(),!collapsed);
+   assert.equal(await page.locator('.alseon-symbol').isVisible(),collapsed);
+   const label=page.locator('.sidebar .menu-text').first();assert.equal(await label.isVisible(),!collapsed);
+   if(collapsed)assert.equal(await page.locator('.sidebar-submenu').evaluateAll(es=>es.some(e=>e.getBoundingClientRect().height>0)),false,'collapsed submenus hidden');
+   await page.screenshot({path:path.join(out,`desktop-sidebar-${width}-${collapsed?'collapsed':'expanded'}.png`)});
+  }
+ }
  const bar=page.locator('.main-content > .top-bar');assert(await bar.isVisible());const avatar=bar.locator('.top-bar-user');assert.equal(await avatar.isVisible(),!(name==='driving_reports'&&width<768));assert.equal(await bar.locator('.top-bar-user-name').isVisible(),(name==='driving_reports'?width>768:width>767));
  if(width<768){const heading=page.locator('.main-content > [data-mobile-page-title]');assert(await heading.isVisible());const hb=await heading.boundingBox();assert(hb.x>=0,'title inside viewport');assert(hb.width>0);assert.equal(await bar.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');if(name==='driving_reports'){assert.equal(await bar.locator('.notification-menu').isVisible(),false);assert(await bar.locator('[data-guide-open]').isVisible());}}
  else assert.equal(await bar.locator('[data-mobile-page-title]').isVisible(),false);
@@ -81,7 +96,7 @@ try{for(const width of [320,390,768,1440])for(const name of ['dashboard','checkl
  if(width<=768){assert(await list.isVisible());assert.equal(await table.isVisible(),false);const row=list.locator('.checklist-compact-disclosure').first(),summary=row.locator('summary');assert.equal(await summary.locator(':scope > *').count(),2);assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);await summary.click();assert(await row.locator('.checklist-compact-detail').isVisible());assert(await row.locator('.master-order-handle').isVisible());await summary.press('Enter');assert.equal(await row.locator('.checklist-compact-detail').isVisible(),false);}else{assert(await table.isVisible());assert.equal(await list.isVisible(),false);}
  }
  report.push({name,width,passed:true,rects});await context.close();}
- assert.equal(report.length,52);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
+ assert.equal(report.length,78);assert.deepEqual(blocked,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({report,blocked,synthetic:true,live:false},null,2));
 }catch(e){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({error:String(e),report,blocked},null,2));if(current&&!current.isClosed())await current.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw e}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});
 
 

@@ -287,3 +287,13 @@ body .public-demo-notice .public-demo-purpose-actions .btn { min-height: 44px !i
 
 @media screen and (max-width:767px){body[data-page-endpoint="driving_reports"] .driving-toolbar-actions > a[aria-label="日報を取り込む"]{width:44px;height:44px;min-width:44px;padding:0;display:flex;align-items:center;justify-content:center;box-sizing:border-box;}}
 
+
+/* Split desktop windows use the same collapsed rail as full-width desktop.
+   Override the legacy 769–1180 tablet reset only above the drawer breakpoint. */
+@media screen and (min-width:901px) and (max-width:1180px) {
+ body[data-responsive-shell].sidebar-collapsed .sidebar {width:74px;min-width:74px;}
+ body[data-responsive-shell].sidebar-collapsed :is(.logo-text,.menu-text,.menu-arrow,.sidebar-user,.sidebar-submenu) {display:none!important;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-head {flex-direction:column;gap:10px;padding:16px 10px;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-nav {padding:18px 10px;}
+ body[data-responsive-shell].sidebar-collapsed .sidebar-nav .menu-item {justify-content:center!important;padding:0!important;gap:0!important;}
+}
