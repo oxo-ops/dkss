@@ -1,0 +1,34 @@
+name: Dashboard blue full-route acceptance
+on:
+  push:
+    branches: [review/dashboard-blue-full-route-20261120]
+permissions:
+  contents: read
+jobs:
+  real-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          mkdir -p "$RUNNER_TEMP/blue-full/html" "$RUNNER_TEMP/blue-full/images"
+          PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/blue-full/html" AWS_EC2_METADATA_DISABLED=true python tests/dashboard_mobile_priority/render_full.py
+          PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/blue-full/html" ARTIFACTS="$RUNNER_TEMP/blue-full/images" PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" node tests/dashboard_blue_full/browser.cjs
+          git rev-parse HEAD > "$RUNNER_TEMP/blue-full/head.txt"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: dashboard-blue-full-route
+          path: ${{ runner.temp }}/blue-full/
