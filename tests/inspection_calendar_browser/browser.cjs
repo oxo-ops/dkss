@@ -52,7 +52,7 @@ if(width<=700){
  const rect=await pop.boundingBox(),trigger=await toggle.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width);assert(rect.y>=trigger.y+trigger.height-1);
  await p.screenshot({path:out+`/formats-${width}.png`});await p.keyboard.press('Escape');assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
  await toggle.click();await p.locator('button[data-view=calendar]').click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);assert(await toggle.evaluate(e=>e===document.activeElement));
- await toggle.click();await p.locator('h2').filter({hasText:'点検計画'}).first().click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
+ await toggle.click();await p.locator('.mobile-page-title:visible, h2:visible').filter({hasText:'点検計画'}).first().click();assert.equal(await pop.evaluate(e=>e.matches(':popover-open')),false);
  await p.locator('[data-plan-search-toggle]').click();const input=p.locator('.ip-search-dialog input');const focus=await input.evaluate(e=>({outline:getComputedStyle(e).outlineColor,shadow:getComputedStyle(e).boxShadow}));assert.notEqual(focus.outline,'rgb(139, 92, 246)');assert.equal(focus.shadow,'none');await p.screenshot({path:out+`/search-focus-${width}.png`});await p.keyboard.press('Escape');
 }
 assert.deepEqual(errors,[]);assert.deepEqual(forbidden,[]);await c.close();lastPage=null;}
