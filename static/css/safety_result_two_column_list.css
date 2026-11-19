@@ -16,6 +16,7 @@
 
 /* Preserve the result-list touch target at the 768px mobile boundary too. */
 @layer alseon-actions {
+ body .main-content .safety-results-table .action-buttons :is(.btn-detail,.btn-edit,.btn-delete){min-height:44px!important;}
  @media(max-width:768px) {
   body .main-content .safety-result-two-column-list :is(.safety-result-mobile-detail,.safety-result-mobile-actions .btn-edit,.safety-result-mobile-actions .btn-delete){min-height:44px!important;}
  }
