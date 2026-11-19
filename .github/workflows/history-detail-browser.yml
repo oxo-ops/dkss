@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   isolated-detail:
-    if: github.event.pull_request.head.ref == 'validation/history-detail-link-20261119' && github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event.pull_request.head.ref == 'validation/history-detail-link-20261119' || github.event.pull_request.head.ref == 'validation/karte-session-integrated-20261119') && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -40,3 +40,4 @@ jobs:
         with:
           name: history-detail-acceptance
           path: ${{ runner.temp }}/history-detail/artifacts
+
