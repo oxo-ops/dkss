@@ -1,0 +1,14 @@
+/* Existing result count, order, routes and permission controls are unchanged. */
+@media(max-width:768px){
+ body .main-content .safety-result-two-column-list{gap:0;border:1px solid #dce6f2;border-radius:12px;overflow:hidden;background:#fff;}
+ body .main-content .safety-result-two-column-list .safety-result-mobile-card{margin:0;padding:10px 12px;border:0;border-bottom:1px solid #dce6f2;border-radius:0;box-shadow:none;display:flex;flex-wrap:wrap;gap:6px;}
+ .safety-result-list-labels,.safety-result-list-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;min-width:0;}
+ .safety-result-list-labels{box-sizing:border-box;padding:8px 12px;background:#f2f7fd;font-size:12px;color:#526b87;}
+ .safety-result-list-columns>div{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;overflow-wrap:anywhere;font-size:13px;line-height:1.45;}
+ .safety-result-list-columns time{font-size:12px;color:#526b87;}
+ .safety-result-list-version{padding:5px 12px;font-size:11px;color:#65758b;border-top:1px solid #dce6f2;}
+ .safety-result-list-columns small{font-size:11px;color:#526b87;}
+ body .main-content .safety-result-two-column-list .safety-result-mobile-detail{width:auto;flex:1;margin:0;min-height:44px;}
+ body .main-content .safety-result-two-column-list .safety-result-mobile-actions{flex:2;margin:0;gap:6px;}
+ body .main-content .safety-result-two-column-list .safety-result-mobile-card:last-child{border-bottom:0;}
+}
