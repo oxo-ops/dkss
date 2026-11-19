@@ -4,7 +4,7 @@
  /* Mobile is for viewing; management links remain available on desktop. */
  body.vehicle-list-ppt .main-content .vehicle-karte-actions{display:none!important}
  body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-identity-condensed{grid-template-columns:48px minmax(0,1fr);gap:8px;padding:10px 12px;margin-bottom:8px;align-items:center}
- body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-photo-empty{width:48px;height:48px;min-height:0;padding:4px}
+ body.vehicle-list-ppt .main-content .vehicle-karte-header.karte-header-compact.karte-identity-condensed .vehicle-karte-photo-empty{width:48px;height:48px;min-height:0;padding:4px}
  body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-number-row{display:flex;gap:6px;align-items:center;margin:0}
  body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-number-row h2{font-size:17px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
  body.vehicle-list-ppt .main-content .karte-identity-condensed .vehicle-karte-photo-area{width:48px;min-width:0}
