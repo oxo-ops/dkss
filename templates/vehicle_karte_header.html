@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vehicle_karte_dates.css', v='20261119-1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_compact_identity.css', v='20261119-reading-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_compact_identity.css', v='20261119-identity-frame-2') }}">
 <script defer src="{{ url_for('static', filename='js/karte_compact_identity.js', v='20261119-1') }}"></script>
 {% from "macros/vehicle_icon_sources.html" import vehicle_icon_sources with context %}
 
@@ -75,7 +75,7 @@
     <div class="vehicle-karte-actions">
         <a href="{{ url_for('vehicle_data_import') }}" class="btn btn-outline">資料・データ取込</a>
         <a href="{{ url_for('vehicle_master', edit_origin='karte') }}" class="btn btn-outline">車両一覧</a>
-        <a href="{{ url_for('edit_vehicle', index=vehicle.id, return_to=request.full_path.rstrip('?')) }}" class="btn btn-outline">編集</a>
+        <a href="{{ url_for('edit_vehicle', index=vehicle.id, return_to=request.full_path.rstrip('?')) }}" class="btn btn-outline btn-edit">編集</a>
     </div>
     {% endif %}
 </div>

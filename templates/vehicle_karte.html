@@ -133,7 +133,7 @@
         <div class="ko-heading">
             <h3>{{ icon('file') }}車両メモ</h3>
             {% if session.get('role') in ['admin', 'itc'] and not priority_preview_mode|default(false) %}
-            <button type="button" class="btn btn-outline btn-small" data-note-edit>編集</button>
+            <button type="button" class="btn btn-outline btn-small btn-edit" data-note-edit>編集</button>
             {% endif %}
         </div>
         <details class="ko-note-details" data-note-details>

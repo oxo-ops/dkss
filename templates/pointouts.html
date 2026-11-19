@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
 <script defer src="{{ url_for('static', filename='js/patrol_filter_disclosure.js', v='20261119-1') }}"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/patrol_reading_list.css', v='20261119-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/patrol_reading_list.css', v='20261120-cohesive-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -45,6 +45,7 @@
     {% endfor %}
 </section>
 
+<div class="patrol-reading-surface">
 <div class="tabs">
     <a
         class="tab {% if view_type == 'user' %}active{% endif %}"
@@ -704,6 +705,8 @@
 {% endif %}
 
 
+
+</div>
 
 <script src="{{ url_for('static', filename='js/pointouts.js', v='20261021-pagination-1') }}"></script>
 

@@ -31,8 +31,8 @@ try:
   for role in ('driver','manager'):
    target=setup()
    try:
-    token,html=case.enter();before=snapshot();assert target in html
-    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token});assert response.status_code==302 and response.location=='/?__aonagi_entry=1'
+    token,html=case.enter();before=snapshot();assert 'data-demo-purpose="inspection"' in html
+    response=case.client.post('/demo/role',data={'role':role,'csrf_token':token,'demo_entry':'purpose'});assert response.status_code==302 and response.location==(target if role=='driver' else '/?__aonagi_entry=1')
     assert 'class="alert public-demo-notice"' not in case.client.get('/?__aonagi_entry=1').get_data(as_text=True)
     text=case.client.get(target).get_data(as_text=True);assert 'エンジンのかかり具合、異音' in text and 'criteria-line-pre' in text
     assert snapshot()==before
@@ -177,6 +177,13 @@ try:
        assert page.locator('#vehicle_check_filter [name="vehicle_record_id"]').input_value()==str(case.vehicle_id)
        table=page.locator('.vehicle-standard-daily-table .monthly-check-table').first
        assert table.is_visible();assert 'エンジンのかかり具合、異音' in table.inner_text()
+       # Final grid edge must remain visible for sticky and horizontally scrolled cells.
+       last_row=table.locator('tbody > tr').last
+       last_row.scroll_into_view_if_needed()
+       border=last_row.locator('td').evaluate_all("es=>es.filter(e=>e.getBoundingClientRect().width).map(e=>({style:getComputedStyle(e).borderBottomStyle,width:parseFloat(getComputedStyle(e).borderBottomWidth)}))")
+       assert border and all(x['style']=='solid' and x['width']>=1 for x in border),border
+       record['final_row_border']=border
+       page.screenshot(path=str(out/f'{width}-{role}-bottom-border.png'))
        all_items=json.loads(before['items'][0][1])
        original=[i['content'] for i in all_items if i.get('item_type')=='check' and str(i.get('item_code','')).startswith('daily_')]
        footer=[i['content'] for i in all_items if i.get('item_type')=='check' and not str(i.get('item_code','')).startswith('daily_')]

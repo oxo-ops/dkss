@@ -8,6 +8,8 @@
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/search_field_clear.css', v='20261119-2') }}">
 <script defer src="{{ url_for('static', filename='js/search_field_clear.js', v='20261119-2') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/master_compact.css', v='20261120-1') }}">
+<script defer src="{{ url_for('static', filename='js/master_compact.js', v='20261120-1') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -19,10 +21,11 @@
 
 
         <a href="/master/checklists/new" class="btn entry-add-icon" aria-label="チェックリストを新規登録" title="チェックリストを新規登録"><span aria-hidden="true">＋</span></a>
+        <button type="button" class="master-filter-toggle" data-master-filter="checklist" aria-label="チェックリストの検索条件を開く" aria-controls="checklistFilterPanel" aria-expanded="true" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
     </div>
 </div>
 
-<div class="card checklist-master-filter-card">
+<div class="card checklist-master-filter-card" id="checklistFilterPanel">
     <form method="get" class="checklist-master-filter-form">
         <div class="checklist-master-filter-keyword">
             <label>チェックリスト名</label>

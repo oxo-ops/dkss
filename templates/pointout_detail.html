@@ -170,7 +170,7 @@
 
 {% if can_manage and result.approval_status != "承認済み" %}
     <div class="pointout-record-footer-actions">
-        <a class="btn" href="/pointouts/{{ index }}/edit">
+        <a class="btn btn-edit" href="/pointouts/{{ index }}/edit">
             登録内容を編集
         </a>
     </div>
@@ -484,7 +484,7 @@
     <div class="pointout-record-footer-actions">
         {% if result.countermeasure and can_countermeasure and result.approval_status not in ["承認済み", "差し戻し"] and request.args.get("edit_countermeasure") != "1" %}
             <a
-                class="btn"
+                class="btn btn-edit"
                 href="/pointouts/{{ index }}?edit_countermeasure=1"
             >
                 対策を編集

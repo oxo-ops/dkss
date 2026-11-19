@@ -17,7 +17,7 @@ m.db.session.commit()
 app.config['WTF_CSRF_ENABLED']=True
 cookie=app.session_interface.get_signing_serializer(app).dumps(dict(company_code='TEST',username='admin',role='admin',account_identity=user.account_identity,password_changed_at=user.password_changed_at,name='試験管理者'))
 a.out.mkdir(parents=True,exist_ok=True)
-(a.out/'fixture.json').write_text(json.dumps({'port':a.port,'cookie':cookie}))
+(a.out/'fixture.json').write_text(json.dumps({'port':a.port,'cookie':cookie,'vehicle_id':case.vehicle.id}))
 for mon in [current,'2024-02','2026-02']:
  response=case.client.get('/api/vehicle/inspection-plans?month='+mon)
  assert response.status_code==200,response.status_code

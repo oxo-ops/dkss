@@ -17,6 +17,13 @@ const filter=page.locator('.patrol-filter-disclosure');
 const form=filter.locator('form');
 if(width<=768){
 assert(!(await form.isVisible()),'mobile filter must start collapsed');
+const tabsBox=await page.locator('.tabs').boundingBox(), toolbarBox=await page.locator('.pointouts-list-toolbar').boundingBox(), summaryBox=await filter.locator('summary').boundingBox(), listBox=await list.boundingBox();
+assert(Math.abs(tabsBox.y+tabsBox.height-toolbarBox.y)<3,'tabs joined to toolbar');
+assert(Math.abs(toolbarBox.y+toolbarBox.height-listBox.y)<3,'toolbar joined to records');
+assert(summaryBox.width>=44&&summaryBox.height>=44,'filter touch area');
+assert(Math.abs(summaryBox.y+summaryBox.height/2-toolbarBox.y-toolbarBox.height/2)<3,'filter shares toolbar row');
+assert(!(await page.locator('.safety-list-breadcrumb').isVisible()),'mobile duplicate breadcrumb removed');
+assert.equal(await page.locator('.safety-results-new-button').evaluate(e=>getComputedStyle(e).position),'fixed');
 const totalBox=await page.locator('.pointouts-total').boundingBox(), sizeBox=await page.locator('.pointouts-page-size-form').boundingBox();
 assert(Math.abs((totalBox.y+totalBox.height/2)-(sizeBox.y+sizeBox.height/2))<2,'count and page size must share a row');
 await filter.locator('summary').click();
@@ -41,12 +48,12 @@ assert.equal(await page.locator('.pointouts-list-toolbar .pointouts-pagination')
 const bottom=page.locator('.pointouts-pagination-bottom');assert(await bottom.isVisible());
 await bottom.getByRole('link',{name:'次のページ',exact:true}).click();await page.waitForURL(u=>u.searchParams.get('page')==='2');assert.equal(await cards.count(),1);await page.goBack();await list.waitFor({state:'visible'});
 assert.equal(await cards.locator('.safety-result-mobile-actions').count(),5,'existing owner/manager permissions');
-assert.equal(await cards.locator('.btn-edit').first().evaluate(e=>getComputedStyle(e).color),'rgb(31, 93, 165)');
-assert.equal(await cards.locator('.btn-delete').first().evaluate(e=>getComputedStyle(e).color),'rgb(179, 60, 84)');
+assert.equal(await cards.locator('.btn-edit').first().evaluate(e=>getComputedStyle(e).color),'rgb(32, 76, 137)');
+assert.equal(await cards.locator('.btn-delete').first().evaluate(e=>getComputedStyle(e).color),'rgb(158, 48, 57)');
 const first=cards.first(),image=list.locator('img').first();await image.scrollIntoViewIfNeeded();await image.evaluate(e=>e.decode());assert(await image.evaluate(e=>e.naturalWidth>0));
 await first.locator('.patrol-record-link').click();await page.waitForURL(/\/pointouts\/\d+$/);assert((await page.locator('body').innerText()).includes('安全パトロール詳細'));await page.goBack();await list.waitFor({state:'visible'});
 await cards.nth(1).locator('.patrol-record-link').press('Enter');await page.waitForURL(/\/pointouts\/\d+$/);await page.goBack();await list.waitFor({state:'visible'});
-}else{assert(await form.isVisible(),'PC form stays available');await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-pc.png'),fullPage:true});}
+}else{assert(await form.isVisible(),'PC form stays available');for(const control of await page.locator('.pointouts-table .action-buttons .btn-small').all()){assert.equal(await control.evaluate(e=>getComputedStyle(e).whiteSpace),'nowrap');assert(await control.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'PC action text overflow');const b=await control.boundingBox();assert(b.height<=44,'PC action wrapped');}await page.screenshot({path:path.join(out,role+'-'+width+'-'+scale+'x-pc.png'),fullPage:true});}
 // Exercise original GET submission, retained conditions, zero results and full reset.
 if(width<=768)await filter.locator('summary').click();
 await form.locator('[name=keyword]').fill('通路');
