@@ -3,6 +3,7 @@
 {% block title %}チェックリスト結果一覧{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_reading_card.css', v='20261120-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/safety_result_actions.css', v='20261119-heading-2') }}">
 {% endblock %}
 
@@ -149,7 +150,7 @@
 
             <div class="safety-result-mobile-head">
                 <div class="safety-result-mobile-head-main">
-                    <strong class="safety-result-mobile-head-title">実施者</strong>
+
                     <span class="checklist-version-label">
                         {% if period_is_current %}
                             現行版
@@ -184,22 +185,7 @@
                 </div>
 
                 <div>
-                    <span class="safety-result-mobile-label">対象区分</span>
-                    <strong>
-                        {% if result.target_type == "user" %}
-                            ユーザー
-                        {% elif result.target_type == "vehicle" %}
-                            車両
-                        {% elif result.target_type == "office" %}
-                            営業所
-                        {% else %}
-                            指定なし
-                        {% endif %}
-                    </strong>
-                </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">対象</span>
+                    <span class="safety-result-mobile-label">対象 · {% if result.target_type == "user" %}ユーザー{% elif result.target_type == "vehicle" %}車両{% elif result.target_type == "office" %}営業所{% else %}指定なし{% endif %}</span>
                     <strong>
                         {% if result.target_type == "user" %}
                             {{ result.target_user }}
@@ -225,11 +211,7 @@
                     {% else %}
                         <span class="status-badge status-waiting">承認待ち</span>
                     {% endif %}
-                </div>
-
-                <div>
-                    <span class="safety-result-mobile-label">承認日</span>
-                    <strong>{{ result.approved_date or "-" }}</strong>
+                    {% if result.approved_date %}<small class="safety-result-approved-date">承認日 {{ result.approved_date }}</small>{% endif %}
                 </div>
 
             </div>
