@@ -36,7 +36,12 @@ try:
       if width<=700:
        assert page.locator('.public-demo-notice').bounding_box()['y']>=page.locator('.mobile-shell-title').bounding_box()['y']+page.locator('.mobile-shell-title').bounding_box()['height']-1
       page.screenshot(path=str(out/f'unselected-{width}-{role}.png'))
-      page.locator('.public-demo-notice button[value="'+role+'"]').click();page.wait_for_load_state('networkidle');assert urlsplit(page.url).path==path
+      page.locator('.public-demo-notice button[value="'+role+'"]').click()
+      if role=='driver':page.wait_for_url('**/vehicle/checklists*')
+      else:page.wait_for_url('**/?__aonagi_entry=1')
+      page.goto(origin+path,wait_until='networkidle')
+      close=page.locator('[data-guide-close]:visible')
+      if close.count():close.click()
       assert page.locator('.public-demo-notice').count()==0
       if width<=700:assert page.locator('.mobile-shell-title').evaluate('e=>getComputedStyle(e).marginBottom')=='-56px'
       page.screenshot(path=str(out/f'selected-{width}-{role}.png'))
@@ -45,7 +50,7 @@ try:
        if width>700 and selector=='[data-plan-view-toggle]':
         assert not b.is_visible();continue
        b.wait_for(state='visible');b.click(trial=True)
-      page.screenshot(path=str(out/f'selected-{width}-{role}.png'));report['cases'].append({'width':width,'role':role,'purpose_native_click':True,'return_preserved':True});context.close()
+      page.screenshot(path=str(out/f'selected-{width}-{role}.png'));report['cases'].append({'width':width,'role':role,'purpose_native_click':True,'purpose_destination_preserved':True,'selected_plan_revisit':True});context.close()
     report['passed']=True
    finally:browser.close()
 finally:
