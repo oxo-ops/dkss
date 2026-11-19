@@ -24,6 +24,32 @@ class Pages(base.Pages):
   self.assertIn('id="document_preview"',r.text)
   (out/'document_selected.html').write_text(r.text)
   (out/'document_selected.json').write_text(json.dumps({'url':url}))
+  # More than one page, synthetic originals only; retain original fixture checks above.
+  from datetime import datetime,timezone
+  for n in range(12):
+   row=self.models.VehicleDocumentImportDraft(id=f'closed-sample-{n}',batch_id=f'closed-batch-{n}',company_code='AONAGI',created_by_username='admin',document_type='driving_report',source_filename=f'sample-{n}.pdf',source_file=b'%PDF-1.4\nsynthetic',source_sha256=str(n)*64 if n<10 else 'a'*64,status='completed',completed_at=datetime.now(timezone.utc),result_json=json.dumps({'records':[{'vehicle_record_id':self.vehicle_id}]}))
+   self.db.session.add(row)
+  self.db.session.commit()
+  from urllib.parse import urlsplit,parse_qs,urlencode
+  root=f'/vehicle/karte/{self.vehicle_id}/documents'
+  pages={}
+  def capture(path):
+   response=self.client.get(path);self.assertEqual(response.status_code,200)
+   key=f'closed-state-{len(pages)}.html';(out/key).write_text(response.text);pages[path]=key
+   return response.text
+  first=capture(root+'?document=closed')
+  paths=[root+'?document=closed&page=2',root+'?document=closed&kind=driving_report',root+'?document=closed&q=sample',root+'?document=closed&per_page=20']
+  for path in paths:
+   body=capture(path);self.assertNotIn('id="document_preview"',body)
+  reopened=html.unescape(re.search(r'href="([^"]+#document_preview)"\s+class="kd-filename"',first)[1]).split('#')[0]
+  self.assertIn('id="document_preview"',capture(reopened))
+  # Capture all generated page/category links so browser follows real rendered URLs.
+  for raw in re.findall(r'href="([^"]+)"',first):
+   target=html.unescape(raw).split('#')[0]
+   if target.startswith(root+'?') and 'document=closed' in target and target not in pages:
+    self.assertNotIn('id="document_preview"',capture(target))
+  (out/'closed_states.json').write_text(json.dumps({'root':root,'pages':pages,'reopened':reopened}))
+
 if __name__=='__main__':
  result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([Pages('test_documents')]))
  sys.exit(not result.wasSuccessful())
