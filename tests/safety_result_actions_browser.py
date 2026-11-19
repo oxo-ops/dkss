@@ -24,6 +24,7 @@ with sync_playwright() as p:
    visible='.safety-results-mobile-list' if width<=768 else '.safety-results-table'
    controls=page.locator(visible).locator('a[href*="checklist-results/"],button.btn-delete')
    metrics=controls.evaluate_all("es=>es.map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {height:r.height,width:r.width,color:s.color,background:s.backgroundImage,radius:s.borderRadius}})")
+   page.screenshot(path=str(OUT/f'actions-{width}-{manage}.png'),full_page=True)
    assert len(metrics)==(3 if manage else 1),metrics
    assert all(x['height']>=44 for x in metrics),metrics
    assert len({x['radius'] for x in metrics})==1,metrics
