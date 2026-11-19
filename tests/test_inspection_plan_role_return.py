@@ -18,7 +18,7 @@ class Plans(RoleReturnTests):
  def test_plan_reject_write_and_extra(self):
   token,_=self.enter()
   for target in ('/vehicle/inspection-plans/save','/vehicle/inspection-plans/export.xlsx','//evil.example/vehicle/inspection-plans','/vehicle/inspection-plans#x'):
-   r=self.client.post('/demo/role',data={'role':'manager','csrf_token':token,'checklist_return':target});self.assertEqual(r.location,'/')
+   r=self.client.post('/demo/role',data={'role':'manager','csrf_token':token,'checklist_return':target});self.assertEqual(r.location,'/?__aonagi_entry=1')
   r=self.client.post('/demo/role',data={'role':'manager','csrf_token':token,'checklist_return':'/vehicle/inspection-plans?scope=bad&month=evil&view=evil&next=https://evil.example&office=%0d%0aX:1&q=abc'})
   self.assertEqual(r.location,'/vehicle/inspection-plans?q=abc')
 def load_tests(loader, tests, pattern):

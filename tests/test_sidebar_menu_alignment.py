@@ -31,7 +31,7 @@ class SidebarMenuAlignmentTests(unittest.TestCase):
     def test_asset_version_and_navigation_semantics(self):
         html = (ROOT / 'templates/base.html').read_text()
         self.assertIn("v='20261118-sidebar-alignment-2'", html)
-        self.assertIn('<a href="/" class="menu-item', html)
+        self.assertIn("<a href=\"{{ '/?__aonagi_entry=1' if session.get('aonagi_readonly_demo') else '/' }}\" class=\"menu-item", html)
         self.assertIn('<button type="button" class="menu-item sidebar-parent">', html)
 
 
