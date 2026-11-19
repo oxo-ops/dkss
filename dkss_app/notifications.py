@@ -1,6 +1,7 @@
 """Notifications responsibilities; routes are registered by the application factory."""
 from .account_identity import notification_owner_clause, owns_notification
 from .notification_priority import related_notification_priority
+from .demo_label_display import notification_text as _demo_notification_text
 from . import audit as _dkss_audit, checklist_common as _dkss_checklist_common, common as _dkss_common, models as _dkss_models, runtime as _dkss_runtime, serialization as _dkss_serialization, vehicle_readers as _dkss_vehicle_readers
 
 
@@ -969,7 +970,12 @@ def get_notification_display_info(notification):
         "notification_type": notification_type,
         "type_label": _dkss_common.NOTIFICATION_TYPE_LABELS[notification_type],
         "action_label": action_label,
-        "summary_message": get_notification_summary(notification),
+        "summary_message": _demo_notification_text(
+            get_notification_summary(notification), raw=notification.message,
+            company=notification.company_code, notification_id=notification.id),
+        "display_message": _demo_notification_text(
+            str(notification.message or ""), raw=notification.message,
+            company=notification.company_code, notification_id=notification.id),
     }
 
 
