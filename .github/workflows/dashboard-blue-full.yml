@@ -1,7 +1,7 @@
 name: Dashboard blue full-route acceptance
 on:
   push:
-    branches: [validation/dashboard-blue-live479]
+    branches: [validation/dashboard-blue-live479, fix/attachment-detail-display]
 permissions:
   contents: read
 jobs:
