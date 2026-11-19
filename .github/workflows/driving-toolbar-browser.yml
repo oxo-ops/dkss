@@ -1,7 +1,7 @@
 name: Driving compact toolbar isolated browser
 on:
   push:
-    branches: [review/driving-toolbar-20261119, validation/release-integrated-20261119]
+    branches: [review/driving-toolbar-20261119, validation/release-integrated-20261119, validation/driving-filter-stable-position]
 permissions:
   contents: read
 jobs:
