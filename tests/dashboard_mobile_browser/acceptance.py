@@ -162,8 +162,12 @@ try:
     if width>=1251:
      full=page.locator('.dashboard-home-layout').bounding_box();attention=page.locator('.dashboard-attention-list').bounding_box()
      vehicles=page.locator('.dashboard-vehicles-section').bounding_box()
-     assert vehicles['x']+vehicles['width']<=attention['x']+1,(vehicles,attention)
-     assert abs(vehicles['y']-attention['y'])<=1,(vehicles,attention)
+     narrow_content=page.locator('body').get_attribute('data-content-layout') in ('medium','compact')
+     if narrow_content:
+      assert attention['width']>=full['width']-2,(full,attention)
+     else:
+      assert vehicles['x']+vehicles['width']<=attention['x']+1,(vehicles,attention)
+      assert abs(vehicles['y']-attention['y'])<=1,(vehicles,attention)
      assert attention['x']+attention['width']<=full['x']+full['width']+1,(full,attention)
      safety_rect=page.locator('.dashboard-safety-attention').bounding_box()
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
