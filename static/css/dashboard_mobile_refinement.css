@@ -331,13 +331,29 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
     body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-action { -webkit-line-clamp: unset; line-clamp: unset; }
 }
 
-/* Desktop uses the original two-column home layout from style.css.
-   Do not stack it as a side effect of mobile refinements. The existing
-   <=1250px breakpoint still handles narrow Teams/browser windows. */
-
+/* Wide desktop: give the current safety/AI volume full width. Keep usage
+   vehicles as a compact top row; compare personal and office proposals
+   side by side instead of leaving an empty half-page under one vehicle. */
 @media screen and (min-width: 1251px) {
+    body .dashboard-page.dashboard-design-v2 .dashboard-home-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
     body .dashboard-page.dashboard-design-v2 .dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list) {
-        grid-row: 1;
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        align-items: start;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-list > :not(.dashboard-attention-panel) {
+        grid-column: 1 / -1;
+    }
+    body .dashboard-page.dashboard-design-v2 .dashboard-attention-list > .dashboard-attention-panel {
+        margin: 0;
+        min-width: 0;
     }
 }
 

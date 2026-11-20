@@ -14,11 +14,14 @@ for(const variant of ['original','blue']){
  await page.goto('https://fixture.invalid/');await page.evaluate(()=>document.fonts.ready);await page.locator('.dashboard-page[data-design-ready="true"]').waitFor();
  const close=page.locator('[data-guide-close]');if(await close.isVisible())await close.click();
  const columns=await page.locator('.dashboard-home-layout').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);
- assert.equal(columns,width>1250?2:1,`${mode}/${width} original responsive column count`);
+ assert.equal(columns,1,`${mode}/${width} full-width home rows`);
  const bounds=await page.locator('.dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list)').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,width:r.width,scroll:e.scrollWidth,client:e.clientWidth};}));
  for(const b of bounds){assert(b.right<=width+1,`${mode}/${width} section clipped`);assert(b.scroll<=b.client+2,`${mode}/${width} horizontal overflow`);}
- if(width>1250&&bounds.length===2){assert(bounds[0].right<=bounds[1].x+1);assert(Math.abs(bounds[0].y-bounds[1].y)<2);}
+ if(bounds.length===2){assert(Math.abs(bounds[0].x-bounds[1].x)<2);assert(bounds[1].y>bounds[0].y);}
  const panels=page.locator('.dashboard-attention-panel');
+ const panelBounds=await panels.evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right};}));
+ if(width>1250){assert(panelBounds[0].right<=panelBounds[1].x+1);assert(Math.abs(panelBounds[0].y-panelBounds[1].y)<2,'AI groups share a row');}else{assert(Math.abs(panelBounds[0].x-panelBounds[1].x)<2,'narrow AI layout unchanged');}
+
  assert.equal(await panels.nth(0).locator('.dashboard-video-proposal').count(),5,'all five personal proposals retained');
  assert.equal(await panels.nth(1).locator('.dashboard-video-proposal').count(),6,'all six office proposals retained');
  const states=[];
