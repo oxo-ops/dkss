@@ -43,7 +43,7 @@ for(const variant of ['original','blue']){
   const clipping=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).filter(e=>e.scrollWidth>e.clientWidth+2||e.scrollHeight>e.clientHeight+2).map(e=>e.textContent));
   assert.deepEqual(clipping,[],`${mode}/${width} ${selector} text clipping`);
  }
- states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x,r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
+ states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x||r.y||r.width||r.height?r.x+window.scrollX:r.x,r.x||r.y||r.width||r.height?r.y+window.scrollY:r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
  await page.screenshot({path:path.join(out,`${mode}-${width}-${variant}-${expanded?'expanded':'closed'}.png`),fullPage:true});
  }
  fs.writeFileSync(path.join(out,`${mode}-${width}-${variant}-geometry.json`),JSON.stringify(states));
