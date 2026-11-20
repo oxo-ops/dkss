@@ -241,7 +241,7 @@
                 {{ karte_vehicle_choices | tojson }}
             </script>
             {% endif %}
-            <h1 class="mobile-shell-title" data-mobile-page-title><span data-mobile-title-text>{{ self.title() }}</span></h1>
+            <h1 class="mobile-shell-title" data-mobile-page-title><span data-mobile-title-text>{% if request.endpoint == "vehicle_karte_maintenance" %}<span class="karte-title-part">車両カルテ</span><wbr><span class="karte-title-part">・整備・修理</span>{% else %}{{ self.title() }}{% endif %}</span></h1>
             {% block top_bar_heading %}{% endblock %}
             {% include 'partials/first_use_guide.html' %}
             <div class="notification-menu" id="notificationMenu">
