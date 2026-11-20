@@ -161,7 +161,10 @@ try:
     assert not measure['overflow'],measure
     if width>=1251:
      full=page.locator('.dashboard-home-layout').bounding_box();attention=page.locator('.dashboard-attention-list').bounding_box()
-     assert attention['width']>=full['width']-2,(full,attention)
+     vehicles=page.locator('.dashboard-vehicles-section').bounding_box()
+     assert vehicles['x']+vehicles['width']<=attention['x']+1,(vehicles,attention)
+     assert abs(vehicles['y']-attention['y'])<=1,(vehicles,attention)
+     assert attention['x']+attention['width']<=full['x']+full['width']+1,(full,attention)
      safety_rect=page.locator('.dashboard-safety-attention').bounding_box()
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)
     if width<=600:assert measure['direction']=='row',measure
