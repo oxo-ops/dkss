@@ -69,3 +69,8 @@ body[data-responsive-shell] .main-content > .top-bar:has(.first-guide-panel:not(
 @media(max-width:480px){
  .first-guide-after-picture img {max-height:min(132px,22dvh);}
 }
+
+/* Show the meaningful top of the opened detail at readable width, not a
+   whole tall phone screenshot squeezed into a tiny thumbnail. */
+[data-guide-ai-picture]{padding:0;overflow:hidden;}
+[data-guide-ai-picture] img{display:block;width:100%;height:180px;max-height:180px;object-fit:cover;object-position:top;}

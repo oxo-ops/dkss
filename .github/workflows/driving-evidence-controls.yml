@@ -1,0 +1,36 @@
+name: Driving evidence controls
+on:
+  push:
+    branches: [fix/driving-evidence-controls, 'validation/driving-karte-a47']
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          python -m pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence/html"
+          PYTHONPATH=.:tests python -m unittest test_driving_evidence_controls test_driving_comparison_details test_driving_metric_basis test_driving_workspace_ui -q
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/evidence/html" python tests/driving_evidence_render.py
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" HTML_OUT="$RUNNER_TEMP/evidence/html" ARTIFACTS="$RUNNER_TEMP/evidence" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/driving_evidence_browser.cjs
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/head.txt"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: driving-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/evidence/

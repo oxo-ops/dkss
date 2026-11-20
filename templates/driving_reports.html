@@ -55,7 +55,7 @@
 </div>
 {% endif %}
 {% if driving_is_admin and insights.due_followups and not insights.selected_driver %}{% include 'driving_workspace_due.html' %}{% endif %}
-<div class="driving-analysis-actions"><a class="btn btn-outline" href="{{ url_for('driving_reports',**dict(filter_query,panel='reports',page=1,_anchor='driving-view')) }}">対象の日報を見る（{{ total }}件） →</a>{% if insights.review_notes %}<a class="btn btn-outline" href="{{ url_for('driving_reports',**dict(filter_query,panel='data',page=1,_anchor='driving-view')) }}">読取内容・比較条件を確認 →</a>{% endif %}</div>
+<div class="driving-analysis-actions"><a class="btn btn-outline" href="{{ url_for('driving_reports',**dict(filter_query,panel='reports',page=1,_anchor='driving-view')) }}">対象の日報を見る（{{ total }}件） →</a></div>
 </div>
 <div data-workspace-panel="reports" {% if workspace_panel!='reports' %}hidden{% endif %}>
 {% include 'driving_workspace_reports.html' %}

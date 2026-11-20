@@ -1,0 +1,30 @@
+name: Karte mobile QA regressions
+on:
+  push:
+    branches: ['fix/karte-mobile-qa-a47', 'validation/driving-karte-a47']
+  pull_request:
+    paths: ['tests/karte_mobile_qa_browser/**', '.github/workflows/karte-mobile-qa.yml']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install playwright==1.62.0 Jinja2==3.1.6 && python -m playwright install --with-deps chromium
+      - run: python tests/karte_mobile_qa_browser/acceptance.py
+      - run: python tests/first_use_guide_browser/acceptance.py
+      - run: node --test tests/guide_images_js.cjs tests/guide_reveal_geometry.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: karte-mobile-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            karte-mobile-qa-output/
+            guide-browser-output/

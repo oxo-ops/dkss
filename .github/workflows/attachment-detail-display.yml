@@ -1,7 +1,7 @@
 name: Attachment detail display browser
 on:
   push:
-    branches: ['fix/attachment-detail-display']
+    branches: ['fix/attachment-detail-display', 'validation/driving-karte-a47']
 permissions:
   contents: read
 concurrency:

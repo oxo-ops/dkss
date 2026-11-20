@@ -45,3 +45,5 @@ body .top-bar .karte-mobile-search-trigger{display:inline-flex;align-items:cente
 @media (min-width:768px) and (max-width:900px) {
  body .top-bar .karte-mobile-search-trigger + .top-bar-user {min-width:max-content;flex:0 0 auto;}
 }
+
+@media(max-width:767px){.mobile-shell-title .karte-title-part{display:inline-block;white-space:nowrap;}}

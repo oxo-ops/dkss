@@ -1,5 +1,18 @@
 (() => {
     function initializeKarteLayout() {
+        // Reveal the selected tab inside its strip without moving the document.
+        const tabs = document.querySelector(".vehicle-karte-tabs");
+        function revealSelectedTab() {
+            const current = tabs?.querySelector('[aria-current="page"]');
+            if (!current || tabs.scrollWidth <= tabs.clientWidth) return;
+            const strip = tabs.getBoundingClientRect(), item = current.getBoundingClientRect();
+            if (item.left < strip.left) tabs.scrollLeft += item.left - strip.left;
+            else if (item.right > strip.right) tabs.scrollLeft += item.right - strip.right;
+        }
+        requestAnimationFrame(revealSelectedTab);
+        window.addEventListener("load", revealSelectedTab, {once:true});
+        document.fonts?.ready.then(revealSelectedTab);
+        window.addEventListener("resize", revealSelectedTab);
         const workspaces = document.querySelectorAll(
             ".km-workspace:has(> .km-list-panel), .kp-workspace, .vehicle-karte-history-panel, .vehicle-karte-inspections-primary, .vehicle-karte-documents .km-workspace"
         );
