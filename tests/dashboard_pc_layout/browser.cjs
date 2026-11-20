@@ -18,11 +18,18 @@ for(const variant of ['original','blue']){
  const bounds=await page.locator('.dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list)').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,width:r.width,scroll:e.scrollWidth,client:e.clientWidth};}));
  for(const b of bounds){assert(b.right<=width+1,`${mode}/${width} section clipped`);assert(b.scroll<=b.client+2,`${mode}/${width} horizontal overflow`);}
  if(width>1250&&bounds.length===2){assert(bounds[0].right<=bounds[1].x+1);assert(Math.abs(bounds[0].y-bounds[1].y)<2);}
+ const panels=page.locator('.dashboard-attention-panel');
+ assert.equal(await panels.nth(0).locator('.dashboard-video-proposal').count(),5,'all five personal proposals retained');
+ assert.equal(await panels.nth(1).locator('.dashboard-video-proposal').count(),6,'all six office proposals retained');
  const states=[];
  if(variant==='blue'){const bars=await page.locator('.office-trend-row progress').evaluateAll(es=>es.map(e=>getComputedStyle(e).accentColor));assert.equal(bars[0],'rgb(55, 108, 163)');assert.equal(new Set(bars.slice(0,3)).size,3,'three distinguishable trend series');}
  for(const expanded of [false,true]){
  if(expanded){for(const e of await page.locator('.dashboard-page details:not([open]) > summary').all())if(await e.isVisible())await e.click();for(const e of await page.locator('.dashboard-reference-footer button[aria-expanded="false"]').all())if(await e.isVisible())await e.click();}
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ for(const selector of ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-vehicle']){
+  const clipping=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).filter(e=>e.scrollWidth>e.clientWidth+2||e.scrollHeight>e.clientHeight+2).map(e=>e.textContent));
+  assert.deepEqual(clipping,[],`${mode}/${width} ${selector} text clipping`);
+ }
  states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x,r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
  await page.screenshot({path:path.join(out,`${mode}-${width}-${variant}-${expanded?'expanded':'closed'}.png`),fullPage:true});
  }
