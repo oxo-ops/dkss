@@ -46,7 +46,7 @@ try:
   html=response.get_data(as_text=True)
   if html.count('class="dashboard-safety-content"')!=4:(out/f'fixture-{role}.html').write_text(html)
   assert html.count('class="dashboard-safety-content"')==4
-  assert 'dashboard_mobile_refinement.css?v=20261117-home-succinct-1' in html
+  assert 'dashboard_mobile_refinement.css?v=20261120-restore-pc-layout-1' in html
   assert '架空部品5' in html
   assert 'data-demo-purpose="inspection"' in html and 'data-demo-purpose="management"' in html
  if args.preflight_only:
