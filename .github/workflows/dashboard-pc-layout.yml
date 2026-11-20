@@ -1,7 +1,7 @@
 name: PC dashboard original layout acceptance
 on:
   push:
-    branches: [fix/pc-dashboard-balanced-panels]
+    branches: [fix/pc-dashboard-balanced-panels, 'validation/driving-karte-a47']
 permissions:
   contents: read
 jobs:

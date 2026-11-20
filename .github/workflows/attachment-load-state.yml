@@ -1,7 +1,7 @@
 name: Attachment load status browser
 on:
   push:
-    branches: ['fix/attachment-load-state']
+    branches: ['fix/attachment-load-state', 'validation/driving-karte-a47']
 permissions:
   contents: read
 jobs:

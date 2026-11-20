@@ -56,7 +56,7 @@
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive_layout.css', v='20261119-hamburger-alpha-1') }}">
     <script defer src="{{ url_for('static', filename='js/notification_presentation.js', v='20261025-v7') }}"></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_mobile_header_search.css', v='20261119-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/karte_mobile_header_search.css', v='20261120-karte-title-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-2') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop_action_icons.css', v='20261119-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/common_action_buttons.css', v='20261120-integrated-2') }}">
@@ -241,7 +241,7 @@
                 {{ karte_vehicle_choices | tojson }}
             </script>
             {% endif %}
-            <h1 class="mobile-shell-title" data-mobile-page-title><span data-mobile-title-text>{{ self.title() }}</span></h1>
+            <h1 class="mobile-shell-title" data-mobile-page-title><span data-mobile-title-text>{% if request.endpoint == "vehicle_karte_maintenance" %}<span class="karte-title-part">車両カルテ</span><wbr><span class="karte-title-part">・整備・修理</span>{% else %}{{ self.title() }}{% endif %}</span></h1>
             {% block top_bar_heading %}{% endblock %}
             {% include 'partials/first_use_guide.html' %}
             <div class="notification-menu" id="notificationMenu">
