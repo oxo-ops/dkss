@@ -31,7 +31,10 @@ class WorkspaceUITests(unittest.TestCase):
             self.assertEqual(selected['insights']['summary']['distance'],20)
             self.assertEqual(selected['filters']['office'],context['filters']['office'])
             self.assertNotIn('小山の人',response.get_data(as_text=True))
-            self.assertIn('記録量・条件・出典',response.get_data(as_text=True))
+            # Evidence disclosure was intentionally removed; data and source identities remain.
+            self.assertNotIn('id="driving-metric-sources"',response.get_data(as_text=True))
+            self.assertIn('読取内容</a>',response.get_data(as_text=True))
+            self.assertEqual(selected['insights']['display_metrics'][0]['metric']['id'],metric)
         _,raw=self.render(self.base+'&metric='+categories['other'])
         self.assertEqual(raw['insights']['display_metrics'][0]['current']['display'],'1時間00分')
 
