@@ -2,6 +2,11 @@
 
 {% block title %}安全パトロール詳細{% endblock %}
 
+{% block page_styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attachment_load_state.css') }}?v=20261120-1">
+{% endblock %}
+
 {% block content %}
 
 <nav class="page-breadcrumb form-page-header" aria-label="パンくずリスト">
@@ -572,6 +577,7 @@
 
 {% endif %}
 
+<script src="{{ url_for('static', filename='js/attachment_load_state.js') }}?v=20261120-1"></script>
 <script src="{{ url_for('static', filename='js/pointout_detail.js') }}"></script>
 <script src="{{ url_for('static', filename='js/new_pointout.js') }}"></script>
 

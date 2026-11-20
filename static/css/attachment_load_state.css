@@ -1,0 +1,4 @@
+.attachment-load-state {display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#52657b;font-size:.875rem;padding:4px 0;min-height:32px;}
+.attachment-load-state[hidden],.attachment-load-retry[hidden] {display:none;}
+.attachment-load-retry {min-width:64px;min-height:44px;padding:6px 12px;border:1px solid #b8cce1;border-radius:8px;background:#edf5fc;color:#204c89;font:inherit;cursor:pointer;}
+.attachment-load-retry:focus-visible {outline:2px solid #2876b8;outline-offset:2px;}
