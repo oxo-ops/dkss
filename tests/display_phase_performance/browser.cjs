@@ -1,0 +1,29 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const fs=require('fs'),path=require('path');
+const root=path.resolve(process.argv[2]),out=path.resolve(process.argv[3]);
+(async()=>{const browser=await chromium.launch({headless:true});const results=[];
+try{for(const width of [390,1440])for(const kind of ['planner','notifications'])for(const condition of ['baseline','api300','css300'])for(let iteration=0;iteration<20;iteration++){
+ const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block'});const page=await context.newPage();const errors=[],blocked=[];page.on('pageerror',e=>errors.push(e.message));
+ await context.routeWebSocket('**/*',ws=>ws.close());
+ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(u.origin!=='http://isolated.test'||req.method()!=='GET'){blocked.push({url:u.origin+u.pathname,method:req.method()});return route.abort();}let data,type='text/html';
+ if(u.pathname.startsWith('/static/')){const f=path.resolve(root,'.'+u.pathname);if(!f.startsWith(root+'/static/')||!fs.existsSync(f))return route.fulfill({status:404,body:''});data=fs.readFileSync(f);type=f.endsWith('.js')?'application/javascript':f.endsWith('.css')?'text/css':f.endsWith('.svg')?'image/svg+xml':f.endsWith('.png')?'image/png':'application/octet-stream';
+ if(u.pathname==='/static/css/style.css'&&condition==='css300')await new Promise(r=>setTimeout(r,300));
+ if(u.pathname==='/static/js/base.js')data=data.toString()+`\ndocument.addEventListener('DOMContentLoaded',()=>window.measure.bellHandlerReady=performance.now());`;
+ if(u.pathname==='/static/js/vehicle_inspection_plans.js'){
+  data=data.toString();if(!data.includes('    function draw() {')||!data.includes('        renderSearchResults();\n        requestAnimationFrame(fitLayout);'))throw Error('instrumentation source drift');
+  data=data.replace('    function draw() {','    function draw() { window.measure.drawStart=performance.now();').replace('        renderSearchResults();\n        requestAnimationFrame(fitLayout);','        renderSearchResults();\n        window.measure.drawEnd=performance.now(); requestAnimationFrame(()=>{fitLayout();window.measure.fitEnd=performance.now();requestAnimationFrame(()=>window.measure.frameAfterDraw=performance.now());});');
+ }
+ }else if(u.pathname==='/vehicle/inspection-plans')data=fs.readFileSync(path.join(out,'response-0.bin'));else if(u.pathname==='/notifications')data=fs.readFileSync(path.join(out,'response-2.bin'));else if(u.pathname==='/api/vehicle/inspection-plans'||u.pathname==='/api/notifications/recent'){if(condition==='api300')await new Promise(r=>setTimeout(r,300));data=fs.readFileSync(path.join(out,u.pathname.includes('inspection-plans')?'response-1.bin':'response-3.bin'));type='application/json';}else return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:type,body:data});});
+ await page.addInitScript(()=>{window.measure={long:[],api:[]};new PerformanceObserver(l=>measure.long.push(...l.getEntries().map(x=>({start:x.startTime,ms:x.duration})))).observe({type:'longtask',buffered:true});const fetch=window.fetch;window.fetch=async(...args)=>{const url=String(args[0]);const entry={url,start:performance.now()};const r=await fetch(...args);entry.response=performance.now();const json=r.json.bind(r);r.json=async()=>{const v=await json();entry.jsonEnd=performance.now();return v;};measure.api.push(entry);return r;};const poll=()=>{const image=document.querySelector('#notificationBell img');if(image&&image.complete&&image.naturalWidth&&!measure.bellDecoded)measure.bellDecoded=performance.now();const el=document.querySelector('#notificationBell');if(el&&el.getBoundingClientRect().width&&getComputedStyle(el).visibility!=='hidden'&&!measure.bellVisible)measure.bellVisible=performance.now();requestAnimationFrame(poll);};requestAnimationFrame(poll);});
+ await page.goto('http://isolated.test/'+(kind==='planner'?'vehicle/inspection-plans?scope=company&year=2026&month=2026-11':'notifications'),{waitUntil:'load'});
+ if(kind==='planner')await page.waitForFunction(()=>window.measure.frameAfterDraw);
+ await page.waitForTimeout(80);
+ const initial=await page.evaluate(()=>({nav:performance.getEntriesByType('navigation')[0].toJSON(),paints:performance.getEntriesByType('paint').map(x=>({name:x.name,ms:x.startTime})),...window.measure,elements:document.querySelectorAll('*').length,bellVisibleNow:!!document.querySelector('#notificationBell')?.getBoundingClientRect().width}));
+ results.push({width,kind,condition,iteration,...initial,errors,blocked});
+ if(iteration===0)await page.screenshot({path:path.join(out,`${kind}-${width}-${condition}.png`)});
+ await context.close();
+}
+fs.writeFileSync(path.join(out,'browser.json'),JSON.stringify(results,null,2));
+const summary=[];const median=a=>{a=a.filter(Number.isFinite).sort((a,b)=>a-b);return a.length?a[Math.floor(a.length/2)]:null};for(const width of [390,1440])for(const kind of ['planner','notifications'])for(const condition of ['baseline','api300','css300']){const rows=results.filter(r=>r.width===width&&r.kind===kind&&r.condition===condition);summary.push({width,kind,condition,n:rows.length,fcp:median(rows.map(r=>r.paints.find(p=>p.name==='first-contentful-paint')?.ms)),bellVisible:median(rows.map(r=>r.bellVisible)),bellReady:median(rows.map(r=>r.bellHandlerReady)),drawCPU:median(rows.map(r=>r.drawEnd-r.drawStart)),frameAfterDraw:median(rows.map(r=>r.frameAfterDraw)),errorCount:rows.reduce((s,r)=>s+r.errors.length,0),blockedCount:rows.reduce((s,r)=>s+r.blocked.length,0)});}
+fs.writeFileSync(path.join(out,'summary.json'),JSON.stringify(summary,null,2));console.log('DISPLAY_PHASE_SUMMARY '+JSON.stringify(summary));
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});
