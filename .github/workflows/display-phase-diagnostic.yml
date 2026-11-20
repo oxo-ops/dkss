@@ -32,7 +32,7 @@ jobs:
           git rev-parse HEAD > "$RUNNER_TEMP/display/source-sha.txt"
           python tests/display_phase_performance/fixtures.py "$PWD" "$RUNNER_TEMP/display"
           python tests/display_phase_performance/css_audit.py "$PWD" "$RUNNER_TEMP/display"
-          node tests/display_phase_performance/planner_layout_matrix.cjs "$PWD" "$RUNNER_TEMP/display"
+          node tests/display_phase_performance/planner_layout_matrix_narrow.cjs "$PWD" "$RUNNER_TEMP/display"
         env:
           MATRIX_ENGINE: ${{ matrix.engine }}
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
