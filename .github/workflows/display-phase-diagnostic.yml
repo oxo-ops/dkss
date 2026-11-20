@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt tinycss2==1.4.0
       - run: |
           npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
           "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
@@ -26,7 +26,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/display"
           git rev-parse HEAD > "$RUNNER_TEMP/display/source-sha.txt"
           python tests/display_phase_performance/fixtures.py "$PWD" "$RUNNER_TEMP/display"
-          node tests/display_phase_performance/browser.cjs "$PWD" "$RUNNER_TEMP/display"
+          python tests/display_phase_performance/css_audit.py "$PWD" "$RUNNER_TEMP/display"
+          node tests/display_phase_performance/css_browser.cjs "$PWD" "$RUNNER_TEMP/display"
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
       - uses: actions/upload-artifact@v7
