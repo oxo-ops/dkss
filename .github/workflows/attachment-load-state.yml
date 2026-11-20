@@ -1,0 +1,37 @@
+name: Attachment load status browser
+on:
+  push:
+    branches: ['fix/attachment-load-state']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: |
+          pip install -r requirements.txt
+          npm install --prefix "$RUNNER_TEMP/pw" playwright@1.62.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Isolated diagnostics without production credentials
+        run: |
+          set -euo pipefail
+          PYTHONPATH=.:tests:tests/attachment_load_state python -m unittest test_postsave.PostSaveDiagnostic.test_completed_upload_immediately_readable_without_sleep test_postsave.PostSaveDiagnostic.test_transient_decode_failure_does_not_poison_next_request test_postsave.PostSaveDiagnostic.test_s3_transient_response_matrix -v
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP" AWS_EC2_METADATA_DISABLED=true PRODUCT_REPO="$PWD" HTML_OUT="$PWD/tests/attachment_load_state/html" python tests/attachment_detail_browser/render.py
+          env -i PATH="$PATH" HOME="$HOME" PRODUCT_REPO="$PWD" PLAYWRIGHT_MODULE="$RUNNER_TEMP/pw/node_modules/playwright" node tests/attachment_load_state/browser.cjs
+          git rev-parse HEAD > tests/attachment_load_state/head.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: attachment-load-state
+          path: |
+            tests/attachment_load_state/*.json
+            tests/attachment_load_state/*.png
+            tests/attachment_load_state/head.txt
