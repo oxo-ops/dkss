@@ -1,0 +1,43 @@
+name: Isolated display phase measurement
+on:
+  push:
+    branches: [diagnostic/display-phase-a47]
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt tinycss2==1.4.0
+      - timeout-minutes: 8
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps ${{ matrix.engine }}
+      - run: |
+          mkdir -p "$RUNNER_TEMP/display"
+          git rev-parse HEAD > "$RUNNER_TEMP/display/source-sha.txt"
+          python tests/display_phase_performance/fixtures.py "$PWD" "$RUNNER_TEMP/display"
+          python tests/display_phase_performance/css_audit.py "$PWD" "$RUNNER_TEMP/display"
+          node tests/display_phase_performance/planner_layout_matrix_dedupe.cjs "$PWD" "$RUNNER_TEMP/display"
+        env:
+          MATRIX_ENGINE: ${{ matrix.engine }}
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: display-phase-${{ matrix.engine }}-${{ github.sha }}
+          path: ${{ runner.temp }}/display/
