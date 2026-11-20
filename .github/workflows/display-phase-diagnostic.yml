@@ -7,7 +7,11 @@ permissions:
 jobs:
   measure:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -19,9 +23,10 @@ jobs:
         with:
           node-version: '22'
       - run: pip install -r requirements.txt tinycss2==1.4.0
-      - run: |
+      - timeout-minutes: 8
+        run: |
           npm install --prefix "$RUNNER_TEMP/browser" playwright@1.62.0
-          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium webkit
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps ${{ matrix.engine }}
       - run: |
           mkdir -p "$RUNNER_TEMP/display"
           git rev-parse HEAD > "$RUNNER_TEMP/display/source-sha.txt"
@@ -29,9 +34,10 @@ jobs:
           python tests/display_phase_performance/css_audit.py "$PWD" "$RUNNER_TEMP/display"
           node tests/display_phase_performance/planner_layout_matrix.cjs "$PWD" "$RUNNER_TEMP/display"
         env:
+          MATRIX_ENGINE: ${{ matrix.engine }}
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: display-phase-${{ github.sha }}
+          name: display-phase-${{ matrix.engine }}-${{ github.sha }}
           path: ${{ runner.temp }}/display/

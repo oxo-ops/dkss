@@ -7,7 +7,7 @@ if(mainPlans.length<160)throw Error('Expected at least 160 synthetic reserved pl
 const densities={empty:[],sparse:mainPlans.slice(0,3),clustered:mainPlans.slice(0,18).map(p=>({...p,reservation_date:'2026-11-12'})),many:mainPlans};
 const profiles=[{name:'narrow',width:320,height:700},{name:'phone',width:390,height:844},{name:'landscape-narrow',width:690,height:360},{name:'landscape-wide',width:844,height:390}];
 (async()=>{const results=[];
-for(const [engine,launcher] of Object.entries({chromium,webkit})){const browser=await launcher.launch({headless:true});
+for(const [engine,launcher] of Object.entries({chromium,webkit})){if(process.env.MATRIX_ENGINE&&process.env.MATRIX_ENGINE!==engine)continue;const browser=await launcher.launch({headless:true});
 try{for(const {name:profile,width,height} of profiles)for(const density of Object.keys(densities))for(const variant of ['original','batch']){
  const view='calendar',kind='planner',condition='original';
  const context=await browser.newContext({viewport:{width,height},isMobile:true,hasTouch:true,deviceScaleFactor:2,serviceWorkers:'block'});const page=await context.newPage();const errors=[],blocked=[];page.setDefaultTimeout(6000);page.on('pageerror',e=>errors.push(e.message));
