@@ -28,6 +28,8 @@ for(const variant of ['original','blue']){
  if(variant==='blue'){const bars=await page.locator('.office-trend-row progress').evaluateAll(es=>es.map(e=>getComputedStyle(e).accentColor));assert.equal(bars[0],'rgb(55, 108, 163)');assert.equal(new Set(bars.slice(0,3)).size,3,'three distinguishable trend series');}
  for(const expanded of [false,true]){
  if(expanded){for(const e of await page.locator('.dashboard-page details:not([open]) > summary').all())if(await e.isVisible())await e.click();for(const e of await page.locator('.dashboard-reference-footer button[aria-expanded="false"]').all())if(await e.isVisible())await e.click();}
+ // Expansion intentionally scrolls the page; compare both palettes at the same viewport origin.
+ await page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  for(const selector of ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-vehicle']){
   const clipping=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).filter(e=>e.scrollWidth>e.clientWidth+2||e.scrollHeight>e.clientHeight+2).map(e=>e.textContent));
@@ -36,6 +38,7 @@ for(const variant of ['original','blue']){
  states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x,r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
  await page.screenshot({path:path.join(out,`${mode}-${width}-${variant}-${expanded?'expanded':'closed'}.png`),fullPage:true});
  }
+ fs.writeFileSync(path.join(out,`${mode}-${width}-${variant}-geometry.json`),JSON.stringify(states));
  assert.equal(writes,0);variants.push(states);await ctx.close();
 }
 for(let i=0;i<2;i++){const a=variants[0][i],b=variants[1][i];assert.deepEqual(a.map(({tag,cls,text,rect})=>({tag,cls,text,rect})),b.map(({tag,cls,text,rect})=>({tag,cls,text,rect})),`${mode}/${width}/${i} geometry/text`);for(let j=0;j<a.length;j++)if(a[j].state){assert.equal(a[j].color,b[j].color);assert.equal(a[j].bg,b[j].bg);}}
