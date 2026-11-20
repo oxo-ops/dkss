@@ -27,7 +27,7 @@ jobs:
           git rev-parse HEAD > "$RUNNER_TEMP/display/source-sha.txt"
           python tests/display_phase_performance/fixtures.py "$PWD" "$RUNNER_TEMP/display"
           python tests/display_phase_performance/css_audit.py "$PWD" "$RUNNER_TEMP/display"
-          node tests/display_phase_performance/css_network.cjs "$PWD" "$RUNNER_TEMP/display"
+          node tests/display_phase_performance/loaded_browser.cjs "$PWD" "$RUNNER_TEMP/display"
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser/node_modules/playwright
       - uses: actions/upload-artifact@v7

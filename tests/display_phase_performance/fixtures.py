@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory() as tmp:
   if event=='sqlite3.connect' and str(args[0])!=':memory:' and not Path(str(args[0])).resolve().is_relative_to(tmp):raise RuntimeError('SQLITE_OUTSIDE_TEMP')
  sys.addaudithook(guard);sys.path[:0]=[str(ROOT),str(ROOT/'tests')]
  # reuse audited fixture seed, measure broader initial GET paths instead of prior API-only loop
- source=(ROOT/'tests/plan_read_performance/probe.py').read_text();source=source[:source.index(' statements=[]')]+'''\n statements=[];sql_ms=[0];state={};from flask import before_render_template,template_rendered
+ source=(ROOT/'tests/plan_read_performance/probe.py').read_text();source=source[:source.index(' statements=[]')].replace(" m.db.session.commit()", " m.db.session.add_all([m.VehicleInspectionPlan(company_code='TEST',vehicle_record_id=v.id,kind='ad_hoc',period_key=f'synthetic-{i}',planned_month='2026-11',reservation_date=f'2026-11-{i%28+1:02d}',status='planned',version=1,source='manual',factory='Synthetic workshop',note='Synthetic planned repair') for i,v in enumerate(vs)]);m.db.session.commit()")+'''\n statements=[];sql_ms=[0];state={};from flask import before_render_template,template_rendered
  def sql_before(conn,cursor,statement,parameters,ctx,many):
   statements.append(statement.split()[0]);ctx._start=time.perf_counter()
  def sql_after(conn,cursor,statement,parameters,ctx,many):sql_ms[0]+=(time.perf_counter()-ctx._start)*1000
@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory() as tmp:
    row=dict(path=path,iteration=n,status=r.status_code,wall_ms=(time.perf_counter()-begin)*1000,cpu_ms=(time.process_time()-cpu)*1000,sql_ms=sql_ms[0],queries=len(statements),writes=sum(s in ('INSERT','UPDATE','DELETE') for s in statements),bytes=len(r.data),preprocess_ms=state.get('preprocess_ms'),template_ms=state.get('template_ms'))
    result.append(row);print(json.dumps(row),flush=True)
    if n==2:(OUT/f'response-{idx}.bin').write_bytes(r.data)
+   if idx==1: assert sum(p.get('planned_month')=='2026-11' and bool(p.get('reservation_date')) for p in r.json['plans'])>=160, 'fixture month must contain scheduled events'
  (OUT/'server.json').write_text(json.dumps(result,indent=2))
 finally:t.tearDown();T.tearDownClass()
 '''
