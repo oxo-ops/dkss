@@ -212,3 +212,12 @@ body.ka-analysis-detail-open>.ka-reference-drawer {width:480px;max-width:100vw;h
  body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form > span,
  body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form button {grid-column:auto;}
 }
+/* Very narrow phones need two compact rows so native date fields stay readable. */
+@media (max-width:360px) {
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form {grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);}
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form > label:not(.km-sr-only) {grid-column:1 / 3;grid-row:1;}
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form button {grid-column:3;grid-row:1;justify-self:end;}
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form #ka-start-date {grid-column:1;grid-row:2;}
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form > span {grid-column:2;grid-row:2;}
+ body.vehicle-list-ppt .ka3-shell .karte-analysis .ka7-toolbar .ka-period-form #ka-end-date {grid-column:3;grid-row:2;}
+}
