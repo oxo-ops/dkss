@@ -46,7 +46,7 @@ try:
   html=response.get_data(as_text=True)
   if html.count('class="dashboard-safety-content"')!=4:(out/f'fixture-{role}.html').write_text(html)
   assert html.count('class="dashboard-safety-content"')==4
-  assert 'dashboard_mobile_refinement.css?v=20261120-restore-pc-layout-1' in html
+  assert 'dashboard_mobile_refinement.css?v=20261120-balanced-pc-layout-1' in html
   assert '架空部品5' in html
   assert 'data-demo-purpose="inspection"' in html and 'data-demo-purpose="management"' in html
  if args.preflight_only:
@@ -163,11 +163,13 @@ try:
      full=page.locator('.dashboard-home-layout').bounding_box();attention=page.locator('.dashboard-attention-list').bounding_box()
      vehicles=page.locator('.dashboard-vehicles-section').bounding_box()
      narrow_content=page.locator('body').get_attribute('data-content-layout') in ('medium','compact')
-     if narrow_content:
-      assert attention['width']>=full['width']-2,(full,attention)
-     else:
-      assert vehicles['x']+vehicles['width']<=attention['x']+1,(vehicles,attention)
-      assert abs(vehicles['y']-attention['y'])<=1,(vehicles,attention)
+     assert attention['width']>=full['width']-2,(full,attention)
+     assert abs(vehicles['x']-attention['x'])<=1,(vehicles,attention)
+     assert vehicles['y']+vehicles['height']<=attention['y']+1,(vehicles,attention)
+     panels=page.locator('.dashboard-attention-panel')
+     first=panels.nth(0).bounding_box(); second=panels.nth(1).bounding_box()
+     assert first['x']+first['width']<=second['x']+1,(first,second)
+     assert abs(first['y']-second['y'])<=1,(first,second)
      assert attention['x']+attention['width']<=full['x']+full['width']+1,(full,attention)
      safety_rect=page.locator('.dashboard-safety-attention').bounding_box()
      assert safety_rect['height']<=420,('synthetic desktop safety density',safety_rect)

@@ -1,7 +1,7 @@
 name: PC dashboard original layout acceptance
 on:
   push:
-    branches: [fix/pc-dashboard-original-density]
+    branches: [fix/pc-dashboard-balanced-panels]
 permissions:
   contents: read
 jobs:

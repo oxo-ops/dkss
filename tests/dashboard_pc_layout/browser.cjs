@@ -14,25 +14,39 @@ for(const variant of ['original','blue']){
  await page.goto('https://fixture.invalid/');await page.evaluate(()=>document.fonts.ready);await page.locator('.dashboard-page[data-design-ready="true"]').waitFor();
  const close=page.locator('[data-guide-close]');if(await close.isVisible())await close.click();
  const columns=await page.locator('.dashboard-home-layout').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);
- assert.equal(columns,width>1250?2:1,`${mode}/${width} original responsive column count`);
+ assert.equal(columns,1,`${mode}/${width} full-width home rows`);
  const bounds=await page.locator('.dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list)').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,width:r.width,scroll:e.scrollWidth,client:e.clientWidth};}));
  for(const b of bounds){assert(b.right<=width+1,`${mode}/${width} section clipped`);assert(b.scroll<=b.client+2,`${mode}/${width} horizontal overflow`);}
- if(width>1250&&bounds.length===2){assert(bounds[0].right<=bounds[1].x+1);assert(Math.abs(bounds[0].y-bounds[1].y)<2);}
+ if(bounds.length===2){assert(Math.abs(bounds[0].x-bounds[1].x)<2);assert(bounds[1].y>bounds[0].y);}
  const panels=page.locator('.dashboard-attention-panel');
+ const panelBounds=await panels.evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right};}));
+ if(width>1250){assert(panelBounds[0].right<=panelBounds[1].x+1);assert(Math.abs(panelBounds[0].y-panelBounds[1].y)<2,'AI groups share a row');}else{assert(Math.abs(panelBounds[0].x-panelBounds[1].x)<2,'narrow AI layout unchanged');}
+
  assert.equal(await panels.nth(0).locator('.dashboard-video-proposal').count(),5,'all five personal proposals retained');
  assert.equal(await panels.nth(1).locator('.dashboard-video-proposal').count(),6,'all six office proposals retained');
+ // Verify the actual 'all proposals' control exposes the sixth record, not just its DOM presence.
+ const officeToggle=panels.nth(1).locator('.dashboard-attention-view-all');
+ await officeToggle.click();
+ await page.waitForFunction(()=>document.querySelectorAll('.dashboard-attention-panel')[1].querySelector('.dashboard-attention-more').open);
+ assert.equal(await panels.nth(1).locator('.dashboard-video-proposal:visible').count(),6,'six office proposals are accessible');
+ await officeToggle.click();
+ await page.waitForFunction(()=>!document.querySelectorAll('.dashboard-attention-panel')[1].querySelector('.dashboard-attention-more').open);
+ await page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
  const states=[];
  if(variant==='blue'){const bars=await page.locator('.office-trend-row progress').evaluateAll(es=>es.map(e=>getComputedStyle(e).accentColor));assert.equal(bars[0],'rgb(55, 108, 163)');assert.equal(new Set(bars.slice(0,3)).size,3,'three distinguishable trend series');}
  for(const expanded of [false,true]){
  if(expanded){for(const e of await page.locator('.dashboard-page details:not([open]) > summary').all())if(await e.isVisible())await e.click();for(const e of await page.locator('.dashboard-reference-footer button[aria-expanded="false"]').all())if(await e.isVisible())await e.click();}
+ // Expansion intentionally scrolls the page; compare both palettes at the same viewport origin.
+ await page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  for(const selector of ['.dashboard-video-copy strong','.dashboard-video-action','.dashboard-video-timing','.dashboard-video-vehicle']){
   const clipping=await page.locator(selector).evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).filter(e=>e.scrollWidth>e.clientWidth+2||e.scrollHeight>e.clientHeight+2).map(e=>e.textContent));
   assert.deepEqual(clipping,[],`${mode}/${width} ${selector} text clipping`);
  }
- states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x,r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
+ states.push(await page.locator('.dashboard-page').evaluate(root=>[root,...root.querySelectorAll('*')].map(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return {tag:e.tagName,cls:e.className,text:e.childElementCount?'':e.textContent,rect:[r.x||r.y||r.width||r.height?r.x+window.scrollX:r.x,r.x||r.y||r.width||r.height?r.y+window.scrollY:r.y,r.width,r.height].map(n=>Math.round(n*10)/10),state:e.matches('[data-state],.summary-value.good,.status-badge,.dashboard-attention-status'),color:s.color,bg:s.backgroundColor};})));
  await page.screenshot({path:path.join(out,`${mode}-${width}-${variant}-${expanded?'expanded':'closed'}.png`),fullPage:true});
  }
+ fs.writeFileSync(path.join(out,`${mode}-${width}-${variant}-geometry.json`),JSON.stringify(states));
  assert.equal(writes,0);variants.push(states);await ctx.close();
 }
 for(let i=0;i<2;i++){const a=variants[0][i],b=variants[1][i];assert.deepEqual(a.map(({tag,cls,text,rect})=>({tag,cls,text,rect})),b.map(({tag,cls,text,rect})=>({tag,cls,text,rect})),`${mode}/${width}/${i} geometry/text`);for(let j=0;j<a.length;j++)if(a[j].state){assert.equal(a[j].color,b[j].color);assert.equal(a[j].bg,b[j].bg);}}
