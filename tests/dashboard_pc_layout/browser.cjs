@@ -24,6 +24,14 @@ for(const variant of ['original','blue']){
 
  assert.equal(await panels.nth(0).locator('.dashboard-video-proposal').count(),5,'all five personal proposals retained');
  assert.equal(await panels.nth(1).locator('.dashboard-video-proposal').count(),6,'all six office proposals retained');
+ // Verify the actual 'all proposals' control exposes the sixth record, not just its DOM presence.
+ const officeToggle=panels.nth(1).locator('.dashboard-attention-view-all');
+ await officeToggle.click();
+ await page.waitForFunction(()=>document.querySelectorAll('.dashboard-attention-panel')[1].querySelector('.dashboard-attention-more').open);
+ assert.equal(await panels.nth(1).locator('.dashboard-video-proposal:visible').count(),6,'six office proposals are accessible');
+ await officeToggle.click();
+ await page.waitForFunction(()=>!document.querySelectorAll('.dashboard-attention-panel')[1].querySelector('.dashboard-attention-more').open);
+ await page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
  const states=[];
  if(variant==='blue'){const bars=await page.locator('.office-trend-row progress').evaluateAll(es=>es.map(e=>getComputedStyle(e).accentColor));assert.equal(bars[0],'rgb(55, 108, 163)');assert.equal(new Set(bars.slice(0,3)).size,3,'three distinguishable trend series');}
  for(const expanded of [false,true]){
