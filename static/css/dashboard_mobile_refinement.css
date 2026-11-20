@@ -331,16 +331,9 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
     body .dashboard-page.dashboard-design-v2 .dashboard-attention-table .dashboard-reference-action { -webkit-line-clamp: unset; line-clamp: unset; }
 }
 
-/* The video uses a full-width follow-up list. Preserve the existing DOM/order
-   while removing the wide-screen two-column hole beside long safety records. */
-@media screen and (min-width: 1251px) {
-    body .dashboard-page.dashboard-design-v2 .dashboard-home-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
-    body .dashboard-page.dashboard-design-v2 .dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list) {
-        grid-column: 1 / -1;
-    }
-}
+/* Desktop uses the original two-column home layout from style.css.
+   Do not stack it as a side effect of mobile refinements. The existing
+   <=1250px breakpoint still handles narrow Teams/browser windows. */
 
 /* Desktop: two information rows instead of five stacked lines. Keep every
    field and native full-text control; expand the full text across the row. */
