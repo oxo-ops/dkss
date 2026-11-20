@@ -3,6 +3,17 @@ import hashlib
 import json
 import secrets
 import time
+import os
+import threading
+
+_client_lock = threading.Lock()
+
+def _after_fork():
+    global _client_lock
+    _client_lock = threading.Lock()
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_after_fork)
 from flask import abort, current_app, session
 
 
@@ -26,7 +37,17 @@ def _store():
     if not uri.startswith(('redis://','rediss://')):
         abort(503)
     import redis
-    return redis.Redis.from_url(uri,socket_connect_timeout=3,socket_timeout=3)
+    # Cache transport only, never the result of GET/SET/DELETE authorization.
+    app = current_app._get_current_object()
+    identity = (os.getpid(), uri)
+    with _client_lock:
+        cached = app.extensions.get('public_demo_redis_client')
+        if cached is None or cached[0] != identity:
+            client = redis.Redis.from_url(uri, socket_connect_timeout=3, socket_timeout=3)
+            # Do not disconnect a replaced pool while other requests may use it.
+            app.extensions['public_demo_redis_client'] = (identity, client)
+            return client
+        return cached[1]
 
 
 def issue(state=None):
