@@ -335,6 +335,12 @@ body .dashboard-page.dashboard-design-v2 .dashboard-attention-table th:nth-child
    Do not stack it as a side effect of mobile refinements. The existing
    <=1250px breakpoint still handles narrow Teams/browser windows. */
 
+@media screen and (min-width: 1251px) {
+    body .dashboard-page.dashboard-design-v2 .dashboard-home-layout > :is(.dashboard-vehicles-section,.dashboard-attention-list) {
+        grid-row: 1;
+    }
+}
+
 /* Desktop: two information rows instead of five stacked lines. Keep every
    field and native full-text control; expand the full text across the row. */
 @media screen and (min-width: 1251px) {
