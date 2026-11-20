@@ -13,7 +13,7 @@ try{for(const width of [390,1440])for(const mode of ['slow200','404']){
  if(u.pathname==='/files/uploads/avatar.jpg'){requested++;if(mode==='slow200')await gate;if(!good)return r.fulfill({status:404,body:'File not found'});return r.fulfill({contentType:'image/webp',body:fs.readFileSync(path.join(here,'html/display-1280.webp'))});}
  return r.fulfill({status:404});});
  await page.goto('https://fixture.invalid/detail',{waitUntil:'domcontentloaded'});
- const img=page.locator('.detail-image').first();await img.scrollIntoViewIfNeeded();await page.waitForFunction(()=>{const e=document.querySelector('.detail-image');return e&&e.currentSrc;});
+ const img=page.locator('.detail-image').first();await img.scrollIntoViewIfNeeded();for(let i=0;i<100&&!requested;i++)await page.waitForTimeout(50);assert(requested>0,'image request started');
  if(mode==='slow200'){await page.waitForTimeout(300);const pending=await img.evaluate(e=>({complete:e.complete,w:e.naturalWidth}));assert.equal(pending.w,0);await page.screenshot({path:path.join(here,`pending-${width}.png`)});release();await img.evaluate(e=>e.decode());report.push({width,mode,pending,loaded:await img.evaluate(e=>e.naturalWidth)});}
  else{await page.waitForFunction(()=>document.querySelector('.detail-image').complete);assert.equal(await img.evaluate(e=>e.naturalWidth),0);good=true;await page.waitForTimeout(500);const requestsBeforeReload=requested;assert.equal(await img.evaluate(e=>e.naturalWidth),0);await page.screenshot({path:path.join(here,`failed-${width}.png`)});await page.reload({waitUntil:'domcontentloaded'});await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());report.push({width,mode,requestsBeforeReload,recoveredOnReload:true});}
  await context.close();}
