@@ -179,3 +179,81 @@ class PostgresExistingInspectionRepair(PostgresFixture, unittest.TestCase):
         self.assertEqual(types.count('運行判断'), 2)
         self.assertIn('再確認待ち', types)
         self.assertIn('解消', types)
+
+
+class PostgresDashboardFeedbackPreload(PostgresFixture, unittest.TestCase):
+    """Execute focused dashboard parity on the isolated Q10 PostgreSQL service."""
+    from test_dashboard_feedback_preload import DashboardFeedbackPreloadTests as dashboard_cases
+    setUp = dashboard_cases.setUp
+    tearDown = dashboard_cases.tearDown
+    configure = dashboard_cases.configure
+    save = dashboard_cases.save
+    recommendations = staticmethod(dashboard_cases.recommendations)
+    vehicle_in = dashboard_cases.vehicle_in
+    feedback = dashboard_cases.feedback
+    assert_scope = dashboard_cases.assert_scope
+    seed_mixed = dashboard_cases.seed_mixed
+    request = dashboard_cases.request
+
+    def test_dashboard_latest_matches_sequential_lookup_and_pins_scope(self):
+        from dkss_app import dashboard
+        from dkss_app.analysis_feedback import latest_vehicle_analysis_feedback
+        from identity_fixture import identity_for
+        own, office, reader, _, _ = self.seed_mixed()
+
+        def snapshot(mapping):
+            return {
+                vehicle_id: {key: (row.proposal_revision, row.status, row.snapshot_json)
+                             for key, row in rows.items()}
+                for vehicle_id, rows in mapping.items() if rows
+            }
+
+        def sequential(company, ids):
+            return {
+                vid: {row.proposal_key: row for row in latest_vehicle_analysis_feedback(company, vid)}
+                for vid in dict.fromkeys(ids)
+            }
+
+        batched = dashboard._dashboard_latest_vehicle_feedback('TEST', [own.id, office.id, own.id])
+        expected = sequential('TEST', [own.id, office.id, own.id])
+        self.assertEqual(snapshot(batched), snapshot(expected))
+        admin, meter, _ = self.request('/')
+        self.assert_scope(admin)
+        self.assertEqual(meter['feedback_select'], 1)
+        with patch.object(dashboard, '_dashboard_latest_vehicle_feedback', side_effect=sequential):
+            reference, meter, _ = self.request('/')
+        self.assertEqual(admin, reference)
+        self.assertEqual(meter['feedback_select'], 2)
+        with self.client.session_transaction() as session:
+            session.update(username=reader.username, role='user',
+                           account_identity=identity_for('TEST', reader.username, app=self.app))
+        visible, meter, _ = self.request('/')
+        self.assert_scope(visible, public=True)
+        self.assertEqual(meter['feedback_select'], 1)
+        with patch.object(dashboard, '_dashboard_latest_vehicle_feedback', side_effect=sequential):
+            reference, _, _ = self.request('/')
+        self.assertEqual(visible, reference)
+
+    test_dashboard_never_fetches_feedback_without_usable_proposal = (
+        dashboard_cases.test_missing_empty_and_non_dict_items_never_query_feedback
+    )
+    test_dashboard_chunks_keep_company_and_latest_item = (
+        dashboard_cases.test_feedback_chunks_keep_latest_key_per_company_and_vehicle
+    )
+
+    def test_dashboard_new_request_sees_other_connection_commit(self):
+        from dkss_app.analysis_feedback import vehicle_analysis_proposal_ids
+        self.configure()
+        item = self.recommendations(1)[0]
+        self.save(self.vehicle, [item])
+        self.assertEqual(self.request('/')[0]['mine']['items'][0]['feedback_status'], 'open')
+        key, revision = vehicle_analysis_proposal_ids(item)
+        table = self.models.VehicleAnalysisFeedback.__table__
+        with self.engine.begin() as writer:
+            writer.execute(table.insert().values(
+                company_code='TEST', vehicle_record_id=self.vehicle.id,
+                proposal_key=key, proposal_revision=revision, status='completed',
+                snapshot_json='{}', created_by='synthetic-writer',
+                created_at='2026-11-21 09:00',
+            ))
+        self.assertEqual(self.request('/')[0]['mine']['items'], [])
