@@ -10,7 +10,8 @@ class VehiclePriorityPresentationJavascriptTests(unittest.TestCase):
         node = shutil.which('node')
         if not node:
             self.skipTest('Node unavailable')
-        result = subprocess.run([node, '--test', 'tests/vehicle_priority_presentation_js.cjs'],
+        result = subprocess.run([node, '--test', 'tests/vehicle_priority_presentation_js.cjs',
+                                 'tests/vehicle_periodic_priority_js.cjs'],
                                 cwd=Path(__file__).resolve().parents[1], capture_output=True,
                                 text=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

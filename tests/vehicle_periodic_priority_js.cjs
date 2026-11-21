@@ -80,3 +80,58 @@ test('failed update keeps the previous cards and separates retry status from sav
     assert.doesNotMatch(texts(ui.status),/追加提案なし/);assert.equal(ui.retry.hidden,false);
     assert.equal(ui.calls.length,1);assert.equal(ui.calls[0].init.method,undefined);
 });
+
+async function pollingFixture({canGenerate = true, respond}) {
+    const status=el(),list=el(),retry=el(),order=el(),root=el(),calls=[],timers=new Map();
+    const entries={'[data-proposal-status]':status,'[data-proposal-list]':list,'[data-proposal-retry]':retry,'[data-proposal-order]':order};
+    root.dataset={periodicSuggestions:'/vehicle/karte/1/periodic/1/suggestions',canGenerate:String(canGenerate)};
+    root.querySelector=s=>entries[s];
+    const doc={createElement:el,createTextNode:text=>({...el('#text'),textContent:text}),querySelector:s=>s==='[data-periodic-suggestions]'?root:null};
+    const window={VehiclePriorityPresentation:view,location:{origin:'https://app.example.test'},addEventListener(){}};
+    let time=1_000, nextTimer=0, clickRetry;
+    retry.addEventListener=(name,fn)=>{if(name==='click')clickRetry=fn;};
+    const settled=()=>new Promise(resolve=>setImmediate(resolve));
+    vm.runInNewContext(source,{document:doc,window,Date:{now:()=>time},URL,
+        setTimeout(fn,delay){const id=++nextTimer;timers.set(id,{fn,delay});return id;},
+        clearTimeout(id){timers.delete(id);},
+        fetch:async(url,init)=>{const method=init.method||'GET';calls.push(method);return{ok:true,json:async()=>respond(method)};}});
+    await settled();
+    return {status,list,retry,calls,timers,
+        async timer(elapsed){time=1_000+elapsed;const [id,value]=[...timers][0];timers.delete(id);value.fn();await settled();},
+        async retryNow(){clickRetry();await settled();}
+    };
+}
+
+test('periodic missing status follows the same 15-minute deadline as running',async()=>{
+    const previous={recommendations:[item('previous','高')]};
+    let recovered=false;
+    const ui=await pollingFixture({respond:()=>recovered
+        ? {status:'completed',is_current:true,result:previous}
+        : {status:'missing',is_current:false,result:previous}});
+    assert.deepEqual(ui.calls,['GET','POST']);
+    assert.equal([...ui.timers.values()][0].delay,2_000);
+    await ui.timer(899_000);
+    assert.deepEqual(ui.calls,['GET','POST','GET','POST']);
+    await ui.timer(900_000);
+    assert.deepEqual(ui.calls,['GET','POST','GET','POST']);
+    assert.equal(ui.timers.size,0);
+    assert.equal(ui.list.children.length,1);
+    assert.match(texts(ui.list),/previous/);
+    assert.equal(ui.retry.hidden,false);
+    assert.match(texts(ui.status),/前回の提案/);
+    recovered=true;
+    await ui.retryNow();
+    assert.deepEqual(ui.calls,['GET','POST','GET','POST','GET','POST']);
+    assert.equal(ui.retry.hidden,true);
+    assert.match(texts(ui.status),/AI提案 1件/);
+});
+
+test('periodic viewer polls running status without starting generation and stops at deadline',async()=>{
+    const ui=await pollingFixture({canGenerate:false,respond:()=>({status:'running'})});
+    assert.deepEqual(ui.calls,['GET']);
+    assert.equal([...ui.timers.values()][0].delay,2_000);
+    await ui.timer(900_000);
+    assert.deepEqual(ui.calls,['GET']);
+    assert.equal(ui.timers.size,0);
+    assert.match(texts(ui.status),/時間をおいて/);
+});

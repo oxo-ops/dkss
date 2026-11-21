@@ -16,7 +16,19 @@ def build_vehicle_document_preview(draft, extraction, *, company_code, username)
     if extraction.get('schema_version') != 1 or extraction.get('source_sha256') != draft.source_sha256:
         raise ValueError('読み取り結果と原本PDFが一致しません。')
     vehicles = _dkss_models.Vehicle.query.filter_by(company_code=draft.company_code).all()
-    vehicle_choices = [{'id': vehicle.id, 'number': ' '.join((str(value) for value in (vehicle.plate_area, vehicle.plate_class, vehicle.plate_kana, vehicle.plate_number) if value)), 'chassis_number': vehicle.chassis_number or '', 'deleted': bool(vehicle.deleted)} for vehicle in vehicles]
+    vehicle_choices = []
+    for vehicle in vehicles:
+        plate_parts = tuple(
+            str(value or '').strip() for value in
+            (vehicle.plate_area, vehicle.plate_class, vehicle.plate_kana, vehicle.plate_number)
+        )
+        vehicle_choices.append({
+            'id': vehicle.id,
+            'number': ' '.join(part for part in plate_parts if part),
+            'number_is_complete': all(plate_parts),
+            'chassis_number': vehicle.chassis_number or '',
+            'deleted': bool(vehicle.deleted),
+        })
     builder = _dkss_common.build_inspection_preview if draft.document_type == 'inspection' else _dkss_common.build_driving_report_preview if draft.document_type == 'driving_report' else _dkss_common.build_maintenance_invoice_preview
     preview = builder(extraction, vehicle_choices)
     draft.preview_json = _dkss_common.json.dumps(preview, ensure_ascii=False)

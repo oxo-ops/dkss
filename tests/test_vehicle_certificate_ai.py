@@ -87,13 +87,17 @@ class VehicleCertificateAITests(unittest.TestCase):
             ai.extract_vehicle_certificate(b"")
 
     def test_mock_ai_extracts_without_network(self):
+        vehicle = valid_vehicle()
+        vehicle.update(first_registration_date="2020-04", type="AIで推測した社内車種",
+                       engine_code="E13C-A", type_designation_number="00123",
+                       type_classification_number="0045")
         payload = {
             "status": "completed",
             "output": [{
                 "content": [{
                     "type": "output_text",
                     "text": json.dumps({
-                        "vehicle": valid_vehicle(),
+                        "vehicle": vehicle,
                         "warnings": [],
                     }),
                 }],
@@ -125,6 +129,15 @@ class VehicleCertificateAITests(unittest.TestCase):
         self.assertTrue(result["needs_review"])
         self.assertEqual(result["source_filename"], "sample.pdf")
         mocked.assert_called_once()
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 180)
+        request_payload = json.loads(mocked.call_args.args[0].data)
+        self.assertIs(request_payload["store"], False)
+        self.assertEqual(result["vehicle"]["first_registration_date"], "2020-04")
+        self.assertEqual(result["vehicle"]["engine_code"], "E13C-A")
+        self.assertEqual(result["vehicle"]["type_designation_number"], "00123")
+        self.assertEqual(result["vehicle"]["type_classification_number"], "0045")
+        self.assertIsNone(result["vehicle"]["type"])
+        self.assertIsNone(result["vehicle"]["body_type"])
 
 
 if __name__ == "__main__":

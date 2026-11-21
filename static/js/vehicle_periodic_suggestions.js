@@ -6,13 +6,15 @@
     const retry = root.querySelector('[data-proposal-retry]');
     const order = root.querySelector('[data-proposal-order]');
     const canGenerate = root.dataset.canGenerate === 'true';
-    let timer, stopped = false, started = 0, pending = false;
+    const pollInterval = 2_000, pollLimit = 15 * 60_000;
+    let timer, stopped = false, started = 0, pending = false, hasSavedResult = false;
     const node = (tag, text, cls) => {
         const el = document.createElement(tag); el.textContent = text || '';
         if (cls) el.className = cls;
         return el;
     };
     function render(data) {
+        hasSavedResult = true;
         list.replaceChildren();
         const priority = window.VehiclePriorityPresentation;
         const savedItems = data.result.recommendations || [];
@@ -50,8 +52,20 @@
         });
         if (data.updated_at && data.is_current !== false) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
     }
+    const remaining = () => started + pollLimit - Date.now();
+    function showPollTimeout() {
+        status.textContent = 'AI提案の確認を続けられませんでした。時間をおいて再確認してください。'
+            + (hasSavedResult ? ' 前回の提案を保存版として表示しています。' : '');
+        if (retry) retry.hidden=false;
+    }
+    function schedulePoll() {
+        const delay = remaining();
+        if (delay <= 0) { showPollTimeout(); return; }
+        timer=setTimeout(()=>check(true),Math.min(pollInterval,delay));
+    }
     async function check(start = false, explicitRetry = false) {
         if (pending || stopped) return;
+        if (remaining() <= 0) { showPollTimeout(); return; }
         pending = true;if (retry) retry.hidden = true;
         try {
             let response = await fetch(root.dataset.periodicSuggestions, {credentials:'same-origin',headers:{'Accept':'application/json'}});
@@ -60,6 +74,7 @@
             const previous = data.result && Array.isArray(data.result.recommendations) ? data : null;
             if (previous && (data.status !== 'completed' || data.is_current === false)) render(previous);
             if ((data.status === 'missing' || explicitRetry) && canGenerate && start) {
+                if (remaining() <= 0) { showPollTimeout(); return; }
                 response = await fetch(root.dataset.periodicSuggestions,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''},body:JSON.stringify({retry:explicitRetry})});
                 if (!response.ok) throw new Error('request_failed');
                 data = await response.json();
@@ -69,11 +84,10 @@
             const savedNote = previous || data.result ? ' 前回の提案を保存版として表示しています。' : '';
             if (data.status === 'running') {
                 status.textContent = 'AIが日常点検・定期点検と整備履歴を照合しています…' + savedNote;
-                if (Date.now()-started > 900000) throw new Error('long_running');
-                timer=setTimeout(()=>check(true),2000);return;
+                schedulePoll();return;
             }
             if (data.status === 'missing' && !canGenerate) {status.textContent = savedNote ? '分析の更新待ちです。' + savedNote : 'AI提案はまだありません。管理者がこの画面を開くと作成します。';return;}
-            if (data.status === 'missing') {timer=setTimeout(()=>check(true),2000);return;}
+            if (data.status === 'missing') {schedulePoll();return;}
             status.textContent = (data.error === 'confirmation_limit' ? '確認済み根拠が一度に照合できる件数を超えています。候補を一部だけに絞らず、分析更新を保留しています。' : data.error === 'not_configured' ? 'AIの接続設定を確認してください。今回の更新は完了していません。' : 'AI提案を更新できませんでした。時間をおいて再確認してください。') + savedNote;
             if (retry) retry.hidden=false;
         } catch (_) {status.textContent='AI提案の確認を続けられませんでした。時間をおいて再確認してください。';if(retry)retry.hidden=false;}

@@ -1,6 +1,7 @@
 """Reflection ownership through real Flask routes and disposable SQLite only."""
 from contextlib import ExitStack
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ from unittest.mock import patch
 from flask import request, session
 from sqlalchemy import event, update
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Query
 from werkzeug.exceptions import Forbidden
 
 import test_driving_workspace as workspace
@@ -114,16 +116,110 @@ class ReflectionIdentityTests(unittest.TestCase):
             response = self.client.post(self.endpoint, data={'period': 'all', 'input_key': before['key']})
         self.assertEqual(response.status_code, 202)
         submit.assert_called_once()
-        work, company, key, document = submit.call_args.args
+        work, company, key, started_at, document = submit.call_args.args
         first = document['evidence'][0]
         with patch('driving_report_reflection.generate', return_value={
                 'items': [{'evidence_id': first['id'], 'action': first['allowed_actions'][0]}]}) as generate:
-            work(company, key, document)
+            work(company, key, started_at, document)
         generate.assert_called_once_with(document)
         completed = self.free_get()
         self.assertEqual(completed['status'], 'completed')
         self.assertTrue(completed['items'])
         return key, document
+
+    def expired_attempt_then_retry(self):
+        initial = self.free_get()
+        form = {'period': 'all', 'input_key': initial['key']}
+        expired = (datetime.now(timezone.utc) - timedelta(minutes=4)).isoformat()
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'fixture-not-a-real-key'}), \
+                patch.object(self.executor, 'submit') as submit:
+            with patch('driving_report_reflection.stamp', return_value=expired):
+                self.assertEqual(self.client.post(self.endpoint, data=form).status_code, 202)
+            self.assertEqual(self.free_get()['status'], 'failed')
+            self.assertEqual(self.client.post(self.endpoint, data=form).status_code, 202)
+            self.assertEqual(self.free_get()['status'], 'pending')
+            self.assertEqual(self.client.post(self.endpoint, data=form).status_code, 202)
+        self.assertEqual(submit.call_count, 2)
+        return [call.args for call in submit.call_args_list]
+
+    def finish_attempt(self, invocation, *, failed=False):
+        work, *args = invocation
+        first = args[-1]['evidence'][0]
+        result = {'items': [{'evidence_id': first['id'], 'action': first['allowed_actions'][0]}]}
+        with patch('driving_report_reflection.generate',
+                   side_effect=ValueError('fixture failure') if failed else None,
+                   return_value=result):
+            work(*args)
+
+    def test_expired_attempt_cannot_complete_its_pending_successor(self):
+        expired, retry = self.expired_attempt_then_retry()
+        before = self.snapshot()
+        self.finish_attempt(expired)
+        after_expired, pending = self.snapshot(), self.free_get()
+        self.finish_attempt(retry)
+        self.assertEqual(after_expired, before)
+        self.assertEqual(pending['status'], 'pending')
+        self.assertEqual(self.free_get()['status'], 'completed')
+
+    def test_expired_attempt_cannot_fail_its_pending_successor(self):
+        expired, retry = self.expired_attempt_then_retry()
+        before = self.snapshot()
+        self.finish_attempt(expired, failed=True)
+        after_expired, pending = self.snapshot(), self.free_get()
+        self.finish_attempt(retry, failed=True)
+        self.assertEqual(after_expired, before)
+        self.assertEqual(pending['status'], 'pending')
+        self.assertEqual(self.free_get()['status'], 'failed')
+
+    def test_retry_cannot_reclaim_a_result_completed_after_the_status_read(self):
+        initial = self.free_get()
+        expired = (datetime.now(timezone.utc) - timedelta(minutes=4)).isoformat()
+        row = DrivingReportReflection(company_code='TEST', cache_key=initial['key'],
+                                      status='pending', created_at=expired, updated_at=expired)
+        self.m.db.session.add(row)
+        self.m.db.session.commit()
+        row_id = row.id
+        first = Query.first
+        reflection_reads = 0
+        completed_at = stamp()
+
+        def first_with_completion(query):
+            nonlocal reflection_reads
+            if query.column_descriptions[0]['entity'] is DrivingReportReflection:
+                reflection_reads += 1
+                if reflection_reads == 2:
+                    # Observe the active result committing between the route's
+                    # initial status read and its conditional retry claim.
+                    query.session.execute(update(DrivingReportReflection).where(
+                        DrivingReportReflection.id == row_id).values(status='completed', updated_at=completed_at))
+                    query.session.commit()
+            return first(query)
+
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'fixture-not-a-real-key'}), \
+                patch.object(Query, 'first', first_with_completion), \
+                patch.object(self.executor, 'submit') as submit:
+            response = self.client.post(self.endpoint, data={'period': 'all', 'input_key': initial['key']})
+        # Balance any deliberately captured invocation even on a failing baseline.
+        for captured in submit.call_args_list:
+            self.finish_attempt(captured.args)
+        self.assertEqual(reflection_reads, 2)
+        self.assertEqual(response.status_code, 409)
+        submit.assert_not_called()
+        self.assertEqual((self.free_get()['status'], self.snapshot()[0][-1]), ('completed', completed_at))
+
+    def test_invalid_completed_result_remains_retryable(self):
+        key, _ = self.complete_current()
+        row = DrivingReportReflection.query.filter_by(company_code='TEST', cache_key=key).one()
+        row.result_json = json.dumps({'items': [{'id': 'no-longer-valid', 'action': 'unknown'}]})
+        self.m.db.session.commit()
+        self.assertEqual(self.free_get()['status'], 'failed')
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'fixture-not-a-real-key'}), \
+                patch.object(self.executor, 'submit') as submit:
+            response = self.client.post(self.endpoint, data={'period': 'all', 'input_key': key})
+        self.assertEqual(response.status_code, 202)
+        submit.assert_called_once()
+        self.finish_attempt(submit.call_args.args)
+        self.assertEqual(self.free_get()['status'], 'completed')
 
     def recreate_account(self):
         user = User.query.filter_by(company_code='TEST', username='admin').one()

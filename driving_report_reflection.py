@@ -316,7 +316,7 @@ def register_reflections(app, db, prepare, history):
                 return old
         return None
 
-    def view(rows,previous,filters,board,facts,_allow_snapshot=True):
+    def view(rows,previous,filters,board,facts,_allow_snapshot=True,_claim=None):
         key,document=context(rows,previous,filters,board,facts)
         state={'status':'unavailable' if not ready() else 'empty' if not document['evidence'] else 'new',
                'items':[], 'key':key, 'generated_at':'', 'generated_label':'',
@@ -326,6 +326,8 @@ def register_reflections(app, db, prepare, history):
         if not ready():return state
         cached=DrivingReportReflection.query.filter_by(company_code=session['company_code'],cache_key=key).first()
         if cached:
+            if _claim is not None:
+                _claim['stored_status']=cached.status
             state.update(status=cached.status,generated_at=cached.updated_at)
             state['generated_label']=datetime.fromisoformat(cached.updated_at).astimezone(ZoneInfo('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M')
             if cached.status=='pending' and cached.updated_at < (datetime.now(timezone.utc)-timedelta(minutes=3)).isoformat():
@@ -348,18 +350,24 @@ def register_reflections(app, db, prepare, history):
                 state['auto_refresh']=False
         return state
 
-    def work(company,key,document):
+    def pending_attempt(company,key,started_at):
+        return DrivingReportReflection.query.filter_by(
+            company_code=company,cache_key=key,status='pending',updated_at=started_at)
+
+    def work(company,key,started_at,document):
         with app.app_context():
             try:
                 result=validate_result(generate(document),document)
                 result['refresh_scope']=document['refresh_scope']
-                DrivingReportReflection.query.filter_by(company_code=company,cache_key=key,status='pending').update(
+                # A timed-out attempt may finish after a retry has claimed the
+                # same input key. Only this attempt can settle its own result.
+                pending_attempt(company,key,started_at).update(
                     {'status':'completed','result_json':json.dumps(result,ensure_ascii=False),'updated_at':stamp()})
                 db.session.commit()
             except Exception:
                 db.session.rollback()
                 app.logger.warning('Driving reflection generation failed; input and credentials omitted')
-                DrivingReportReflection.query.filter_by(company_code=company,cache_key=key,status='pending').update({'status':'failed','updated_at':stamp()})
+                pending_attempt(company,key,started_at).update({'status':'failed','updated_at':stamp()})
                 db.session.commit()
             finally:
                 db.session.remove()
@@ -370,7 +378,8 @@ def register_reflections(app, db, prepare, history):
     def driving_report_reflection():
         values=request.form if request.method=='POST' else request.args
         rows,previous,_,_,filters,board,facts=prepare(values)
-        state=view(rows,previous,filters,board,facts)
+        claim={}
+        state=view(rows,previous,filters,board,facts,_claim=claim)
         if request.method=='GET':return jsonify(state)
         if values.get('input_key')!=state['key']:abort(409,'対象データが変わりました。再表示してください。')
         if state['status']=='unavailable':abort(503,'分析の保存先を準備中です。')
@@ -385,7 +394,9 @@ def register_reflections(app, db, prepare, history):
         now=stamp()
         try:
             if cached:
-                count=DrivingReportReflection.query.filter_by(id=cached.id,updated_at=cached.updated_at).update({'status':'pending','updated_at':now})
+                # Compare against what view() examined, not a later snapshot.
+                count=DrivingReportReflection.query.filter_by(id=cached.id,updated_at=state['generated_at'],
+                    status=claim.get('stored_status')).update({'status':'pending','updated_at':now})
                 if count!=1:db.session.rollback();abort(409)
             else:
                 db.session.add(DrivingReportReflection(company_code=session['company_code'],cache_key=state['key'],status='pending',created_at=now,updated_at=now))
@@ -394,10 +405,10 @@ def register_reflections(app, db, prepare, history):
             db.session.rollback();slots.release();return jsonify(dict(state,status='pending')),202
         except BaseException:
             db.session.rollback();slots.release();raise
-        try:executor.submit(work,session['company_code'],key,document)
+        try:executor.submit(work,session['company_code'],key,now,document)
         except Exception:
             slots.release()
-            DrivingReportReflection.query.filter_by(company_code=session['company_code'],cache_key=key).update({'status':'failed','updated_at':stamp()})
+            pending_attempt(session['company_code'],key,now).update({'status':'failed','updated_at':stamp()})
             db.session.commit();abort(503,'作成を開始できませんでした。再試行してください。')
         return jsonify(dict(state,status='pending')),202
 
