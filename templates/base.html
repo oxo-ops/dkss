@@ -60,7 +60,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/entry_add_icon.css', v='20261119-2') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/desktop_action_icons.css', v='20261119-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/common_action_buttons.css', v='20261120-integrated-2') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/master_toolbar.css', v='20261120-focus-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/master_toolbar.css', v='20261122-master-guide-1') }}">
 <script defer src="{{ url_for('static', filename='js/master_toolbar.js', v='20261120-1') }}"></script>
 </head>
 <body
@@ -78,6 +78,23 @@
 <script src="{{ url_for('static', filename='js/shell_bootstrap.js', v='20261026-first-paint-1') }}"></script>
 
 {% set path = request.path %}
+{# Keep master navigation, page purpose and guide eligibility together. #}
+{% set master_tabs = [
+    ('/master/drivers', 'ドライバーマスタ', 'ドライバーマスタ', '登録されているドライバーの一覧です。条件で絞り込み、編集・削除ができます。', 'driver_master', 'ドライバーの所属・免許・使用車両を確認するマスタです。'),
+    ('/master/offices', '営業所マスタ', '営業所マスタ', '登録されている営業所の一覧です。新規登録・編集・削除ができます。', 'office_master', '登録されている営業所を確認するマスタです。'),
+    ('/master/vehicles', '車両マスタ', '車両マスタ', '登録されている車両の一覧です。条件で絞り込み、編集・削除ができます。', 'vehicle_master', '車両の登録内容や、登録・確認待ちの資料を確認するマスタです。'),
+    ('/master/vehicle-types', '車種マスタ', '車種マスタ', '車両登録時に使用する車種を管理します。新規登録・編集・削除ができます。', 'vehicle_type_master', '車両登録時に使用する車種を管理します。'),
+    ('/master/license-types', '免許種別マスタ', '免許種別マスタ', 'ドライバーの免許種別を管理します。新規登録・編集・削除ができます。', 'license_type_master', 'ドライバーの免許種別を管理します。'),
+    ('/master/delivery-places', '納入先マスタ', '納入先マスタ', '登録されている納入先の一覧です。新規登録・編集・削除ができます。', 'delivery_place_master', '登録されている納入先を確認するマスタです。'),
+    ('/master/checklists', 'チェックリスト', 'チェックリストマスタ', '安全管理・車両管理で使用するチェックリストを管理します。', 'checklist_master', '安全管理・車両管理で使用するチェックリストを管理します。'),
+    ('/master/patrol-content-types', 'パトロール区分', '安全パトロール内容区分マスタ', '安全パトロールの指摘やGoodに使用する内容区分を管理します。', 'patrol_content_type_master', '安全パトロールの指摘やGoodに使用する内容区分を管理します。'),
+    ('/master/manuals', 'マニュアル', 'マニュアルマスタ', 'システムで参照するマニュアルを管理します。', 'manual_master', 'システムで参照するマニュアルを管理します。')
+] %}
+{% set master_current = namespace(tab=none) %}
+{% for tab in master_tabs %}
+    {% if request.path == tab[0] %}{% set master_current.tab = tab %}{% endif %}
+{% endfor %}
+{% set master_guide_active = master_current.tab and request.endpoint == master_current.tab[4] and session.get("username") and session.get("role") in ["admin", "itc"] and not session.get("aonagi_readonly_demo") %}
 {# Karte routes also have legacy /master/vehicles/... aliases. Use their
    resolved endpoint so the same page keeps the same navigation selection. #}
 {% set is_vehicle_karte_page = request.endpoint in ['vehicle_karte_list', 'vehicle_karte', 'vehicle_karte_history', 'vehicle_karte_inspections', 'vehicle_periodic_followup', 'vehicle_karte_documents', 'vehicle_karte_maintenance', 'vehicle_karte_maintenance_form', 'vehicle_karte_parts', 'vehicle_karte_costs', 'vehicle_karte_analysis'] %}
@@ -443,33 +460,17 @@
             </div>
         {% endif %}
 
-        {# Keep every master entry, heading and description together. #}
-        {% set master_tabs = [
-            ('/master/drivers', 'ドライバーマスタ', 'ドライバーマスタ', '登録されているドライバーの一覧です。条件で絞り込み、編集・削除ができます。'),
-            ('/master/offices', '営業所マスタ', '営業所マスタ', '登録されている営業所の一覧です。新規登録・編集・削除ができます。'),
-            ('/master/vehicles', '車両マスタ', '車両マスタ', '登録されている車両の一覧です。条件で絞り込み、編集・削除ができます。'),
-            ('/master/vehicle-types', '車種マスタ', '車種マスタ', '車両登録時に使用する車種を管理します。新規登録・編集・削除ができます。'),
-            ('/master/license-types', '免許種別マスタ', '免許種別マスタ', 'ドライバーの免許種別を管理します。新規登録・編集・削除ができます。'),
-            ('/master/delivery-places', '納入先マスタ', '納入先マスタ', '登録されている納入先の一覧です。新規登録・編集・削除ができます。'),
-            ('/master/checklists', 'チェックリスト', 'チェックリストマスタ', '安全管理・車両管理で使用するチェックリストを管理します。'),
-            ('/master/patrol-content-types', 'パトロール区分', '安全パトロール内容区分マスタ', '安全パトロールの指摘やGoodに使用する内容区分を管理します。'),
-            ('/master/manuals', 'マニュアル', 'マニュアルマスタ', 'システムで参照するマニュアルを管理します。')
-        ] %}
-        {% set master_current = namespace(tab=none) %}
-        {% for tab in master_tabs %}
-            {% if request.path == tab[0] %}{% set master_current.tab = tab %}{% endif %}
-        {% endfor %}
         {% if master_current.tab %}
-        <header class="master-unified-heading">
+        <header class="master-unified-heading"{% if master_guide_active %} data-master-guided{% endif %}>
             <h2>{{ master_current.tab[2] }}</h2>
-            <p>{{ master_current.tab[3] }}</p>
+            {% if not master_guide_active %}<p>{{ master_current.tab[3] }}</p>{% endif %}
         </header>
         <nav class="master-unified-tabs master-unified-tabs-complete" aria-label="マスタ管理の切替">
-            {% for href, label, title, description in master_tabs %}
+            {% for href, label, title, description, endpoint, guide_purpose in master_tabs %}
             <a href="{{ href }}"
                class="master-unified-tab{% if request.path == href %} is-current{% endif %}"
                title="{{ title }}"
-               {% if request.path == href %}aria-current="page"{% endif %}>
+               {% if request.path == href %}aria-current="page"{% if master_guide_active %} data-guide-text="{{ guide_purpose }}"{% endif %}{% endif %}>
                 <svg class="master-tab-icon" width="22" height="22"
                      viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2"

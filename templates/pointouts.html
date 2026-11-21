@@ -424,7 +424,7 @@
 
         <td class="action-cell pointouts-col-actions">
             <div class="action-buttons">
-                <a href="/pointouts/{{ item.index }}" class="btn-small">詳細</a>
+                <a href="/pointouts/{{ item.index }}" class="btn-small" data-guide-patrol-record>詳細</a>
 
                 {% if item.can_manage %}
                     <a href="/pointouts/{{ item.index }}/edit" class="btn-small btn-edit">編集</a>
@@ -454,7 +454,7 @@
 <div class="safety-results-mobile-list">
     {% for item in patrol_results %}
         <article class="safety-result-mobile-card">
-            <a class="patrol-record-link" href="/pointouts/{{ item.index }}" aria-label="{{ item.date }} {{ item.delivery_place if view_type == 'delivery_place' else item.target_user }}の安全記録を開く">
+            <a class="patrol-record-link" data-guide-patrol-record href="/pointouts/{{ item.index }}" aria-label="{{ item.date }} {{ item.delivery_place if view_type == 'delivery_place' else item.target_user }}の安全記録を開く">
 
             <div class="safety-result-mobile-head">
                 <div class="safety-result-mobile-head-main">
