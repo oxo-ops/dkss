@@ -3,8 +3,9 @@
 {% block title %}免許種別マスタ{% endblock %}
 
 {% block content %}
-<div class="master-list-actions"><p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p><a href="/master/license-types/new" class="btn entry-add-icon" aria-label="免許種別を新規登録" title="免許種別を新規登録"><span aria-hidden="true">＋</span></a></div>
-<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/license-types/order">
+<div class="master-list-actions"><a href="/master/license-types/new" class="btn entry-add-icon" aria-label="免許種別を新規登録" title="免許種別を新規登録"><span aria-hidden="true">＋</span></a></div>
+<div id="licenseTypeMasterOrderStatus" class="master-order-status" role="status" aria-live="polite"></div>
+<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/license-types/order" data-master-status-id="licenseTypeMasterOrderStatus">
     <thead>
     <tr>
         <th>免許種別</th>

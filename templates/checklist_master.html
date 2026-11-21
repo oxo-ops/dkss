@@ -70,7 +70,7 @@
     </form>
 </div>
 
-<p class="master-order-help">右端のハンドルでチェックリストの表示順を変更<span id="checklist-master-order-status" class="master-order-status" role="status" aria-live="polite"></span></p>
+<div id="checklist-master-order-status" class="master-order-status" role="status" aria-live="polite"></div>
 <div class="table-scroll master-table-scroll">
 <table class="responsive-table checklist-master-table master-order-table" data-master-order-url="/master/checklists/order" data-master-status-id="checklist-master-order-status" data-master-order-all-ids="{{ master_order_ids|default([])|tojson|forceescape }}">
     <thead>

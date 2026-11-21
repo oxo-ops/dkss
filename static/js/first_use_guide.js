@@ -44,6 +44,13 @@
             "text": "メニューを開き、安全管理や車両管理の画面へ進めます。"
         }
     ],
+    "vehicle_karte_list": [
+        {
+            "selector": ".karte-mobile-search-trigger, .top-bar #karte_vehicle_search",
+            "title": "車両カルテを開く",
+            "text": "車番か車台番号を入力し、候補から車両を選びます。"
+        }
+    ],
     "vehicle_karte": [
         {
             "selector": ".ko-status-tile",
@@ -132,14 +139,29 @@
     ],
     "pointouts": [
         {
-            "selector": ".safety-summary-grid",
-            "title": "状態で絞る",
-            "text": "集計を押すと、その状態の指摘を確認できます。"
+            "selector": ".patrol-reading-surface > .tabs .tab:not(.active)",
+            "title": "記録の対象を切り替える",
+            "text": "「ユーザー」と「納入先」で、見る記録を切り替えます。"
         },
         {
-            "selector": "#pointouts-list",
-            "title": "指摘を確認する",
-            "text": "一覧から指摘の詳細を開きます。"
+            "selector": ".safety-summary-grid .safety-summary-card",
+            "title": "状態で絞る",
+            "text": "状態を押すと絞り込めます。同じ状態をもう一度押すと解除します。"
+        },
+        {
+            "selector": ".patrol-filter-disclosure > summary, .patrol-filter-disclosure[open] #pointout_keyword",
+            "title": "条件で絞る",
+            "text": "キーワード、営業所、期間などを指定できます。"
+        },
+        {
+            "selector": "[data-guide-patrol-record]",
+            "title": "記録を開く",
+            "text": "一覧から記録を開くと、内容や添付ファイルを確認できます。"
+        },
+        {
+            "selector": ".safety-results-new-button",
+            "title": "記録を追加する",
+            "text": "「＋」から新しい記録を登録します。"
         }
     ],
     "pointout_detail": [
@@ -442,6 +464,53 @@
   const normalPlans = {"dashboard":[{"selector":".dashboard-vehicle-action-primary","title":"日常点検を開く","text":"ここから、この車両の日常点検表を開けます。"},{"selector":".dashboard-vehicle-action","title":"車両の点検表","text":"車両ごとの点検表を開けます。"},{"selector":"#sidebarToggle","title":"メニューから画面を選ぶ","text":"メニューを開き、「安全管理」「車両管理」から使いたい画面を選べます。"}],"vehicle_checklist_results":[{"selector":".vehicle-search-action","fallbackSelector":"#vehicle_search","title":"車両を選ぶ","text":"ここで、点検表を表示する車両を選べます。"},{"selector":".inspection-item-detail","title":"項目の詳細を見る","text":"項目名を押すと、評価基準や詳細が開きます。入力できる記録では、コメントや写真も追加できます。"},{"selector":".check-choice-buttons","title":"評価を入れる","text":"各項目の評価を選びます。✓・×の意味は、その項目の評価基準で確認できます。"},{"selector":".vehicle-check-complete-form .approval-user-search","title":"依頼先を選ぶ","text":"名前で検索し、候補から依頼先を選びます。"},{"selector":"#notify_user_search","title":"点検完了通知先を選ぶ","text":"点検が完了したことを知らせる相手を、名前で検索して選びます。"},{"selector":"#reminder_notify_user_search","title":"点検未実施通知先を選ぶ","text":"未実施のときに通知する相手を、名前で検索して選びます。"},{"selector":".reminder-readonly","title":"点検未実施通知先を確認する","text":"設定されている通知先を確認します。変更は管理者が行います。"},{"selector":".vehicle-check-complete-primary","title":"点検を完了する","text":"評価と依頼先を確認したら「点検完了」を押します。差し戻し後は「修正して再申請」です。"}]};
   normalPlans.driving_reports = plans.driving_reports;
   normalPlans.vehicle_inspection_plans = plans.vehicle_inspection_plans;
+  normalPlans.vehicle_karte_list = plans.vehicle_karte_list;
+  normalPlans.pointouts = plans.pointouts;
+  const masterPurpose = {
+    selector: '.master-unified-tabs .master-unified-tab.is-current[data-guide-text]',
+    title: 'このマスタでできること',
+  };
+  const masterAdd = {
+    selector: '.master-top-toolbar .entry-add-icon, .page-header .entry-add-icon, .master-list-actions .entry-add-icon, .vehicle-workflow-tabs .entry-add-icon',
+    title: '新しく登録する', text: '「＋」から、登録に進みます。',
+  };
+  const masterRow = {
+    selector: '.master-compact-row > summary, .checklist-compact-disclosure > summary',
+    title: '行を開く', text: '行を押すと、詳しい情報と使える操作を確認できます。',
+  };
+  const masterEdit = {selector: 'a.btn-edit',title: '登録内容を変更する',text: '変更する行の「編集」を押します。'};
+  const masterDelete = {
+    selector: '.action-cell button.btn-delete:not([disabled]), .master-compact-detail button.btn-delete:not([disabled]), .checklist-master-mobile-actions button.btn-delete:not([disabled])',
+    title: '削除前に対象を確認する',
+    text: '削除する場合は、選んだ行の対象と確認メッセージを確認します。',
+  };
+  const masterOrder = {
+    selector: '.master-order-handle:not([disabled])',title: '表示順を変える',
+    text: '行のハンドルをドラッグします。キーボードではハンドルに移動して↑・↓キーを使います。',
+  };
+  const masterSearch = (kind, input, text) => ({
+    selector: `[data-master-filter="${kind}"]:not([hidden])`,fallbackSelector: input,title: '一覧を検索する',text,
+  });
+  const driverSearch = masterSearch('driver','#driverFilterPanel input[name="keyword"]','ユーザーID・氏名、営業所、使用車両で絞り込めます。');
+  const vehicleSearch = masterSearch('vehicle','#vehicle_search_plate_number','車番・車台番号や車種、営業所などで絞り込めます。');
+  const checklistSearch = masterSearch('checklist','#checklistFilterPanel input[name="keyword"]','点検表名・用途・状態で絞り込めます。');
+  const masterSteps = (extra = [], row = false, order = false, afterRow = []) =>
+    [masterPurpose, ...extra, masterAdd, ...(row ? [masterRow] : []), ...afterRow,
+      masterEdit, masterDelete, ...(order ? [masterOrder] : [])];
+  normalPlans.driver_master = masterSteps([driverSearch],true);
+  normalPlans.vehicle_master = masterSteps([vehicleSearch,
+    {selector:'.vehicle-workflow-tabs a[href$="view=pending"]:not([aria-current])',title:'登録待ちの車両を確認する',text:'「登録待ち」から、まだ登録されていない車両の資料を確認します。'},
+    {selector:'.vehicle-workflow-tabs a[href$="/invoice-reviews"]:not([aria-current])',title:'確認待ちの請求書を見る',text:'「請求書の確認」で、確認が必要な請求額や交換部品を確認します。'},
+  ],true);
+  normalPlans.delivery_place_master = masterSteps([
+    {selector:'[data-guide-master-excel]',title:'Excelでまとめて登録する',text:'既存の「Excel一括登録」から、複数の納入先を登録できます。'},
+  ],false,true);
+  normalPlans.checklist_master = masterSteps([checklistSearch],true,true,[
+    {selector:'[data-standard-checklist-preview]',title:'標準点検表を確認する',text:'標準点検表は「内容確認」から点検項目を確認します。'},
+  ]);
+  for (const page of ['office_master','vehicle_type_master','license_type_master','patrol_content_type_master','manual_master']){
+    normalPlans[page] = masterSteps([],false,true);
+  }
   function key(mode, page) { return 'dkss:first-guide:v1:' + mode + ':' + page; }
   function state(storage, name) {
     try { const test=name+':probe'; storage.setItem(test,'1'); storage.removeItem(test); return { available:true, seen:storage.getItem(name)==='1' }; }
@@ -512,6 +581,7 @@
   let steps=[], index=0, active=null, previous=null;
   let resumeSelector=null;
   let panelPointer=null, pointerStartedInside=false;
+  const manualMasterGuide=root.dataset.masterGuide==='1';
   const resumable=root.dataset.mode==='demo' && root.dataset.page==='vehicle_checklist_results';
   const launchLabel=launch.querySelector('.first-guide-launch-label');
   function clearResume(){resumeSelector=null;launch.setAttribute('aria-label','この画面の使い方を見る');if(launchLabel)launchLabel.textContent='使い方';}
@@ -524,7 +594,12 @@
     }
     close(false,true);
   }
-  const visible=el=>el && el.isConnected && el.getClientRects().length && getComputedStyle(el).visibility!=='hidden' && !el.closest('[hidden], [inert]');
+  const visible=el=>{
+    if(!el || !el.isConnected || !el.getClientRects().length || getComputedStyle(el).visibility==='hidden' || el.closest('[hidden], [inert]')) return false;
+    if(!manualMasterGuide) return true;
+    const disclosure=el.closest('details:not([open])');
+    return !disclosure || disclosure.querySelector(':scope > summary')?.contains(el);
+  };
   const find=selector=>Array.from(document.querySelectorAll(selector)).find(visible);
   function remember(){if(find('.public-demo-notice'))return;try{storage.setItem(name,'1');}catch(_){}}
   function clearTarget(){if(active) active.classList.remove('first-guide-target'); active=null;}
@@ -606,11 +681,13 @@
   window.addEventListener('resize',position);window.addEventListener('scroll',position,{passive:true});
   if(window.visualViewport){window.visualViewport.addEventListener('resize',position);window.visualViewport.addEventListener('scroll',position,{passive:true});}
   function startInitialGuide(){
+    if(manualMasterGuide || (root.dataset.page==='pointouts' && window.location.hash==='#pointouts-list')) return;
     if(initial.available&&!initial.seen && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) open(false);
   }
   // Inspection layout marks responsive columns on DOMContentLoaded. Select targets
   // after those handlers, rather than opening on a cell that is about to be hidden.
-  if(resumable){
+  // Search and filter controls are also mounted/adapted by deferred scripts.
+  if(resumable || ['vehicle_karte_list','pointouts'].includes(root.dataset.page)){
     const afterLayout=()=>requestAnimationFrame(startInitialGuide);
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',afterLayout,{once:true});
     else afterLayout();

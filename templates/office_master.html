@@ -3,8 +3,9 @@
 {% block title %}営業所マスタ{% endblock %}
 
 {% block content %}
-<div class="master-list-actions"><p class="master-order-help">右端のハンドルをドラッグして並べ替え<span class="master-order-status" role="status" aria-live="polite"></span></p><a href="/master/offices/new" class="btn entry-add-icon" aria-label="営業所を新規登録" title="営業所を新規登録"><span aria-hidden="true">＋</span></a></div>
-<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/offices/order">
+<div class="master-list-actions"><a href="/master/offices/new" class="btn entry-add-icon" aria-label="営業所を新規登録" title="営業所を新規登録"><span aria-hidden="true">＋</span></a></div>
+<div id="officeMasterOrderStatus" class="master-order-status" role="status" aria-live="polite"></div>
+<div class="table-scroll responsive-table-viewport"><table class="master-order-table" data-master-order-url="/master/offices/order" data-master-status-id="officeMasterOrderStatus">
     <thead>
     <tr>
         <th>営業所名</th>

@@ -18,5 +18,5 @@ class GuideToolbarTests(unittest.TestCase):
  def test_help_is_named_and_approved_plan_scope_present(self):
   html=(ROOT/'templates/partials/first_use_guide.html').read_text()
   self.assertIn('aria-label="この画面の使い方を見る"',html)
-  self.assertIn("request.endpoint in ['dashboard', 'vehicle_checklist_results', 'vehicle_inspection_plans', 'driving_reports']",html)
+  self.assertIn("request.endpoint in ['dashboard', 'vehicle_checklist_results', 'vehicle_inspection_plans', 'driving_reports', 'vehicle_karte_list', 'pointouts']",html)
   self.assertIn('aria-controls="firstGuidePanel"',html)
