@@ -31,9 +31,14 @@ async function render(result, options={}) {
     const doc={createElement:el,createTextNode:text=>({...el('#text'),textContent:text}),querySelector:s=>s==='[data-periodic-suggestions]'?root:null};
     const data={status:options.status||'completed',is_current:options.is_current,result,evidence:options.evidence||{'inspection:1':{url:'/vehicle/checklist-results/1',label:'元の点検'}},updated_at:'2026-11-11T12:00:00+09:00'};
     const window={VehiclePriorityPresentation:options.noHelper?undefined:view,location:{origin:'https://app.example.test'},addEventListener(){}};
-    vm.runInNewContext(source,{document:doc,window,Date,URL,setTimeout(){throw Error('No polling on complete');},clearTimeout(){},
+    const timers = new Map();
+    let nextTimer = 0;
+    vm.runInNewContext(source,{document:doc,window,Date,URL,AbortController,
+        setTimeout(fn,delay){const id=++nextTimer;timers.set(id,{fn,delay});return id;},
+        clearTimeout(id){timers.delete(id);},
         fetch:async(url,init)=>{calls.push({url,init});return{ok:true,json:async()=>data};}});
     await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(timers.size,0);
     return{status,list,retry,order,calls};
 }
 test('periodic view uses shared score, literal legacy and exact server order with counts',async()=>{
@@ -81,24 +86,35 @@ test('failed update keeps the previous cards and separates retry status from sav
     assert.equal(ui.calls.length,1);assert.equal(ui.calls[0].init.method,undefined);
 });
 
-async function pollingFixture({canGenerate = true, respond}) {
+async function pollingFixture({canGenerate = true, respond, reply}) {
     const status=el(),list=el(),retry=el(),order=el(),root=el(),calls=[],timers=new Map();
     const entries={'[data-proposal-status]':status,'[data-proposal-list]':list,'[data-proposal-retry]':retry,'[data-proposal-order]':order};
     root.dataset={periodicSuggestions:'/vehicle/karte/1/periodic/1/suggestions',canGenerate:String(canGenerate)};
     root.querySelector=s=>entries[s];
     const doc={createElement:el,createTextNode:text=>({...el('#text'),textContent:text}),querySelector:s=>s==='[data-periodic-suggestions]'?root:null};
-    const window={VehiclePriorityPresentation:view,location:{origin:'https://app.example.test'},addEventListener(){}};
+    const events = {};
+    const window={VehiclePriorityPresentation:view,location:{origin:'https://app.example.test'},addEventListener(name,fn){events[name]=fn;}};
     let time=1_000, nextTimer=0, clickRetry;
+    const requests=[];
     retry.addEventListener=(name,fn)=>{if(name==='click')clickRetry=fn;};
     const settled=()=>new Promise(resolve=>setImmediate(resolve));
-    vm.runInNewContext(source,{document:doc,window,Date:{now:()=>time},URL,
-        setTimeout(fn,delay){const id=++nextTimer;timers.set(id,{fn,delay});return id;},
+    vm.runInNewContext(source,{document:doc,window,Date:{now:()=>time,parse:Date.parse},URL,AbortController,
+        setTimeout(fn,delay){const id=++nextTimer;timers.set(id,{fn,delay,due:time+delay});return id;},
         clearTimeout(id){timers.delete(id);},
-        fetch:async(url,init)=>{const method=init.method||'GET';calls.push(method);return{ok:true,json:async()=>respond(method)};}});
+        fetch:async(url,init)=>{
+            const method=init.method||'GET';calls.push(method);requests.push(init);
+            return reply ? reply(method,requests.length) : {ok:true,json:async()=>respond(method)};
+        }});
     await settled();
-    return {status,list,retry,calls,timers,
-        async timer(elapsed){time=1_000+elapsed;const [id,value]=[...timers][0];timers.delete(id);value.fn();await settled();},
-        async retryNow(){clickRetry();await settled();}
+    return {status,list,retry,calls,requests,timers,events,settled,
+        nextDelay(){return Math.min(...[...timers.values()].map(t=>t.delay));},
+        async timer(elapsed){
+            time=1_000+elapsed;
+            const due=[...timers].filter(([,t])=>t.due<=time).sort((a,b)=>a[1].due-b[1].due);
+            for (const [id,value] of due) if (timers.delete(id)) value.fn();
+            await settled();
+        },
+        async retryNow(){clickRetry?.();await settled();}
     };
 }
 
@@ -109,7 +125,7 @@ test('periodic missing status follows the same 15-minute deadline as running',as
         ? {status:'completed',is_current:true,result:previous}
         : {status:'missing',is_current:false,result:previous}});
     assert.deepEqual(ui.calls,['GET','POST']);
-    assert.equal([...ui.timers.values()][0].delay,2_000);
+    assert.equal(ui.nextDelay(),2_000);
     await ui.timer(899_000);
     assert.deepEqual(ui.calls,['GET','POST','GET','POST']);
     await ui.timer(900_000);
@@ -121,7 +137,7 @@ test('periodic missing status follows the same 15-minute deadline as running',as
     assert.match(texts(ui.status),/前回の提案/);
     recovered=true;
     await ui.retryNow();
-    assert.deepEqual(ui.calls,['GET','POST','GET','POST','GET','POST']);
+    assert.deepEqual(ui.calls,['GET','POST','GET','POST','GET']);
     assert.equal(ui.retry.hidden,true);
     assert.match(texts(ui.status),/AI提案 1件/);
 });
@@ -129,9 +145,85 @@ test('periodic missing status follows the same 15-minute deadline as running',as
 test('periodic viewer polls running status without starting generation and stops at deadline',async()=>{
     const ui=await pollingFixture({canGenerate:false,respond:()=>({status:'running'})});
     assert.deepEqual(ui.calls,['GET']);
-    assert.equal([...ui.timers.values()][0].delay,2_000);
+    assert.equal(ui.nextDelay(),2_000);
     await ui.timer(900_000);
     assert.deepEqual(ui.calls,['GET']);
     assert.equal(ui.timers.size,0);
     assert.match(texts(ui.status),/時間をおいて/);
+});
+
+const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((ok, err) => { resolve=ok; reject=err; });
+    return {promise,resolve,reject};
+};
+const response = data => ({ok:true,json:async()=>data});
+const proposal = id => ({status:'completed',is_current:true,result:{recommendations:[item(id,'高')]}});
+const runningWithSaved = () => ({...proposal('previous'),status:'running',is_current:false});
+
+test('periodic deadline aborts delayed GET headers and keeps saved cards and authorized retry',async()=>{
+    const pending = deferred();
+    const ui=await pollingFixture({reply:(_, n)=>n===1 ? response(runningWithSaved()) : pending.promise});
+    await ui.timer(899_000);
+    assert.deepEqual(ui.calls,['GET','GET']);
+    assert.match(texts(ui.status),/照合しています/);
+    assert.equal(ui.retry.hidden,true);
+    await ui.timer(900_000);
+    assert.equal(ui.requests[1].signal.aborted,true);
+    assert.equal(ui.retry.hidden,false);
+    assert.equal(ui.timers.size,0);
+    assert.match(texts(ui.status),/時間をおいて.*前回の提案/);
+    assert.match(texts(ui.list),/previous/);
+    pending.resolve(response({status:'missing'}));
+    await ui.settled();
+    assert.deepEqual(ui.calls,['GET','GET']); // no delayed POST
+    assert.match(texts(ui.status),/時間をおいて/);
+});
+
+test('periodic deadline covers a delayed GET body and old data cannot replace a new attempt',async()=>{
+    const pending = deferred();
+    const ui=await pollingFixture({reply:(_, n)=>n===1 ? response(runningWithSaved())
+        : n===2 ? {ok:true,json:()=>pending.promise} : response(proposal('fresh'))});
+    await ui.timer(899_000);
+    await ui.timer(900_000);
+    await ui.retryNow();
+    assert.deepEqual(ui.calls,['GET','GET','GET']); // server already finished
+    assert.match(texts(ui.list),/fresh/);
+    pending.resolve(proposal('late'));
+    await ui.settled();
+    assert.match(texts(ui.list),/fresh/);
+    assert.doesNotMatch(texts(ui.list),/late/);
+    assert.equal(ui.retry.hidden,true);
+    assert.equal(ui.timers.size,0);
+});
+
+test('periodic deadline covers delayed POST and retry adopts an active server run',async()=>{
+    const pending = deferred();
+    const ui=await pollingFixture({reply:(method,n)=>n===1 ? response({...runningWithSaved(),status:'missing'})
+        : method==='POST' ? {ok:true,json:()=>pending.promise}
+        : response({status:'running',updated_at:new Date(900_000).toISOString()})});
+    assert.deepEqual(ui.calls,['GET','POST']);
+    await ui.timer(900_000);
+    assert.equal(ui.requests[1].signal.aborted,true);
+    assert.match(texts(ui.status),/時間をおいて.*前回の提案/);
+    await ui.retryNow();
+    assert.deepEqual(ui.calls,['GET','POST','GET']); // aborting the client did not cancel server work
+    assert.match(texts(ui.status),/照合しています.*前回の提案/);
+    pending.reject(new Error('late network failure'));
+    await ui.settled();
+    assert.match(texts(ui.status),/照合しています/);
+    assert.equal(ui.retry.hidden,true);
+    assert.equal(ui.timers.size,2);
+});
+
+test('periodic manual retry can restart an expired server run after rechecking it',async()=>{
+    let fetched=0;
+    const ui=await pollingFixture({respond:()=>++fetched===3
+        ? proposal('fresh') : {status:'running',updated_at:new Date(0).toISOString()}});
+    assert.deepEqual(ui.calls,['GET']);
+    await ui.timer(900_000);
+    await ui.retryNow();
+    assert.deepEqual(ui.calls,['GET','GET','POST']);
+    assert.deepEqual(JSON.parse(ui.requests[2].body),{retry:true});
+    assert.match(texts(ui.list),/fresh/);
 });
