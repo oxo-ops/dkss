@@ -2,7 +2,7 @@
 set -euo pipefail
 : "${PRODUCT_REPO:?set candidate checkout}" "${ARTIFACTS:?}" "${PLAYWRIGHT_MODULE:?}"
 base=0335f92f5c4e8537428faeb36d3a8d7f092890b9
-expected=1e152f850d687a974493ecc55eecf7bfff99e263fc421912fbde8541a7087d99
+expected=4a030592cb91a9d8232f0cec9ceeda0cd66f0269881e02b732b3cf313c6f0c94
 repo=$(cd "$PRODUCT_REPO" && pwd)
 actual=$(git -C "$repo" diff --full-index --binary "$base" -- . ':(exclude)tests/master_guide_browser/**' ':(exclude).github/workflows/master-guide-browser.yml' | sha256sum | cut -d' ' -f1)
 [[ "$actual" = "$expected" ]] || { echo "Candidate manifest mismatch: $actual" >&2; exit 2; }
