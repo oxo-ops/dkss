@@ -36,6 +36,8 @@ async function run() {
     for (const width of [320,390,1440]) for (const [name,[newName,searchKind]] of Object.entries(cases)) {
       const context = await browser.newContext({viewport:{width,height:844},reducedMotion:'reduce',serviceWorkers:'block'});
       const page = await context.newPage();
+      page.setDefaultTimeout(7000);
+      page.setDefaultNavigationTimeout(9000);
       const row = getFixture(name), nextRow = getFixture(newName), unexpectedWrites = [], ordering = [];
       try {
         await context.route('**/*', async route => {
@@ -63,8 +65,23 @@ async function run() {
         assert(purpose?.trim(), 'per-page purpose');
         const toolbar = page.locator('.master-top-toolbar'), add=toolbar.locator('.entry-add-icon');
         const help = page.locator('#firstUseGuide[data-master-guide="1"] [data-guide-open]'), panel=page.locator('#firstGuidePanel');
-        const openBounds = await bounds(help,width), addBounds=await bounds(add,width), headingBounds=await bounds(inline,width);
-        assert(addBounds.y>=headingBounds.y+headingBounds.height-2, 'registration belongs below title');
+        // Below 768px the existing mobile shell intentionally replaces the desktop h2.
+        // Preserve the structural no-inline-explanation check above on both surfaces.
+        const mobile = width < 768;
+        const title = mobile ? page.locator('[data-mobile-page-title]') : inline;
+        const titleBounds = await bounds(title,width);
+        const titleText=(await title.innerText()).replace(/\s+/g,' ').trim();
+        const masterTitle=(await inline.locator('h2').textContent()).replace(/\s+/g,' ').trim();
+        assert(masterTitle && titleText===masterTitle, 'visible title matches this master');
+        if(mobile) assert.equal(await inline.locator('h2').isVisible(), false, 'duplicate desktop title hidden');
+        else assert.equal(await page.locator('[data-mobile-page-title]').isVisible(),false,'duplicate mobile title hidden');
+        const openBounds = await bounds(help,width), addBounds=await bounds(add,width);
+        const titleInk = await title.locator(mobile?'[data-mobile-title-text]':'h2').evaluate(el=>{
+          const r=document.createRange();r.selectNodeContents(el);
+          return Array.from(r.getClientRects(),a=>({x:a.x,y:a.y,width:a.width,height:a.height}));
+        });
+        assert(titleInk.length && titleInk.every(b=>!overlaps(openBounds,b)), 'help covers title text');
+        assert(addBounds.y>=titleBounds.y+titleBounds.height-2, 'registration belongs below visible title');
         assert(addBounds.y+addBounds.height<= (await tabs.boundingBox()).y+1,'registration belongs before master tabs');
         assert.equal((await add.innerText()).trim(),'＋');
         assert(await add.getAttribute('aria-label'));
@@ -116,7 +133,7 @@ async function run() {
         await page.goBack({waitUntil:'domcontentloaded'}); await page.waitForURL(url.href);
         assert(await help.isVisible());
         assert.deepEqual(unexpectedWrites,[]);
-        output.push({name,width,passed:true,openBounds,addBounds,searchBounds,popup,sandboxReorder:name==='office_master'});
+        output.push({name,width,passed:true,titleSurface:mobile?'mobile':'desktop',titleBounds,openBounds,addBounds,searchBounds,popup,sandboxReorder:name==='office_master'});
       } catch (error) {
         output.push({name,width,passed:false,error:String(error),unexpectedWrites});
         await page.screenshot({path:path.join(out,name+'-'+width+'-error.png')}).catch(()=>{});
