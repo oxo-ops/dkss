@@ -84,17 +84,56 @@ class DocumentImportQueueTests(unittest.TestCase):
         self.assertIn('重複分を読み取り対象から外しました', page)
         self.assertNotIn('1回だけ読み取ります', page)
 
-    def worker(self, failure=None):
+    def worker(self, failure=None, record_fields=None):
         def extract(source, filename=None, progress_callback=None):
             if progress_callback:progress_callback({'phase':'ai_accepted'})
             if failure:raise failure
-            return extraction(source)
+            result = extraction(source)
+            if record_fields is not None:
+                result['records'][0].update(record_fields)
+            return result
         with patch.object(vehicle_imports, 'vehicle_document_extractor',return_value=extract), patch.object(
             queue, 'detect_document_types', return_value={'types':['inspection'],'certainty':'clear','supported':True}):
             return queue.process_one(self.m.app)
 
     def status(self, receipt):
         return self.client.get(receipt['status_url']).json
+
+    def test_partial_plate_never_identifies_vehicle_in_ocr_preview(self):
+        self.vehicle.plate_number = '0012'
+        db.session.commit()
+        response = self.send()
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(self.worker(record_fields={'chassis_number': None, 'registration_number': '0012'}))
+        row = json.loads(Draft.query.one().preview_json)['records'][0]
+        self.assertIsNone(row['vehicle_record_id'])
+        self.assertEqual(row['vehicle_match_status'], 'unmatched')
+
+    def test_plate_and_chassis_pointing_to_different_vehicles_are_not_matched(self):
+        db.session.add(self.m.Vehicle(company_code='TEST', chassis_number='TEST-002',
+            plate_area='品川', plate_class='010', plate_kana='あ', plate_number='0012'))
+        db.session.commit()
+        response = self.send()
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(self.worker())
+        row = json.loads(Draft.query.one().preview_json)['records'][0]
+        self.assertIsNone(row['vehicle_record_id'])
+        self.assertEqual(row['vehicle_match_status'], 'conflict')
+
+    def test_full_plate_still_falls_back_to_one_active_vehicle_in_current_company(self):
+        self.vehicle.plate_area = '品川'
+        self.vehicle.plate_class = '010'
+        self.vehicle.plate_kana = 'あ'
+        self.vehicle.plate_number = '0012'
+        db.session.add(self.m.Vehicle(company_code='OTHER', chassis_number='TEST-OTHER',
+            plate_area='品川', plate_class='010', plate_kana='あ', plate_number='0012'))
+        db.session.commit()
+        response = self.send()
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(self.worker(record_fields={'chassis_number': None, 'registration_number': '品川０１０ あ ００－１２'}))
+        row = json.loads(Draft.query.one().preview_json)['records'][0]
+        self.assertEqual(row['vehicle_record_id'], self.vehicle.id)
+        self.assertEqual(row['vehicle_match_status'], 'matched')
 
     def test_receipt_is_saved_before_ai_runs_and_survives_new_client(self):
         with patch.object(vehicle_imports,'vehicle_document_extractor',side_effect=AssertionError('AI in HTTP request')):

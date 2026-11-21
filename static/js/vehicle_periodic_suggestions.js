@@ -6,13 +6,15 @@
     const retry = root.querySelector('[data-proposal-retry]');
     const order = root.querySelector('[data-proposal-order]');
     const canGenerate = root.dataset.canGenerate === 'true';
-    let timer, stopped = false, started = 0, pending = false;
+    const pollInterval = 2_000, pollLimit = 15 * 60_000;
+    let active, hasSavedResult = false;
     const node = (tag, text, cls) => {
         const el = document.createElement(tag); el.textContent = text || '';
         if (cls) el.className = cls;
         return el;
     };
     function render(data) {
+        hasSavedResult = true;
         list.replaceChildren();
         const priority = window.VehiclePriorityPresentation;
         const savedItems = data.result.recommendations || [];
@@ -50,37 +52,91 @@
         });
         if (data.updated_at && data.is_current !== false) status.append(document.createTextNode(' ／ ' + data.updated_at.slice(0,16).replace('T',' ') + '確認'));
     }
-    async function check(start = false, explicitRetry = false) {
-        if (pending || stopped) return;
-        pending = true;if (retry) retry.hidden = true;
+    const remaining = attempt => attempt.deadline - Date.now();
+    function stop(attempt) {
+        if (active !== attempt) return;
+        active = undefined;
+        clearTimeout(attempt.pollTimer);
+        clearTimeout(attempt.deadlineTimer);
+        attempt.controller.abort();
+    }
+    function showPollTimeout() {
+        status.textContent = 'AI提案の確認を続けられませんでした。時間をおいて再確認してください。'
+            + (hasSavedResult ? ' 前回の提案を保存版として表示しています。' : '');
+        if (retry && canGenerate) retry.hidden = false;
+    }
+    function timeout(attempt) {
+        if (active !== attempt) return;
+        stop(attempt);
+        showPollTimeout();
+    }
+    function isLive(attempt) {
+        if (active !== attempt) return false;
+        if (remaining(attempt) > 0) return true;
+        timeout(attempt);
+        return false;
+    }
+    function schedulePoll(attempt) {
+        if (!isLive(attempt)) return;
+        attempt.pollTimer = setTimeout(() => {
+            attempt.pollTimer = undefined;
+            check(attempt);
+        }, Math.min(pollInterval, remaining(attempt)));
+    }
+    async function readProposal(attempt, options = {}) {
+        if (!isLive(attempt)) return null;
+        const response = await fetch(root.dataset.periodicSuggestions, {
+            credentials: 'same-origin', signal: attempt.controller.signal, ...options,
+        });
+        if (!isLive(attempt)) return null;
+        if (!response.ok) throw new Error('request_failed');
+        const data = await response.json();
+        return isLive(attempt) ? data : null;
+    }
+    async function check(attempt, explicitRetry = false) {
+        if (!isLive(attempt)) return;
         try {
-            let response = await fetch(root.dataset.periodicSuggestions, {credentials:'same-origin',headers:{'Accept':'application/json'}});
-            if (!response.ok) throw new Error('request_failed');
-            let data = await response.json();
-            const previous = data.result && Array.isArray(data.result.recommendations) ? data : null;
-            if (previous && (data.status !== 'completed' || data.is_current === false)) render(previous);
-            if ((data.status === 'missing' || explicitRetry) && canGenerate && start) {
-                response = await fetch(root.dataset.periodicSuggestions,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''},body:JSON.stringify({retry:explicitRetry})});
-                if (!response.ok) throw new Error('request_failed');
-                data = await response.json();
-            }
+            let data = await readProposal(attempt, {headers:{'Accept':'application/json'}});
+            if (!data || !isLive(attempt)) return;
             if (data.status === 'completed' && data.is_current !== false) { render(data); return; }
             if (data.result && Array.isArray(data.result.recommendations)) render(data);
-            const savedNote = previous || data.result ? ' 前回の提案を保存版として表示しています。' : '';
+
+            // A request aborted in this browser may already have started generation.
+            // Read the server first and keep following any fresh run instead of restarting it.
+            const expiredRun = data.status === 'running' && Date.now() - Date.parse(data.updated_at) >= pollLimit;
+            if (canGenerate && (data.status === 'missing' || (explicitRetry && (data.status === 'error' || expiredRun)))) {
+                data = await readProposal(attempt, {method:'POST',
+                    headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                    body:JSON.stringify({retry:explicitRetry})});
+                if (!data || !isLive(attempt)) return;
+                if (data.status === 'completed' && data.is_current !== false) { render(data); return; }
+                if (data.result && Array.isArray(data.result.recommendations)) render(data);
+            }
+            const savedNote = hasSavedResult ? ' 前回の提案を保存版として表示しています。' : '';
             if (data.status === 'running') {
                 status.textContent = 'AIが日常点検・定期点検と整備履歴を照合しています…' + savedNote;
-                if (Date.now()-started > 900000) throw new Error('long_running');
-                timer=setTimeout(()=>check(true),2000);return;
+                schedulePoll(attempt);return;
             }
             if (data.status === 'missing' && !canGenerate) {status.textContent = savedNote ? '分析の更新待ちです。' + savedNote : 'AI提案はまだありません。管理者がこの画面を開くと作成します。';return;}
-            if (data.status === 'missing') {timer=setTimeout(()=>check(true),2000);return;}
+            if (data.status === 'missing') {schedulePoll(attempt);return;}
             status.textContent = (data.error === 'confirmation_limit' ? '確認済み根拠が一度に照合できる件数を超えています。候補を一部だけに絞らず、分析更新を保留しています。' : data.error === 'not_configured' ? 'AIの接続設定を確認してください。今回の更新は完了していません。' : 'AI提案を更新できませんでした。時間をおいて再確認してください。') + savedNote;
-            if (retry) retry.hidden=false;
-        } catch (_) {status.textContent='AI提案の確認を続けられませんでした。時間をおいて再確認してください。';if(retry)retry.hidden=false;}
-        finally { pending=false; }
+            if (retry && canGenerate) retry.hidden = false;
+        } catch (_) {
+            if (isLive(attempt)) showPollTimeout();
+        } finally {
+            if (attempt.pollTimer === undefined) stop(attempt);
+        }
     }
-    if (retry) retry.addEventListener('click',()=>{clearTimeout(timer);started=Date.now();check(true,true);});
-    window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer);});
-    window.addEventListener('pageshow',event=>{if(event.persisted){stopped=false;started=Date.now();check(true);}});
-    started=Date.now();check(true);
+    function begin(explicitRetry = false) {
+        if (active) stop(active);
+        const attempt = {deadline: Date.now() + pollLimit, controller: new AbortController()};
+        active = attempt;
+        if (retry) retry.hidden = true;
+        attempt.deadlineTimer = setTimeout(() => timeout(attempt), pollLimit);
+        check(attempt, explicitRetry);
+    }
+    if (retry && canGenerate) retry.addEventListener('click', () => begin(true));
+    window.addEventListener('pagehide', () => { if (active) stop(active); });
+    window.addEventListener('pageshow', event => { if (event.persisted) begin(); });
+    begin();
 })();
