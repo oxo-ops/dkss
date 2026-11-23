@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:,">
+<title>青凪の体験版 | ALSEON</title>
+<style>
+* { box-sizing: border-box }
+html { scroll-padding-top: 1rem }
+body { margin: 0; background: #f3f6fa; color: #142a42; font: 1rem/1.65 system-ui, sans-serif; overflow-wrap: anywhere }
+.wrap { width: min(100% - 2rem, 62rem); margin-inline: auto }
+header { padding: 1rem 0; color: #fff; background: #163a5e }
+.brand { font-size: 1.25rem; font-weight: 800; letter-spacing: .1em }
+main { padding: 1.5rem 0 3rem }
+h1, h2, h3, p { margin: 0 0 .65rem }
+h1 { font-size: clamp(1.8rem, 7vw, 3rem); line-height: 1.15 }
+h2 { font-size: 1.35rem }
+h3 { font-size: 1.1rem }
+.notice { max-width: 48rem; margin-bottom: 1.25rem }
+nav ul { display: flex; flex-wrap: wrap; gap: .55rem; list-style: none; padding: 0; margin: 0 0 1.5rem }
+a { color: #12548b; text-underline-offset: .18em }
+.action { display: inline-flex; align-items: center; min-height: 2.75rem; padding: .45rem .85rem; border: 1px solid #16669f; border-radius: .5rem; font-weight: 700; background: #f0f8ff }
+a:focus-visible, summary:focus-visible, [tabindex="-1"]:focus { outline: 3px solid #285fc5; outline-offset: 3px }
+.skip:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%) }
+.skip:focus { color: #fff }
+.grid { display: grid; gap: 1rem }
+.card { background: #fff; padding: clamp(.9rem, 3vw, 1.4rem); border: 1px solid #ccd9e8; border-radius: .9rem }
+.card:target { border-color: #16669f; outline: 2px solid #16669f }
+.kicker { color: #465f79; font-size: .9rem; font-weight: 700 }
+.bad { color: #9b291e; font-weight: 750 }
+.good { color: #1c6149; font-weight: 700 }
+.data { list-style: none; padding: 0; margin: .5rem 0 1rem }
+.data li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem; padding: .5rem 0; border-top: 1px solid #e0e7ef }
+.muted { color: #405b74; font-size: .94rem }
+#karte { margin-top: 1.5rem }
+details { margin-top: .75rem; border: 1px solid #d3dfea; border-radius: .5rem; padding-inline: .8rem }
+summary { display: list-item; min-height: 2.75rem; line-height: 1.5; padding: .65rem 0; cursor: pointer; font-weight: 700 }
+details ul { padding-inline-start: 1.3rem }
+footer { margin-top: 1.5rem }
+@media (min-width: 50rem) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="skip" href="#main">本文へ移動</a><div class="brand">ALSEON</div><div>安全管理・車両管理システム</div></div></header>
+<main class="wrap" id="main" tabindex="-1">
+  <div class="kicker">営業用サンプル・閲覧専用</div>
+  <h1>青凪の体験版</h1>
+  <p class="notice">架空の記録で、点検から運行判断までの流れと、車両カルテをご覧いただけます。ログイン不要です。入力・保存・通知送信、AI生成・OCRは行いません。</p>
+  <nav aria-label="体験版の目次"><ul>
+    <li><a class="action" href="#inspection">点検結果から見る</a></li>
+    <li><a class="action" href="#karte">車両カルテを見る</a></li>
+  </ul></nav>
+
+  <section aria-labelledby="safety">
+    <h2 id="safety">点検から運行判断まで</h2>
+    <div class="grid">
+      <article class="card" id="inspection" tabindex="-1">
+        <div class="kicker">01 点検結果</div>
+        <h3>103号車の日常点検</h3>
+        <p><time datetime="2026-11-17">2026年11月17日</time>の保存済み記録</p>
+        <ul class="data">
+          <li><span>エンジンのかかり具合・異音</span><span class="bad">異常あり</span></li>
+          <li><span>ブレーキペダルの効き具合</span><span class="good">異常なし</span></li>
+          <li><span>方向指示器の点滅具合</span><span class="good">異常なし</span></li>
+        </ul>
+        <a class="action" href="#notification">受信済みの通知へ</a>
+      </article>
+
+      <article class="card" id="notification" tabindex="-1">
+        <div class="kicker">02 受信済みの通知</div>
+        <h3>103号車の運行判断結果</h3>
+        <p>日常点検の結果を受け、管理者が運行不可と判断しました。</p>
+        <p class="muted">画面内通知の既読例です。このページからは通知を送りません。</p>
+        <a class="action" href="#decision">判断結果を確認</a>
+      </article>
+
+      <article class="card" id="decision" tabindex="-1">
+        <div class="kicker">03 人が行った判断</div>
+        <h3 class="bad">運行不可</h3>
+        <p>始動時の異音について、原因確認と、整備後の再確認が済んでいないため。</p>
+        <p class="muted">判断者：青凪の体験管理者。人が確認して判断した架空の例です。実車への指示ではありません。</p>
+        <a class="action" href="#karte">車両カルテの例へ</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="card" id="karte" tabindex="-1" aria-labelledby="karte-title">
+    <div class="kicker">車両管理・別の架空サンプル</div>
+    <h2 id="karte-title">車両カルテ</h2>
+    <p>点検で見つかった不具合を、整備履歴・交換部品・費用とあわせて確認できます。</p>
+    <details open>
+      <summary>整備履歴と費用</summary>
+      <ul>
+        <li><time datetime="2026-11-05">2026年11月5日</time>：日常点検で左後方の車幅灯が点灯しないことを記録</li>
+        <li>同日：車幅灯の電球を交換。交換後に担当者が点灯を確認</li>
+        <li>費用の表示例：3,080円</li>
+      </ul>
+    </details>
+    <details>
+      <summary>整備の提案例（固定表示）</summary>
+      <p>紹介資料に掲載した例です。この画面でAIは実行されません。</p>
+      <ul>
+        <li>確認優先度 高：エンジンオイル・フィルター</li>
+        <li>確認優先度 高：補機ベルト</li>
+        <li>確認優先度 中：冷却水</li>
+      </ul>
+      <p class="muted">優先度は確認・対応の順番を示すもので、運行可否は人が判断します。</p>
+    </details>
+  </section>
+  <footer><a href="#main">ページの先頭へ</a></footer>
+</main>
+</body>
+</html>

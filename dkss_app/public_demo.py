@@ -41,9 +41,18 @@ def is_demo():
 
 
 def install(app):
-    from .public_demo_release import load
-    load(app)
-    if not app.config.get('PUBLIC_DEMO_CANDIDATE'):
+    from .public_demo_snapshot import install_snapshot, snapshot_enabled
+
+    enabled = snapshot_enabled()
+    # The old shared workflow is preserved only for explicitly isolated tests.
+    # In production, stale legacy flags can never re-enable demo identities.
+    legacy_test = app.testing and os.environ.get('RENDER') != 'true' and not enabled
+    if legacy_test:
+        from .public_demo_release import load
+        load(app)
+    if not legacy_test or not app.config.get('PUBLIC_DEMO_CANDIDATE'):
+        install_snapshot(app, enabled=enabled)
+
         def reject_retired_demo():
             if SHARE_QUERY in request.args:
                 abort(404)
