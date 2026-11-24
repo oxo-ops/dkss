@@ -4626,7 +4626,7 @@ async function loadSavedReminderNotifyUsers() {
                     'select[name="active_day"]'
                 );
 
-        function submitVehicleFilter() {
+        function submitVehicleFilter(event) {
             if (
                 !vehicleId ||
                 !vehicleId.value
@@ -4645,6 +4645,19 @@ async function loadSavedReminderNotifyUsers() {
                         vehicleFilterForm
                     )
                 );
+
+            // Only year/month navigation may omit a previously selected day.
+            if (displayMode === "day_list" &&
+                (event?.target === monthSelect || event?.target === yearInput)) {
+                const year = Number(params.get("year"));
+                const month = Number(params.get("month"));
+                const day = Number(params.get("active_day"));
+                if (Number.isInteger(year) && year >= 2000 && year <= 2100 &&
+                    Number.isInteger(month) && month >= 1 && month <= 12 &&
+                    day > new Date(year, month, 0).getDate()) {
+                    params.delete("active_day");
+                }
+            }
 
             window.location.assign(
                 window.location.pathname +

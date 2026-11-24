@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}点検日を選び直す{% endblock %}
+{% block content %}
+<div class="page-header"><h2>点検日を選び直してください</h2></div>
+<section class="card">
+    <p role="alert">選択した日付は {{ year }}年{{ month|int }}月に存在しません。別の日の点検・運行判断・履歴は表示していません。</p>
+    <form method="get" action="{{ url_for('vehicle_checklist_results', index=checklist_id) }}" class="register-form">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        {% if vehicle_record_id %}<input type="hidden" name="vehicle_record_id" value="{{ vehicle_record_id }}">{% endif %}
+        <label for="inspection_day">{{ year }}年{{ month|int }}月の点検日</label>
+        <select id="inspection_day" name="active_day" required>
+            <option value="" selected disabled>日を選択してください</option>
+            {% for day in display_days %}<option value="{{ '%02d'|format(day) }}">{{ day }}日</option>{% endfor %}
+        </select>
+        <div class="action-row"><button type="submit" class="btn">選んだ日の点検を表示</button>
+            <a href="{{ url_for('vehicle_checklists') }}" class="btn btn-back">点検一覧へ</a></div>
+    </form>
+</section>
+{% endblock %}
