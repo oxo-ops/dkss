@@ -63,6 +63,75 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    const testEmailButton =
+        document.getElementById(
+            "testEmailNotification"
+        );
+
+    const testEmailStatus =
+        document.getElementById(
+            "testEmailNotificationStatus"
+        );
+
+    if (testEmailButton) {
+        testEmailButton.addEventListener(
+            "click",
+            async function () {
+                testEmailButton.disabled = true;
+
+                if (testEmailStatus) {
+                    testEmailStatus.textContent =
+                        "メール通知を送信しています...";
+                }
+
+                try {
+                    const csrfToken = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+
+                    const response = await fetch(
+                        "/notifications/email-test",
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRFToken": csrfToken || ""
+                            }
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(
+                            data.message || "メール送信に失敗しました。"
+                        );
+                    }
+
+                    if (testEmailStatus) {
+                        testEmailStatus.textContent =
+                            data.message || "メールを送信しました。";
+                    }
+                } catch (error) {
+                    console.error(
+                        "メール通知送信エラー:",
+                        error
+                    );
+
+                    showCommonError(
+                        error.message || "メール通知の送信に失敗しました。"
+                    );
+
+                    if (testEmailStatus) {
+                        testEmailStatus.textContent =
+                            error.message || "メール通知の送信に失敗しました。";
+                    }
+                } finally {
+                    testEmailButton.disabled = false;
+                }
+            }
+        );
+    }
+
     const pushButton =
         document.getElementById(
             "enablePushNotifications"
@@ -145,74 +214,6 @@ document.addEventListener("DOMContentLoaded", function () {
             pushStatus.textContent =
                 "端末通知がブラウザ側でブロックされています。";
         }
-    }
-    const testEmailButton =
-        document.getElementById(
-            "testEmailNotification"
-        );
-
-    const testEmailStatus =
-        document.getElementById(
-            "testEmailNotificationStatus"
-        );
-
-    if (testEmailButton) {
-        testEmailButton.addEventListener(
-            "click",
-            async function () {
-                testEmailButton.disabled = true;
-
-                if (testEmailStatus) {
-                    testEmailStatus.textContent =
-                        "メール通知を送信しています...";
-                }
-
-                try {
-                    const csrfToken = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-
-                    const response = await fetch(
-                        "/notifications/email-test",
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRFToken": csrfToken || ""
-                            }
-                        }
-                    );
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(
-                            data.message || "メール送信に失敗しました。"
-                        );
-                    }
-
-                    if (testEmailStatus) {
-                        testEmailStatus.textContent =
-                            data.message || "メールを送信しました。";
-                    }
-                } catch (error) {
-                    console.error(
-                        "メール通知送信エラー:",
-                        error
-                    );
-
-                    showCommonError(
-                        error.message || "メール通知の送信に失敗しました。"
-                    );
-
-                    if (testEmailStatus) {
-                        testEmailStatus.textContent =
-                            error.message || "メール通知の送信に失敗しました。";
-                    }
-                } finally {
-                    testEmailButton.disabled = false;
-                }
-            }
-        );
     }
 
     pushButton.addEventListener(

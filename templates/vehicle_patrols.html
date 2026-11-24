@@ -38,7 +38,7 @@
                         action="/usage-vehicles/remove/{{ vehicle.id }}"
                     >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="tag-remove">×</button>
+                        <button type="submit" class="tag-remove" aria-label="使用車両から解除：{% if vehicle.plate_number|default('', true)|trim %}{{ [vehicle.plate_area, vehicle.plate_class, vehicle.plate_kana, vehicle.plate_number] | select | join(' ') }}{% elif vehicle.chassis_number|default('', true)|trim %}車台番号 {{ vehicle.chassis_number }}{% else %}車両ID {{ vehicle.id }}{% endif %}">×</button>
                     </form>
                 </span>
             {% else %}
