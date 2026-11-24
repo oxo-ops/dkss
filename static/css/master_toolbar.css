@@ -6,3 +6,7 @@ body .main-content .master-top-toolbar .entry-add-icon{font-size:24px!important;
 body .main-content .master-top-toolbar [hidden]{display:none!important}
 body .main-content .master-top-toolbar :is(a,button):focus-visible{outline:3px solid #2563eb!important;outline-offset:3px!important}
 body .main-content .master-top-toolbar + .master-unified-tabs{margin-top:0!important;margin-bottom:10px!important}
+
+/* Use the former description space for the existing, focusable action row. */
+body:has(.master-unified-tabs) .main-content .master-unified-heading[data-master-guided]{min-height:0;gap:0;margin-bottom:0}
+body:has(.master-unified-tabs) .main-content .master-order-status:not(:empty){margin-block:4px 8px}

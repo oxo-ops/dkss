@@ -147,6 +147,31 @@ def get_dashboard_office_maintenance_trend(company_code, office):
     return result
 
 
+def _dashboard_latest_vehicle_feedback(company_code, vehicle_ids):
+    """Existing shared feedback semantics, batched for already-visible vehicles."""
+    ids = sorted(set(vehicle_ids))
+    model = _dkss_models.VehicleAnalysisFeedback
+    db = _dkss_common.db
+    by_vehicle = {}
+    # Keep each IN list comfortably below the smallest supported bind limit.
+    for offset in range(0, len(ids), 400):
+        chunk = ids[offset:offset + 400]
+        latest_ids = (
+            db.session.query(db.func.max(model.id))
+            .filter(model.company_code == company_code, model.vehicle_record_id.in_(chunk))
+            .group_by(model.vehicle_record_id, model.proposal_key)
+            .scalar_subquery()
+        )
+        rows = db.session.query(
+            model.vehicle_record_id, model.proposal_key, model.proposal_revision,
+            model.status, model.snapshot_json,
+        ).filter(model.company_code == company_code, model.id.in_(latest_ids)).all()
+        for row in rows:
+            if not _dkss_serialization.safe_json_dict(row.snapshot_json).get("source_withdrawn"):
+                by_vehicle.setdefault(row.vehicle_record_id, {})[row.proposal_key] = row
+    return by_vehicle
+
+
 def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
     from .priority_projection import project_registered_priorities
     from vehicle_priority_projection import priority_order_key
@@ -176,6 +201,7 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
         .all()
     )
 
+    pending = []
     for vehicle, state in rows:
         group = groups["mine" if vehicle.id in own_ids else "office"]
         group["vehicles"] += 1
@@ -196,15 +222,18 @@ def get_dashboard_vehicle_attention(company_code, office, my_vehicle_ids):
         if bundle.get("analysis_method") == "record_check":
             group["insufficient"] += 1
 
-        feedback_by_key = {
-            row.proposal_key: row
-            for row in _dkss_analysis_feedback.latest_vehicle_analysis_feedback(company_code, vehicle.id)
-        }
         identified = []
         for original in recommendations:
             if isinstance(original, dict):
                 key, revision = _dkss_analysis_feedback.vehicle_analysis_proposal_ids(original)
                 identified.append(dict(original, proposal_id=key, proposal_revision=revision))
+        pending.append((vehicle, group, bundle, identified))
+
+    feedback_by_vehicle = _dashboard_latest_vehicle_feedback(
+        company_code, (vehicle.id for vehicle, _, _, identified in pending if identified),
+    )
+    for vehicle, group, bundle, identified in pending:
+        feedback_by_key = feedback_by_vehicle.get(vehicle.id, {})
         projected = project_registered_priorities({'recommendations': identified}, vehicle, bundle.get('sources'))
         for item in projected['recommendations']:
             if not isinstance(item, dict) or not item.get("title"):
