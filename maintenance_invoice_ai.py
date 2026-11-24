@@ -231,7 +231,8 @@ def build_vehicle_document_preview(extraction, vehicle_choices):
         ]
         plate_matches = [
             choice for choice in choices
-            if plate and normalize(choice.get("number")) == plate
+            if plate and choice.get("number_is_complete", True)
+            and normalize(choice.get("number")) == plate
         ]
         matches = chassis_matches or plate_matches
 
@@ -239,7 +240,9 @@ def build_vehicle_document_preview(extraction, vehicle_choices):
         conflict = bool(
             matched
             and (
-                (plate and normalize(matched.get("number"))
+                # A blank plate on the chassis match cannot erase contrary evidence.
+                (plate_matches and all(choice["id"] != matched["id"] for choice in plate_matches))
+                or (plate and normalize(matched.get("number"))
                  and normalize(matched.get("number")) != plate)
                 or (chassis and normalize(matched.get("chassis_number"))
                     and normalize(matched.get("chassis_number")) != chassis)
