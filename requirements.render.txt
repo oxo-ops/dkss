@@ -1,0 +1,3 @@
+# Render only. Keep application direct pins and other platforms on requirements.txt.
+-r requirements.txt
+-c constraints-render-py314-linux-x86_64.txt
