@@ -1025,6 +1025,7 @@ def get_notification_workflow_states():
             notification_model.workflow_context_json != "{}",
             # Recheck notices use the title/link fallback in the same state resolver.
             notification_model.title.endswith("：再確認待ち"),
+            notification_model.title.endswith("：再確認で異常あり"),
         ),
     ).all()
 
