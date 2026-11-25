@@ -1,6 +1,13 @@
 document.addEventListener("DOMContentLoaded", function () {
     const responsePanel = document.getElementById("vehicle-inspection-response");
     const flowPanel = document.querySelector(".vehicle-flow-panel");
+    let highlightedFlowField = null;
+
+    function highlightFlowField(field) {
+        highlightedFlowField?.classList.remove("vehicle-flow-field-highlight");
+        field?.classList.add("vehicle-flow-field-highlight");
+        highlightedFlowField = field;
+    }
 
     const workspaceDate = document.getElementById(
         "vehicle_workspace_date"
@@ -222,6 +229,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                 }
 
+                highlightFlowField(null);
                 setResponseView(view);
 
                 const url = new URL(window.location.href);
@@ -329,6 +337,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         function showFlowTarget(hash) {
+            highlightFlowField(null);
             if (!hash.startsWith("#vehicle-flow-")) return;
 
             const container = document.getElementById(hash.slice(1));
@@ -391,6 +400,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
 
             target.classList.add("vehicle-flow-focus");
+
+            let field = null;
+            if (defectCards.includes(container)
+                && target.matches(".js-vehicle-inspection-repair")) {
+                field = target.querySelector(
+                    '.vehicle-recheck-options, textarea[name="repair_note"]'
+                );
+            } else if (target.matches(
+                ".js-vehicle-operation-judgment, .js-vehicle-operation-manager"
+            )) {
+                field = target.querySelector(
+                    '#decision, select[name="manager_username"]'
+                );
+            }
+            highlightFlowField(field);
 
             const savedUrl = new URL(window.location.href);
 
@@ -4447,6 +4471,7 @@ async function loadSavedReminderNotifyUsers() {
             .forEach(function (link) {
                 link.addEventListener("click", function (event) {
                     event.preventDefault();
+                    highlightFlowField(null);
                     inspectionRecord.open = true;
 
                     const url = new URL(window.location.href);

@@ -14078,7 +14078,8 @@ body:has(.safety-list-breadcrumb) .pointouts-total::before {
 #vehicle-inspection-response input:focus-visible,
 #vehicle-inspection-response textarea:focus-visible,
 #vehicle-inspection-response select:focus-visible,
-#vehicle-inspection-response button:focus-visible {
+#vehicle-inspection-response button:focus-visible,
+#vehicle-inspection-response .vehicle-flow-field-highlight {
     outline: 2px solid #285ca5;
     outline-offset: 2px;
 }
