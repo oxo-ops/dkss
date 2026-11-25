@@ -1016,12 +1016,16 @@ def get_notification_workflow_states():
     if not company_code or not username:
         return {}
 
-    records = _dkss_models.Notification.query.filter(
-        _dkss_models.Notification.company_code == company_code,
+    notification_model = _dkss_models.Notification
+    records = notification_model.query.filter(
+        notification_model.company_code == company_code,
         notification_owner_clause(),
-        _dkss_models.Notification.deleted_at.is_(None),
-        _dkss_models.Notification.workflow_context_json.isnot(None),
-        _dkss_models.Notification.workflow_context_json != "{}"
+        notification_model.deleted_at.is_(None),
+        _dkss_common.db.or_(
+            notification_model.workflow_context_json != "{}",
+            # Recheck notices use the title/link fallback in the same state resolver.
+            notification_model.title.endswith("：再確認待ち"),
+        ),
     ).all()
 
     return {
