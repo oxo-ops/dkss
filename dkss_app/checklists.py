@@ -2952,6 +2952,36 @@ def vehicle_checklists():
 
 
 
+_VEHICLE_JUDGMENT_READY_STATUSES = frozenset({"承認待ち", "承認済み", "点検完了"})
+
+
+def _is_vehicle_judgment_assignee(current_user, judgment):
+    return (
+        bool(current_user)
+        and current_user.role == "admin"
+        and current_user.account_identity in judgment.get("requested_identities", [])
+    )
+
+
+def _vehicle_repair_draft_date_value(defect, default_value):
+    """Use only the editable repair's already-recorded calendar day."""
+    if not default_value or defect.get("status") != "整備中":
+        return default_value
+    repair = defect.get("repair")
+    if not isinstance(repair, dict) or repair.get("status") != "整備中":
+        return default_value
+    stamp = repair.get("performed_at")
+    if not isinstance(stamp, str) or not _dkss_common.re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?: [0-9]{2}:[0-9]{2})?", stamp
+    ):
+        return default_value
+    try:
+        saved_date = _dkss_common.datetime.fromisoformat(stamp).date().isoformat()
+    except ValueError:
+        return default_value
+    return saved_date if saved_date <= default_value else default_value
+
+
 def vehicle_checklist_results(index):
     checklist_record = _dkss_models.Checklist.query.filter_by(
         id=index,
@@ -3541,7 +3571,22 @@ def vehicle_checklist_results(index):
             ]
 
     vehicle_operation_managers = []
+    vehicle_judgment_ready = bool(
+        active_result and active_result.get("status") in _VEHICLE_JUDGMENT_READY_STATUSES
+    )
+    can_submit_vehicle_judgment = False
     if active_result and checklist.get("fixed_template_code") == "daily_inspection_truck_trailer":
+        if checklist.get("active") and vehicle_judgment_ready and any(
+            item.get("fixed_template_code") == "daily_inspection_truck_trailer"
+            for item in (active_result.get("checklist_snapshot") or {}).get("items", [])
+        ):
+            current_user = _dkss_models.User.query.filter_by(
+                company_code=checklist_record.company_code,
+                username=_dkss_common.session.get("username"),
+            ).first()
+            can_submit_vehicle_judgment = _is_vehicle_judgment_assignee(
+                current_user, active_result.get("operation_judgment", {})
+            )
         vehicle_operation_managers = [
             {
                 "username": user.username,
@@ -3564,6 +3609,8 @@ def vehicle_checklist_results(index):
         checklist_navigation=checklist_result_navigation(checklist_record, "vehicle"),
         vehicle_operation_managers=vehicle_operation_managers,
         vehicle_judgment_names=vehicle_judgment_names,
+        vehicle_judgment_ready=vehicle_judgment_ready,
+        can_submit_vehicle_judgment=can_submit_vehicle_judgment,
         vehicle_response_notify_names=vehicle_response_notify_names,
         checklist=checklist,
         checklist_index=checklist_record.id,
@@ -3572,6 +3619,7 @@ def vehicle_checklist_results(index):
         checklist_events=checklist_events,
         other_vehicle_inspection_defects=other_vehicle_inspection_defects,
         vehicle_today=vehicle_today,
+        repair_draft_date_value=_vehicle_repair_draft_date_value,
         vehicle_operation_basis=(
             get_vehicle_operation_basis(
                 checklist_record.company_code,
@@ -4124,7 +4172,7 @@ def save_vehicle_operation_judgment(result_index):
     ):
         return _dkss_http.return_form_errors([("運行判断の対象外の様式です。", "")], 400)
 
-    if result_record.status not in {"承認待ち", "承認済み", "点検完了"}:
+    if result_record.status not in _VEHICLE_JUDGMENT_READY_STATUSES:
         return _dkss_http.return_form_errors([("点検完了後に運行判断を記録してください。", "")], 409)
 
     vehicle = _dkss_models.Vehicle.query.filter_by(
@@ -4272,11 +4320,7 @@ def save_vehicle_operation_judgment(result_index):
 
         return _dkss_common.redirect(notification_link)
 
-    if (
-        not current_user
-        or current_user.role != "admin"
-        or current_user.account_identity not in previous.get("requested_identities", [])
-    ):
+    if not _is_vehicle_judgment_assignee(current_user, previous):
         return _dkss_http.return_form_errors([("選択された運行判断の担当者が操作してください。", "")], 403)
 
     decision = _dkss_common.request.form.get("decision", "").strip()
@@ -7167,6 +7211,19 @@ def reset_vehicle_operation_judgment(result_record, result_checklist):
 
 
 
+def _vehicle_checklist_edit_state_error(status):
+    """Return the ordinary editing error for a saved inspection state."""
+    if status in {"入力中", "差し戻し"}:
+        return None
+    if status == "承認待ち":
+        return "承認待ちの点検結果は変更できません。"
+    if status == "承認済み":
+        return "承認済みの点検結果は変更できません。"
+    if status == "点検完了":
+        return "点検完了の点検結果は変更できません。"
+    return "現在の状態では点検結果を変更できません。"
+
+
 def save_vehicle_checklist_one(index):
     checklist_record = _dkss_models.Checklist.query.filter_by(
         id=index,
@@ -7339,23 +7396,10 @@ def save_vehicle_checklist_one(index):
         return demo_conflict
 
 
-    if (
-        result_record
-        and result_record.status in {
-            "承認待ち",
-            "承認済み"
-        }
-    ):
-        return _dkss_http.return_form_errors([
-            (
-                (
-                    "承認待ちの点検結果は変更できません。"
-                    if result_record.status == "承認待ち"
-                    else "承認済みの点検結果は変更できません。"
-                ),
-                ""
-            )
-        ], status_code=403)
+    if result_record is not None:
+        edit_error = _vehicle_checklist_edit_state_error(result_record.status)
+        if edit_error is not None:
+            return _dkss_http.return_form_errors([(edit_error, "")], status_code=403)
 
     # Hold Vehicle/result before User, as the other inspection writers do.
     person_error = _person_forms.validate(actor_only=True)
@@ -7839,23 +7883,10 @@ def save_vehicle_checklist_detail(index):
         return demo_conflict
 
 
-    if (
-        result_record
-        and result_record.status in {
-            "承認待ち",
-            "承認済み"
-        }
-    ):
-        return _dkss_http.return_form_errors([
-            (
-                (
-                    "承認待ちの点検結果は変更できません。"
-                    if result_record.status == "承認待ち"
-                    else "承認済みの点検結果は変更できません。"
-                ),
-                ""
-            )
-        ], status_code=403)
+    if result_record is not None:
+        edit_error = _vehicle_checklist_edit_state_error(result_record.status)
+        if edit_error is not None:
+            return _dkss_http.return_form_errors([(edit_error, "")], status_code=403)
 
     # Hold Vehicle/result before User, as the other inspection writers do.
     person_error = _person_forms.validate(actor_only=True)

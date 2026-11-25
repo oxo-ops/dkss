@@ -1118,6 +1118,9 @@
 {% endfor %}
 {% set point_done = active_result.status in ['承認待ち', '承認済み', '点検完了'] %}
 {% set decision = judgment.get('status') or '未判定' %}
+{% set today_parts = vehicle_today.label.split('/') if vehicle_today else [] %}
+{% set past_saved_go = decision == "運行可" and judgment.get("judged_at") and today_parts|length == 3
+    and (year|int, month|int, active_day|int) < (today_parts[0]|int, today_parts[1]|int, today_parts[2]|int) %}
 
 {% if request.args.get('vehicle_saved') == 'complete' and point_done %}
 <p id="vehicle-flow-completed" class="vehicle-save-feedback" role="status" tabindex="-1">
@@ -1174,7 +1177,7 @@
         <span class="vehicle-process-number" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg></span>
         <span class="vehicle-process-label">
             <strong>運行判断</strong>
-            <small>{{ "判断保留" if decision == "判定保留" else decision }}</small>
+            <small>{% if past_saved_go %}過去日の運行可（現在無効）{% else %}{{ "判断保留" if decision == "判定保留" else decision }}{% endif %}</small>
         </span>
     </button>
 </nav>
@@ -1342,12 +1345,15 @@
                 <label for="repair_note_{{ defect.get('defect_no') }}">実施した整備内容</label>
                 <textarea id="repair_note_{{ defect.get('defect_no') }}" name="repair_note" rows="3" maxlength="5000" required>{{ repair.get("note") or "" }}</textarea>
 
+                {% set repair_default_date = vehicle_today.get('label', '')|replace('/', '-') if vehicle_today else '' %}
+                {% set repair_edit_date = repair_draft_date_value(defect, repair_default_date)
+                    if repair_draft_date_value is defined and not session.get('aonagi_readonly_demo') else repair_default_date %}
                 <label for="repair_performed_at_{{ defect.get('defect_no') }}">整備実施日</label>
                 <input
                     id="repair_performed_at_{{ defect.get('defect_no') }}"
                     type="date"
                     name="repair_performed_date"
-                    value="{{ vehicle_today.get('label', '')|replace('/', '-') if vehicle_today else '' }}"
+                    value="{{ repair_edit_date }}"
                     max="{{ vehicle_today.get('label', '')|replace('/', '-') if vehicle_today else '' }}"
                     required
                 >
@@ -1568,28 +1574,20 @@
         {% endif %}
     {% endif %}
 
-    {% set judgment_ready = active_result.status in ["承認待ち", "承認済み", "点検完了"] %}
-    {% set judgment_assigned = session.get("username") in judgment.get("requested_usernames", []) %}
-
-    {% if not (
-        checklist.active
-        and judgment_ready
-        and session.get("role") == "admin"
-        and judgment_assigned
-    ) %}
+    {% if not can_submit_vehicle_judgment %}
     <div class="vehicle-judgment-heading">
         <h4>運行判断へ進むには</h4>
 
         {% if not checklist.active %}
         <p>この点検表は使用停止中のため、運行判断を登録できません。</p>
 
-        {% elif not judgment_ready %}
+        {% elif not vehicle_judgment_ready %}
         <p>この日の点検が完了していません。画面上部で整備管理者を選択し、「点検完了」を押してください。</p>
 
         {% elif not judgment.get("requested_usernames", []) %}
         <p>整備管理者が未設定です。</p>
 
-        {% elif session.get("role") != "admin" or not judgment_assigned %}
+        {% else %}
         <p>次の担当者：点検完了時に選択した整備管理者。担当者のアカウントで、この日の点検記録を開いて運行判断を登録してください。</p>
         {% endif %}
     </div>
@@ -1599,7 +1597,12 @@
     {% if judgment_saved %}
     <div class="vehicle-judgment-heading js-vehicle-judgment-completed vehicle-judgment-result" role="status">
         <p class="vehicle-judgment-result-label">運行可否の判断結果</p>
+        {% if past_saved_go %}
+        <p class="vehicle-judgment-result-value">過去日の判断：運行可</p>
+        <p class="help-text">この判断は現在の運行には使えません。今日の点検で運行可否を確認してください。</p>
+        {% else %}
         <p class="vehicle-judgment-result-value">{{ "判断保留" if judgment.get("status") == "判定保留" else judgment.get("status") }}</p>
+        {% endif %}
         {% if judgment.get("reason") %}
         <p>補足・判断理由</p>
         <div>
@@ -1612,11 +1615,7 @@
     </div>
     {% endif %}
 
-    {% if checklist.active
-        and active_result.status in ["承認待ち", "承認済み", "点検完了"]
-        and session.get("role") == "admin"
-        and session.get("username") in judgment.get("requested_usernames", [])
-    %}
+    {% if can_submit_vehicle_judgment %}
     <details class="vehicle-history-details vehicle-operation-details"{% if not judgment_saved %} open{% endif %}>
         <summary class="vehicle-history-summary">
             <span>{{ "判断を変更" if judgment_saved else "運行判断を記録" }}</span>
@@ -1987,7 +1986,7 @@
         <div class="checklist-history-list">
         {% if judgment.get("judged_at") %}
         <div class="checklist-history-item">
-            <strong>現在の運行判断</strong>
+            <strong>{{ "過去日の運行判断" if past_saved_go else "現在の運行判断" }}</strong>
             <div>判断者：{{ judgment.get("judged_by") or judgment.get("judged_by_username") or "-" }}</div>
             <div>判断日時：{{ (judgment.get("judged_at") or "-")[:16] }}</div>
         </div>
