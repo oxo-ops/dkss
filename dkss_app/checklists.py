@@ -9563,6 +9563,29 @@ def new_safety_checklist_result(index):
 
     checklist = _dkss_checklist_common.checklist_to_dict(checklist_record)
 
+    def render_result_form(selected_vehicle=None, **form_values):
+        criteria_list = []
+
+        for item in checklist["items"]:
+            if item.get("item_type") != "check":
+                continue
+
+            criteria = item.get("criteria", "")
+            if criteria and criteria not in criteria_list:
+                criteria_list.append(criteria)
+
+        return _dkss_common.render_template(
+            "checklist_result_form.html",
+            person_selection_token=_person_forms.issue(),
+            checklist=checklist,
+            index=checklist_record.id,
+            criteria_list=criteria_list,
+            drivers=_dkss_vehicle_readers.drivers_for_current_company(),
+            selected_vehicle=selected_vehicle,
+            offices=_dkss_master_readers.offices_for_current_company(),
+            **form_values,
+        )
+
     if _dkss_common.request.method == "POST":
         company_code = _dkss_common.session.get("company_code")
         operation_now = _dkss_common.datetime.now(_dkss_common.ZoneInfo("Asia/Tokyo"))
@@ -9590,6 +9613,8 @@ def new_safety_checklist_result(index):
             "target_office",
             ""
         ).strip()
+
+        vehicle = None
 
         # 対象種別検証
 
@@ -9750,12 +9775,52 @@ def new_safety_checklist_result(index):
                 item.get("answer_required")
                 and not value
             ):
-                return _dkss_http.return_form_errors([
-                    (
-                        "必須項目が未回答です。",
-                        f"answer_{answer_index}"
-                    )
-                ])
+                field = f"answer_{answer_index}"
+                message = "必須項目が未回答です。"
+                if not _dkss_http.is_html_document_request() or any(
+                    _dkss_common.request.headers.get(header) == "1"
+                    for header in ("X-DKSS-Validation-Only", "X-DKSS-Final-Submit")
+                ):
+                    return _dkss_http.return_form_errors([(message, field)])
+
+                form = _dkss_common.request.form
+                check_count = sum(
+                    item.get("item_type") == "check" for item in checklist["items"]
+                )
+                approval_count = sum(
+                    item.get("item_type") == "approval" for item in checklist["items"]
+                )
+                selected_vehicle = None
+                if vehicle is not None:
+                    selected_vehicle = {"number": _dkss_vehicle_readers.vehicle_number({
+                        key: getattr(vehicle, key) or ""
+                        for key in ("plate_area", "plate_class", "plate_kana", "plate_number")
+                    })}
+
+                # Render the invalid form directly rather than storing input in the session.
+                _dkss_common.flash(message, f"error:{field}")
+                return render_result_form(
+                    result={
+                        "checked_by": _dkss_common.session.get("name"),
+                        "target_type": target_type,
+                        "target_username": target_username,
+                        "target_vehicle_record_id": target_vehicle_record_id if vehicle is not None else "",
+                        "target_office": target_office,
+                        "answers": [
+                            {
+                                "value": form.get(f"answer_{index}", ""),
+                                "comment": form.get(f"comment_{index}", ""),
+                                "patrol_link": form.get(f"patrol_link_{index}") == "1",
+                            }
+                            for index in range(check_count)
+                        ],
+                    },
+                    selected_vehicle=selected_vehicle,
+                    selected_approval_users=[
+                        form.getlist(f"approval_notify_users_{index}")
+                        for index in range(approval_count)
+                    ],
+                ), 422, {"Cache-Control": "no-store"}
 
             if len(comment) > 5000:
                 return _dkss_http.return_form_errors([
@@ -10164,26 +10229,7 @@ def new_safety_checklist_result(index):
 
         return _dkss_common.redirect(f"/safety/checklists/{checklist_record.id}")
 
-    criteria_list = []
-
-    for item in checklist["items"]:
-        if item.get("item_type") != "check":
-            continue
-
-        criteria = item.get("criteria", "")
-        if criteria and criteria not in criteria_list:
-            criteria_list.append(criteria)
-
-    return _dkss_common.render_template(
-        "checklist_result_form.html",
-        person_selection_token=_person_forms.issue(),
-        checklist=checklist,
-        index=checklist_record.id,
-        criteria_list=criteria_list,
-        drivers=_dkss_vehicle_readers.drivers_for_current_company(),
-        selected_vehicle=None,
-        offices=_dkss_master_readers.offices_for_current_company()
-    )
+    return render_result_form()
 
 
 
