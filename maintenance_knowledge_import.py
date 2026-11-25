@@ -1226,18 +1226,20 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
 
     # LEGACY_PUBLIC_RULE_REVISION_V1
 
-    # LEGACY_RULE_MONTHLY_QUOTA_V1
-    def count_rule_upgrades(company_code, month):
+    def count_public_imports(company_code, month):
+        """Count successful public imports from the saved extraction records."""
         if (not isinstance(company_code, str) or not company_code.strip()
                 or not isinstance(month, str)
                 or re.fullmatch(r"[0-9]{4}-[0-9]{2}", month) is None):
-            raise ValueError("RULE_UPGRADE_MONTH_INVALID")
-        parsed = datetime.strptime(month, "%Y-%m")
-        return KnowledgeRuleExtraction.query.filter_by(
+            raise ValueError("PUBLIC_KNOWLEDGE_MONTH_INVALID")
+        prefix = datetime.strptime(month, "%Y-%m").strftime("%Y/%m/") + "%"
+        new_documents = KnowledgeDocument.query.filter_by(
+            company_code=company_code, created_by="public-knowledge-worker",
+        ).filter(KnowledgeDocument.created_at.like(prefix)).count()
+        rule_upgrades = KnowledgeRuleExtraction.query.filter_by(
             company_code=company_code,
-        ).filter(
-            KnowledgeRuleExtraction.created_at.like(parsed.strftime("%Y/%m/") + "%"),
-        ).count()
+        ).filter(KnowledgeRuleExtraction.created_at.like(prefix)).count()
+        return new_documents + rule_upgrades
 
     def document_needs_rule_upgrade(company_code, document_id):
         document = KnowledgeDocument.query.filter_by(
@@ -1681,7 +1683,7 @@ def register_knowledge_import(app, db, Knowledge, prepare_pdf):
     app.extensions["maintenance_knowledge_import"] = {
         "store_public_document": store_public_document,
         "document_needs_rule_upgrade": document_needs_rule_upgrade,
-        "count_rule_upgrades": count_rule_upgrades,
+        "count_public_imports": count_public_imports,
         "get_vehicle_scopes": get_vehicle_scopes,
         "get_verified_document_context": get_verified_document_context,
     }

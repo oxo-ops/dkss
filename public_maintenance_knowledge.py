@@ -276,15 +276,10 @@ def register_public_knowledge(app, db, Vehicle, Company, Knowledge):
         else:
             month = now.strftime("%Y-%m")
             limit = max(0, min(100, int(os.environ.get("PUBLIC_KNOWLEDGE_MONTHLY_LIMIT", "10"))))
-            imported = PublicKnowledgeFile.query.filter_by(
-                company_code=row.company_code, last_import_month=month,
-            ).count()
-            # LEGACY_RULE_MONTHLY_QUOTA_V1
-            upgrade_counter = extension.get("count_rule_upgrades")
-            if upgrade_enabled and not callable(upgrade_counter):
-                raise ValueError("RULE_UPGRADE_QUOTA_COUNTER_UNAVAILABLE")
-            if callable(upgrade_counter):
-                imported += upgrade_counter(row.company_code, month)
+            count_imports = extension.get("count_public_imports")
+            if not callable(count_imports):
+                raise ValueError("PUBLIC_KNOWLEDGE_MONTHLY_COUNTER_UNAVAILABLE")
+            imported = count_imports(row.company_code, month)
             if imported >= limit:
                 # 読取り上限への到達だけでは、既存の知識を廃止しない。
                 # 新版の取得・検証が完了するまで旧版と原本を保持する。
