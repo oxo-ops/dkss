@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: alseon-staging-d01-web
+    runtime: docker
+    repo: https://github.com/oxo-ops/dkss
+    branch: staging/d01-private-package
+    region: oregon
+    plan: 0.5c-512mb
+    numInstances: 1
+    dockerfilePath: ./infra/D01-stage.Dockerfile
+    dockerContext: .
+    healthCheckPath: /login
+    autoDeployTrigger: off
+    previews:
+      generation: off
+    envVars:
+      - key: ALSEON_STAGING_ONLY
+        value: '1'
+      - key: STAGING_PACKAGE_SHA
+        value: 4d8c39b2291384a4dd89f218a38f0753d828fef3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alseon-staging-pg18-3qoj
+          property: connectionString
+      - key: STAGING_DB_HOST
+        value: dpg-dc39t8gm7kps73dla69g-a
+      - key: MFA_ENABLED
+        value: 'false'
+      - key: DOCUMENT_IMPORT_WORKER_ENABLED
+        value: '0'
+      - key: VEHICLE_ANALYSIS_WORKER_ENABLED
+        value: '0'
+      - key: PUBLIC_KNOWLEDGE_ENABLED
+        value: '0'
