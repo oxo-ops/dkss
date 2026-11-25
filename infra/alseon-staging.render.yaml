@@ -1,0 +1,56 @@
+services:
+  - type: pserv
+    name: alseon-staging-d01
+    runtime: python
+    region: oregon
+    plan: 0.5c-512mb
+    branch: 'staging/d01-frozen-candidate'
+    autoDeployTrigger: 'off'
+    buildCommand: python verify_render_environment.py --pre && python -m pip install -r requirements.render.txt && python -m pip check && python verify_render_environment.py
+    preDeployCommand: >-
+      python -c 'import os, re, sys; from urllib.parse import urlsplit; d=urlsplit(os.environ.get("DATABASE_URL","")); r=urlsplit(os.environ.get("RATELIMIT_STORAGE_URI","")); h=os.environ.get("STAGING_DB_HOST",""); bad=("S3_BUCKET_NAME","SMTP_HOST","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","OPENAI_API_KEY","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"); ok=(os.environ.get("ALSEON_STAGING_ONLY")=="1" and os.environ.get("RENDER_GIT_COMMIT")=="ae90c5a5324dfcabb4832bb72500510d457dc47b" and d.scheme=="postgresql" and d.path=="/alseon_staging" and d.username=="alseon_staging" and d.hostname==h and bool(re.fullmatch(r"dpg-[a-z0-9]+(?:-a)?",h)) and r.scheme in ("redis","rediss") and bool(r.hostname) and not any(os.environ.get(k) for k in bad)); ok or sys.exit("STAGING_ONLY_GUARD_REJECTED")' && flask --app app init-db
+    startCommand: >-
+      python -c 'import os, re, sys; from urllib.parse import urlsplit; d=urlsplit(os.environ.get("DATABASE_URL","")); r=urlsplit(os.environ.get("RATELIMIT_STORAGE_URI","")); h=os.environ.get("STAGING_DB_HOST",""); bad=("S3_BUCKET_NAME","SMTP_HOST","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","OPENAI_API_KEY","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"); ok=(os.environ.get("ALSEON_STAGING_ONLY")=="1" and os.environ.get("RENDER_GIT_COMMIT")=="ae90c5a5324dfcabb4832bb72500510d457dc47b" and d.scheme=="postgresql" and d.path=="/alseon_staging" and d.username=="alseon_staging" and d.hostname==h and bool(re.fullmatch(r"dpg-[a-z0-9]+(?:-a)?",h)) and r.scheme in ("redis","rediss") and bool(r.hostname) and not any(os.environ.get(k) for k in bad)); ok or sys.exit("STAGING_ONLY_GUARD_REJECTED")' && exec gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: '3.14.10'
+      - key: ALSEON_STAGING_ONLY
+        value: '1'
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ITC_INITIAL_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alseon-staging-pg18
+          property: connectionString
+      - key: STAGING_DB_HOST
+        fromDatabase:
+          name: alseon-staging-pg18
+          property: host
+      - key: RATELIMIT_STORAGE_URI
+        fromService:
+          type: keyvalue
+          name: alseon-staging-ratelimit
+          property: connectionString
+      - key: MFA_ENABLED
+        value: 'false'
+      - key: DOCUMENT_IMPORT_WORKER_ENABLED
+        value: '0'
+      - key: VEHICLE_ANALYSIS_WORKER_ENABLED
+        value: '0'
+  - type: keyvalue
+    name: alseon-staging-ratelimit
+    region: oregon
+    plan: free
+    ipAllowList: []
+databases:
+  - name: alseon-staging-pg18
+    databaseName: alseon_staging
+    user: alseon_staging
+    postgresMajorVersion: '18'
+    plan: 0.1c-256mb
+    region: oregon
+    diskSizeGB: 1
+    ipAllowList: []
+    storageAutoscalingEnabled: false
